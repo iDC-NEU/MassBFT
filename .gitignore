@@ -40,9 +40,10 @@
 **/CMakeScripts
 **/compile_commands.json
 
-## Local 
-
-.idea/*
+# Clion
+cmake-build-debug
+cmake-build-release
+.idea
 
 build/*
 

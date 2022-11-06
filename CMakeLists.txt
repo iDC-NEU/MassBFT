@@ -10,7 +10,7 @@ SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${CMAKE_CXX_FLAGS_COMMON
 
 # CMAKE_INSTALL_PREFIX: Install directory used by install().
 # PROJECT_SOURCE_DIR refers to the source directory of the most recent project() command.
-set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build)
+set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR})
 
 # include INSTALL_INCLUDE_DIR
 include_directories(${PROJECT_SOURCE_DIR}/include)

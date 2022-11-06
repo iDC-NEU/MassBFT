@@ -54,7 +54,7 @@ TEST_F(DividerTest, DivisionByZero) {
     d.divide();
     FAIL() << "Expected divide() method to throw DivisionByZeroException";
   } catch (DivisionByZero const &err) {
-    EXPECT_EQ(err.what(), DIVISION_BY_ZERO_MESSAGE);
+    EXPECT_EQ(string(err.what()), string(DIVISION_BY_ZERO_MESSAGE));
   }
   catch (...) {
     FAIL() << "Expected DivisionByZeroException!";

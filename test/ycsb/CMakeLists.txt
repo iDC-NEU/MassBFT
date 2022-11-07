@@ -4,6 +4,7 @@ set(SOURCE_FILES
         core/generator/zipfian_generator_tests.cpp
         core/generator/scrambled_zipfian_generator_tests.cpp
         core/generator/uniform_long_generator_tests.cpp
+        core/generator/acknowledge_counter_generator_tests.cpp
         ycsb_tests.cpp
         )
 

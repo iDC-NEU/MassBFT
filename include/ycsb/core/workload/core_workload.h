@@ -17,7 +17,7 @@
 #include "ycsb/core/generator/exponential_generator.h"
 #include "ycsb/core/generator/sequential_generator.h"
 #include "ycsb/core/generator/skewed_latest_generator.h"
-#include "ycsb/core/generator/hot_spot_inyerger_generator.h"
+#include "ycsb/core/generator/hot_spot_interger_generator.h"
 #include "ycsb/core/generator/acknowledge_counter_generator.h"
 #include "ycsb/core/measurements/measurements.h"
 #include "ycsb/core/client.h"

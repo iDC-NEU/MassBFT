@@ -82,7 +82,7 @@ namespace ycsb::core {
          * @param zipfianConstant The zipfian constant to use.
          */
         ZipfianGenerator(uint64_t min, uint64_t max, double zipfianConstant = ZIPFIAN_CONSTANT)
-                : ZipfianGenerator(min, max, zipfianConstant, zetaStatic(0, max - min + 1, zipfianConstant, 0)) { }
+                : ZipfianGenerator(min, max, zipfianConstant, ZetaStatic(0, max - min + 1, zipfianConstant, 0)) { }
         /**
          * Create a zipfian generator for items between min and max (inclusive) for the specified zipfian constant, using
          * the precomputed value of zeta.
@@ -123,9 +123,10 @@ namespace ycsb::core {
          */
         inline double zeta(uint64_t st, uint64_t n, double thetaVal, double initialSum) {
             countForZeta = n;
-            return zetaStatic(st, n, thetaVal, initialSum);
+            return ZetaStatic(st, n, thetaVal, initialSum);
         }
-    protected:
+
+    public:
         /**
          * Compute the zeta constant needed for the distribution. Do this incrementally for a distribution that
          * has n items now but used to have st items. Use the zipfian constant theta. Remember the new value of
@@ -135,7 +136,7 @@ namespace ycsb::core {
          * @param theta The zipfian constant.
          * @param initialSum The value of zeta we are computing incrementally from.
          */
-        static double zetaStatic(uint64_t st, uint64_t n, double theta, double initialSum) {
+        static double ZetaStatic(uint64_t st, uint64_t n, double theta, double initialSum) {
             double sum = initialSum;
             for (uint64_t i = st; i < n; i++) {
                 sum += 1 / (std::pow(i + 1, theta));

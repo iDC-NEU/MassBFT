@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 set(SOURCE_FILES
         core/generator/zipfian_generator_tests.cpp
+        core/generator/scrambled_zipfian_generator_tests.cpp
         ycsb_tests.cpp
         )
 

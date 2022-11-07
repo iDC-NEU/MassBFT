@@ -57,6 +57,9 @@ namespace ycsb::core {
          */
         ScrambledZipfianGenerator(uint64_t min, uint64_t max, double zipfianConstant)
         : min(min), max(max), itemCount(max-min+1) {
+            if (itemCount != ITEM_COUNT) {
+                LOG(WARNING) << "ScrambledZipfianGenerator init with item count: " << itemCount << " != " << ITEM_COUNT;
+            }
             if (zipfianConstant == USED_ZIPFIAN_CONSTANT) {
                 zipfianGenerator = std::make_unique<ZipfianGenerator>(0, ITEM_COUNT, zipfianConstant, ZETAN);
             } else {

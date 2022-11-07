@@ -41,9 +41,6 @@ protected:
     // the zipf distribution tested from official ycsb
     static std::initializer_list<int> YCSB_ZIPF99_0_10_1E7;
     static std::initializer_list<int> YCSB_ZIPF99_0_1E6_1E7;
-
-protected:
-
 };
 
 TEST_F(ZipfianGeneratorTest, OutOfRange) {
@@ -86,6 +83,11 @@ TEST_F(ZipfianGeneratorTest, ConcurrentAccess) {
     t1.join();
     t2.join();
     t3.join();
+}
+
+TEST_F(ZipfianGeneratorTest, TestZetaStaticCalculation) {
+    auto newZetan = ycsb::core::ZipfianGenerator::ZetaStatic(0, 100000000, ycsb::core::ZipfianGenerator::ZIPFIAN_CONSTANT, 0);
+    EXPECT_TRUE(std::abs(20.80293049002014 - newZetan) < 0.0000000001);
 }
 
 std::initializer_list<int> ZipfianGeneratorTest::YCSB_ZIPF99_0_10_1E7 = {3280393, 1649922, 1198018, 852880, 664195, 542254, 460741, 397192, 352452, 315486, 285257};

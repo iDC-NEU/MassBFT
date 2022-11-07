@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <random>
 #include <cstdint>
 #include "common/thread_local_store.h"
 

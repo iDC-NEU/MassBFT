@@ -2,7 +2,6 @@
 // Created by peng on 11/7/22.
 //
 
-#include <thread>
 #include "gtest/gtest.h"
 #include "ycsb/core/generator/scrambled_zipfian_generator.h"
 
@@ -33,7 +32,7 @@ TEST_F(ScrambledZipfianGeneratorTest, ScrambledZipfianCorrectness) {
     auto mapping = TestCount(*sz, count);
     EXPECT_TRUE(mapping.size() == 11);
     for (uint64_t i = 0; i <= 10; i++) {
-        EXPECT_TRUE(mapping[i] < target.begin()[i]*1.05) << mapping[i] << " "<< target.begin()[i] << "distribution test failed!";
+        EXPECT_TRUE(mapping[i] < target.begin()[i]*1.05) << "distribution test failed!";
         EXPECT_TRUE(mapping[i] > target.begin()[i]*0.95) << "distribution test failed!";
     }
 }

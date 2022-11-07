@@ -1,22 +1,24 @@
 cmake_minimum_required(VERSION 3.12)
 project(ycsb_client)
 
-include(FindThreads)
-find_package(glog REQUIRED)
-
 # After source files is built.
 set(SOURCE_FILES
         measurements/measurements.cpp
         property.cpp
-        ycsb.cpp
 )
 
-add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+add_library(${LIB_YCSB} SHARED STATIC ${SOURCE_FILES})
+
+add_executable(${PROJECT_NAME}
+        ycsb.cpp
+        )
+
 target_link_libraries(${PROJECT_NAME}
-        pthread
-        glog
-        yaml-cpp
+        ${LIB_PTHREADS}
+        ${LIB_GLOG}
+        ${LIB_YAML}
+        ${LIB_YCSB}
         )
 
 # install to ${CMAKE_INSTALL_PREFIX}/bin folder.
-install(TARGETS ycsb_client DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

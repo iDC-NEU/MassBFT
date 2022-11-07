@@ -15,5 +15,12 @@ set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR})
 # include INSTALL_INCLUDE_DIR
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+# set libs name
+SET(LIB_PTHREADS pthread)
+SET(LIB_GLOG glog)
+SET(LIB_YAML yaml-cpp)
+
+SET(LIB_YCSB ycsb)
+
 add_subdirectory(src)
 add_subdirectory(test)

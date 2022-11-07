@@ -14,8 +14,8 @@ namespace ycsb::core {
         uint64_t lowerBound, upperBound, hotInterval, coldInterval;
         double hotsetFraction, hotOpnFraction;
     public:
-        static auto NewHotspotIntegerGenerator(uint64_t seed, uint64_t lowerBound, uint64_t upperBound, double hotsetFraction, double hotOpnFraction) {
-            return std::make_unique<HotspotIntegerGenerator> (seed, lowerBound, upperBound, hotsetFraction, hotOpnFraction);
+        static auto NewHotspotIntegerGenerator(uint64_t lowerBound, uint64_t upperBound, double hotsetFraction, double hotOpnFraction) {
+            return std::make_unique<HotspotIntegerGenerator> (lowerBound, upperBound, hotsetFraction, hotOpnFraction);
         }
 
         /**
@@ -26,8 +26,7 @@ namespace ycsb::core {
          * @param hotsetFraction percentage of data item
          * @param hotOpnFraction percentage of operations accessing the hot set.
          */
-        HotspotIntegerGenerator(uint64_t seed, uint64_t lowerBound, uint64_t upperBound, double hotsetFraction, double hotOpnFraction)
-        : uintGenerator(seed), doubleGenerator(seed){
+        HotspotIntegerGenerator(uint64_t lowerBound, uint64_t upperBound, double hotsetFraction, double hotOpnFraction) {
             if (hotsetFraction < 0.0 || hotsetFraction > 1.0) {
                 LOG(ERROR) << "Hotset fraction out of range. Setting to 0.0";
                 hotsetFraction = 0.0;

@@ -30,18 +30,18 @@ namespace ycsb::core {
         int threadCount;
         const YAML::Node& props;
         uint64_t targetOpsTickNs;
-    /**
-     * Constructor.
-     *
-     * @param db                   the DB implementation to use
-     * @param dotransactions       true to do transactions, false to insert data
-     * @param workload             the workload to use
-     * @param props                the properties defining the experiment
-     * @param opcount              the number of operations (transactions or inserts) to do
-     * @param targetperthreadperms target number of operations per thread per ms
-     * @param completeLatch        The latch tracking the completion of all clients.
-     */
     public:
+        /**
+         * Constructor.
+         *
+         * @param db                   the DB implementation to use
+         * @param dotransactions       true to do transactions, false to insert data
+         * @param workload             the workload to use
+         * @param props                the properties defining the experiment
+         * @param opcount              the number of operations (transactions or inserts) to do
+         * @param targetperthreadperms target number of operations per thread per ms
+         * @param completeLatch        The latch tracking the completion of all clients.
+         */
         ClientThread(std::unique_ptr<DB> db, bool doTransactions, workload::Workload* workload, const YAML::Node& props, int opCount,
                      double targetPerThreadPerms, moodycamel::LightweightSemaphore& completeLatch)
                      :completeLatch(completeLatch), db(std::move(db)), doTransactions(doTransactions),
@@ -85,6 +85,8 @@ namespace ycsb::core {
 
     private:
         void doWork() {
+            // set thread local seed, use tid as seed, the delay is unique
+            utils::RandomUINT64::GetThreadLocalRandomGenerator()->seed(tid);
             db->init();
             auto workloadState = workload->initThread(props, tid, threadCount);
             // TODO: destroy workloadState
@@ -98,7 +100,7 @@ namespace ycsb::core {
             // GH issue 4 - throws exception if _target>1 because random.nextInt argument must be >0
             // and the sleep() doesn't make sense for granularities < 1 ms anyway
             if ((targetOpsPerMs > 0) && (targetOpsPerMs <= 1.0)) {
-                auto randGen = utils::RandomUINT64::NewRandomUINT64(tid); // use tid as seed, the delay is unique
+                auto randGen = utils::RandomUINT64::NewRandomUINT64();
                 auto randomMinorDelay = randGen->nextValue() % targetOpsTickNs;
                 util::Timer::sleep_ns((long)randomMinorDelay);
             }

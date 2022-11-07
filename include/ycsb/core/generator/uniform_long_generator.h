@@ -18,12 +18,12 @@ namespace ycsb::core {
      */
     class UniformLongGenerator : public NumberGenerator {
     public:
-        static auto NewUniformLongGenerator(uint64_t seed, uint64_t lb, uint64_t ub) {
-            return std::make_unique<UniformLongGenerator>(seed, lb, ub);
+        static auto NewUniformLongGenerator(uint64_t lb, uint64_t ub) {
+            return std::make_unique<UniformLongGenerator>(lb, ub);
         }
 
-        explicit UniformLongGenerator(uint64_t seed, uint64_t lb, uint64_t ub)
-                : generator(seed, lb, ub) {
+        explicit UniformLongGenerator(uint64_t lb, uint64_t ub)
+                : generator(lb, ub) {
             m = double(lb + ub) / 2.0;
         }
         uint64_t nextValue() override {

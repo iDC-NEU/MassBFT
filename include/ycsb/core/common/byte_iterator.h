@@ -175,7 +175,7 @@ namespace ycsb::utils {
         std::vector<char> buf;
         RandomUINT64 generator;
     public:
-        explicit RandomByteIterator(long len): generator(0)  {
+        explicit RandomByteIterator(long len) {
             this->len = len;
             this->buf.resize(6);
             this->bufOff = buf.size();

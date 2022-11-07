@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include "common/thread_local_store.h"
 
 namespace ycsb::core {
     /**
@@ -31,6 +32,10 @@ namespace ycsb::core {
          * Return the expected value (mean) of the values this generator will return.
          */
         virtual double mean() = 0;
+
+        static inline auto GetThreadLocalRandomGenerator() {
+            return util::ThreadLocalStore<std::default_random_engine>::Get();
+        }
 
     protected:
         /**

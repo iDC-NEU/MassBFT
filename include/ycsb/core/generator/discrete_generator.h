@@ -45,9 +45,6 @@ namespace ycsb::core {
             return -1;
         }
 
-        explicit DiscreteGenerator(uint64_t seed)
-                :randomDouble(seed) {}
-
     private:
         utils::RandomDouble randomDouble;
         std::vector<std::pair<Operation, double>> values{};

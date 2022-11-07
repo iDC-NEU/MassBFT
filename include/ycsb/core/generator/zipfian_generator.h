@@ -73,8 +73,8 @@ namespace ycsb::core {
          * @param items The number of items in the distribution.
          * @param zipfianConstant The zipfian constant to use.
          */
-        explicit ZipfianGenerator(uint64_t num_items, double zipfianConstant = ZIPFIAN_CONSTANT)
-                : ZipfianGenerator(0, num_items - 1, zipfianConstant) { }
+        explicit ZipfianGenerator(uint64_t num_items)
+                : ZipfianGenerator(0, num_items - 1, ZIPFIAN_CONSTANT) { }
         /**
          * Create a zipfian generator for items between min and max (inclusive) for the specified zipfian constant.
          * @param min The smallest integer to generate in the sequence.
@@ -100,17 +100,13 @@ namespace ycsb::core {
                   theta(this->zipfianConstant), zeta2theta{zeta(0, 2, theta, 0)},
                   countForZeta(items) {
             LOG_ASSERT(items >= 2 && items < MAX_NUMBER_ITEMS);
+            randomDouble = utils::RandomDouble::NewRandomDouble();
             alpha = 1.0 / (1.0 - theta);
             eta = calculateEta();
 
             ZipfianGenerator::nextValue();
         }
-        /**
-         * Set a generator generating random double numbers between [0, 1].
-         */
-        void setRandomDouble(std::unique_ptr<DoubleGenerator> generator) {
-            this->randomDouble = std::move(generator);
-        }
+
     private:
         [[nodiscard]] inline double calculateEta() const {
             return (1 - std::pow(2.0 / (double)items, 1 - theta)) / (1 - zeta2theta / zetaN);
@@ -147,10 +143,8 @@ namespace ycsb::core {
             return sum;
         }
     public:
-        static auto NewZipfianGenerator(uint64_t seed, uint64_t min, uint64_t max) {
+        static auto NewZipfianGenerator(uint64_t min, uint64_t max) {
             auto generator = std::make_unique<ZipfianGenerator>(min, max, ZipfianGenerator::ZIPFIAN_CONSTANT);
-            auto randomDouble = utils::RandomDouble::NewRandomDouble(seed);
-            generator->setRandomDouble(std::move(randomDouble));
             return generator;
         }
 

@@ -13,13 +13,13 @@ namespace ycsb::core {
         CounterGenerator* basis;
         std::unique_ptr<ZipfianGenerator> zipfian;
     public:
-        static auto NewSkewedLatestGenerator(uint64_t seed, CounterGenerator* basis) {
-            return std::make_unique<SkewedLatestGenerator>(seed, basis);
+        static auto NewSkewedLatestGenerator(CounterGenerator* basis) {
+            return std::make_unique<SkewedLatestGenerator>(basis);
         }
 
-        SkewedLatestGenerator(uint64_t seed, CounterGenerator* basis) {
+        explicit SkewedLatestGenerator(CounterGenerator* basis) {
             this->basis = basis;
-            zipfian = ZipfianGenerator::NewZipfianGenerator(seed, 0, this->basis->lastValue()-1);
+            zipfian = ZipfianGenerator::NewZipfianGenerator(0, this->basis->lastValue()-1);
             SkewedLatestGenerator::nextValue();
         }
 

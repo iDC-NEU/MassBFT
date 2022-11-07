@@ -310,7 +310,7 @@ namespace ycsb::core::workload {
             return keyPrefix + value;
         }
     protected:
-        static std::unique_ptr<NumberGenerator> getFieldLengthGenerator(uint64_t seed, const YAML::Node& n) noexcept(false) {
+        static std::unique_ptr<NumberGenerator> getFieldLengthGenerator(const YAML::Node& n) noexcept(false) {
             std::unique_ptr<NumberGenerator> fieldLengthGenerator;
             auto fieldLengthDistribution = n[FIELD_LENGTH_DISTRIBUTION_PROPERTY].as<std::string>(FIELD_LENGTH_DISTRIBUTION_PROPERTY_DEFAULT);
             auto fieldLength = n[FIELD_LENGTH_PROPERTY].as<int>(FIELD_LENGTH_PROPERTY_DEFAULT);
@@ -319,9 +319,9 @@ namespace ycsb::core::workload {
             if (fieldLengthDistribution == "constant") {
                 fieldLengthGenerator = ConstantIntegerGenerator::NewConstantIntegerGenerator(fieldLength);
             } else if (fieldLengthDistribution == "constant") {
-                fieldLengthGenerator = UniformLongGenerator::NewUniformLongGenerator(seed, minFieldLength, fieldLength);
+                fieldLengthGenerator = UniformLongGenerator::NewUniformLongGenerator(minFieldLength, fieldLength);
             } else if (fieldLengthDistribution == "zipfian") {
-                fieldLengthGenerator = ZipfianGenerator::NewZipfianGenerator(seed, minFieldLength, fieldLength);
+                fieldLengthGenerator = ZipfianGenerator::NewZipfianGenerator(minFieldLength, fieldLength);
             } else if (fieldLengthDistribution == "histogram") {
                 // TODO: HistogramGenerator
             } else {
@@ -332,7 +332,6 @@ namespace ycsb::core::workload {
     public:
         // A single thread init the workload.
         void init(const YAML::Node& n) override {
-            const uint64_t seed = 0;    // set ALL seeds to zero, must be reset in separate threads!
             table = n[TABLENAME_PROPERTY].as<std::string>(TABLENAME_PROPERTY_DEFAULT);
             fieldCount = n[FIELD_COUNT_PROPERTY].as<uint64_t>(FIELD_COUNT_PROPERTY_DEFAULT);
             const auto fieldNamePrefix = n[FIELD_NAME_PREFIX].as<std::string>(FIELD_NAME_PREFIX_DEFAULT);
@@ -341,7 +340,7 @@ namespace ycsb::core::workload {
             for (uint64_t i = 0; i < fieldCount; i++) {
                 fieldnames.push_back(fieldNamePrefix + std::to_string(i));
             }
-            fieldLengthGenerator = CoreWorkload::getFieldLengthGenerator(seed, n);
+            fieldLengthGenerator = CoreWorkload::getFieldLengthGenerator(n);
             recordCount = n[Client::RECORD_COUNT_PROPERTY].as<uint64_t>(Client::DEFAULT_RECORD_COUNT);
             if (recordCount == 0) {
                 recordCount = UINT64_MAX;
@@ -374,15 +373,15 @@ namespace ycsb::core::workload {
                 orderedInserts = true;
             }
             keySequence = CounterGenerator::NewCounterGenerator(insertStart);
-            operationChooser = createOperationGenerator(seed, n);
+            operationChooser = createOperationGenerator(n);
 
             transactionInsertKeySequence = AcknowledgedCounterGenerator::NewAcknowledgedCounterGenerator(recordCount);
             if (requestDistrib == "uniform") {
-                keyChooser = UniformLongGenerator::NewUniformLongGenerator(seed, insertStart, insertStart + insertCount - 1);
+                keyChooser = UniformLongGenerator::NewUniformLongGenerator(insertStart, insertStart + insertCount - 1);
             } else if (requestDistrib == "exponential") {
                 auto percentile = n[ExponentialGenerator::EXPONENTIAL_PERCENTILE_PROPERTY].as<double>(ExponentialGenerator::EXPONENTIAL_PERCENTILE_DEFAULT);
                 auto frac = n[ExponentialGenerator::EXPONENTIAL_FRAC_PROPERTY].as<double>(ExponentialGenerator::EXPONENTIAL_FRAC_DEFAULT);
-                keyChooser = ExponentialGenerator::NewExponentialGenerator(seed, percentile, (double)recordCount * frac);
+                keyChooser = ExponentialGenerator::NewExponentialGenerator(percentile, (double)recordCount * frac);
             } else if (requestDistrib == "sequential") {
                 keyChooser = SequentialGenerator::NewSequentialGenerator(insertStart, insertStart + insertCount - 1);
             } else if (requestDistrib == "zipfian") {
@@ -397,22 +396,22 @@ namespace ycsb::core::workload {
                 const auto insertProportion = n[INSERT_PROPORTION_PROPERTY].as<double>(INSERT_PROPORTION_PROPERTY_DEFAULT);
                 auto opCount = n[Client::OPERATION_COUNT_PROPERTY].as<int>();
                 auto expectedNewKeys = (int) ((opCount) * insertProportion * 2.0); // 2 is fudge factor
-                keyChooser = ScrambledZipfianGenerator::NewScrambledZipfianGenerator(seed, insertStart, insertStart + insertCount + expectedNewKeys);
+                keyChooser = ScrambledZipfianGenerator::NewScrambledZipfianGenerator(insertStart, insertStart + insertCount + expectedNewKeys);
             } else if (requestDistrib == "latest") {
-                keyChooser = SkewedLatestGenerator::NewSkewedLatestGenerator(seed, transactionInsertKeySequence.get());
+                keyChooser = SkewedLatestGenerator::NewSkewedLatestGenerator(transactionInsertKeySequence.get());
             } else if (requestDistrib == "hotspot") {
                 auto hotSetFraction = n[HOTSPOT_DATA_FRACTION].as<double>(HOTSPOT_DATA_FRACTION_DEFAULT);
                 auto hotOpnFraction = n[HOTSPOT_OPN_FRACTION].as<double>(HOTSPOT_OPN_FRACTION_DEFAULT);
-                keyChooser = HotspotIntegerGenerator::NewHotspotIntegerGenerator(seed, insertStart, insertStart + insertCount - 1,
+                keyChooser = HotspotIntegerGenerator::NewHotspotIntegerGenerator(insertStart, insertStart + insertCount - 1,
                                                         hotSetFraction, hotOpnFraction);
             } else {
                 throw utils::WorkloadException("Unknown request distribution \"" + requestDistrib + "\"");
             }
-            fieldChooser = UniformLongGenerator::NewUniformLongGenerator(seed, 0, fieldCount - 1);
+            fieldChooser = UniformLongGenerator::NewUniformLongGenerator(0, fieldCount - 1);
             if (scanLengthDistrib == "uniform") {
-                scanLength = UniformLongGenerator::NewUniformLongGenerator(seed, minScanLength, maxScanLength);
+                scanLength = UniformLongGenerator::NewUniformLongGenerator(minScanLength, maxScanLength);
             } else if (scanLengthDistrib == "zipfian") {
-                scanLength = ZipfianGenerator::NewZipfianGenerator(seed, minScanLength, maxScanLength);
+                scanLength = ZipfianGenerator::NewZipfianGenerator(minScanLength, maxScanLength);
             } else {
                 throw utils::WorkloadException("Distribution \"" + scanLengthDistrib + "\" not allowed for scan length");
             }
@@ -700,14 +699,14 @@ namespace ycsb::core::workload {
          * @return A generator that can be used to determine the next operation to perform.
          * @throws IllegalArgumentException if the properties object was null.
          */
-        static std::unique_ptr<DiscreteGenerator> createOperationGenerator(uint64_t seed, const YAML::Node& n) {
+        static std::unique_ptr<DiscreteGenerator> createOperationGenerator(const YAML::Node& n) {
             auto readProportion = n[READ_PROPORTION_PROPERTY].as<double>(READ_PROPORTION_PROPERTY_DEFAULT);
             auto updateProportion =  n[UPDATE_PROPORTION_PROPERTY].as<double>(UPDATE_PROPORTION_PROPERTY_DEFAULT);
             auto insertProportion =  n[INSERT_PROPORTION_PROPERTY].as<double>(INSERT_PROPORTION_PROPERTY_DEFAULT);
             auto scanProportion =  n[SCAN_PROPORTION_PROPERTY].as<double>(SCAN_PROPORTION_PROPERTY_DEFAULT);
             auto readModifyWriteProportion =  n[READMODIFYWRITE_PROPORTION_PROPERTY].as<double>(READMODIFYWRITE_PROPORTION_PROPERTY_DEFAULT);
 
-            auto operationChooser = std::make_unique<DiscreteGenerator>(seed);
+            auto operationChooser = std::make_unique<DiscreteGenerator>();
             if (readProportion > 0) {
                 operationChooser->addValue(readProportion, Operation::READ);
             }

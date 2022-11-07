@@ -7,7 +7,7 @@ namespace util {
     template<typename T>
     class ThreadLocalStore {
     public:
-        static T* Get() {
+        static inline T* Get() {
             static thread_local T inst;
             return &inst;
         }

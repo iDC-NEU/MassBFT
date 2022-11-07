@@ -33,13 +33,13 @@ namespace ycsb::core {
         double gamma;
         std::unique_ptr<DoubleGenerator> randomDouble;
     public:
-        static auto NewExponentialGenerator(uint64_t seed, double percentile, double range) {
-            return std::make_unique<ExponentialGenerator>(seed, percentile, range);
+        static auto NewExponentialGenerator(double percentile, double range) {
+            return std::make_unique<ExponentialGenerator>(percentile, range);
         }
 
-        ExponentialGenerator(uint64_t seed, double percentile, double range) {
+        ExponentialGenerator(double percentile, double range) {
             gamma = -std::log(1.0 - percentile / 100.0) / range;  //1.0/mean;
-            randomDouble = utils::RandomDouble::NewRandomDouble(seed);
+            randomDouble = utils::RandomDouble::NewRandomDouble();
         }
         /**
          * Generate the next item as a long. This distribution will be skewed toward lower values; e.g. 0 will

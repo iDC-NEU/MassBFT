@@ -28,10 +28,8 @@ namespace ycsb::core {
         std::unique_ptr<ZipfianGenerator> zipfianGenerator;
         uint64_t min, max, itemCount;
     public:
-        static auto NewScrambledZipfianGenerator(uint64_t seed, uint64_t min, uint64_t max) {
+        static auto NewScrambledZipfianGenerator(uint64_t min, uint64_t max) {
             auto generator = std::make_unique<ScrambledZipfianGenerator>(min, max, ZipfianGenerator::ZIPFIAN_CONSTANT);
-            auto randomDouble = utils::RandomDouble::NewRandomDouble(seed);
-            generator->setRandomDouble(std::move(randomDouble));
             return generator;
         }
         /**
@@ -64,12 +62,6 @@ namespace ycsb::core {
             } else {
                 zipfianGenerator = std::make_unique<ZipfianGenerator>(0, ITEM_COUNT, zipfianConstant);
             }
-        }
-        /**
-         * Set a generator generating random double numbers between [0, 1].
-         */
-        void setRandomDouble(std::unique_ptr<DoubleGenerator> generator) {
-            this->zipfianGenerator->setRandomDouble(std::move(generator));
         }
     public:
         /**

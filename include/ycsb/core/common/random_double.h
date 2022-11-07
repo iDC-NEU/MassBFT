@@ -5,7 +5,6 @@
 #pragma once
 
 #include <memory>
-#include <memory>
 #include "glog/logging.h"
 #include "ycsb/core/generator/generator.h"
 

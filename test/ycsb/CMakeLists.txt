@@ -5,6 +5,7 @@ set(SOURCE_FILES
         core/generator/scrambled_zipfian_generator_tests.cpp
         core/generator/uniform_long_generator_tests.cpp
         core/generator/acknowledge_counter_generator_tests.cpp
+        core/workload/core_workload_test.cpp
         ycsb_tests.cpp
         )
 
@@ -15,6 +16,7 @@ target_link_libraries(ycsb_tests
         ${LIB_PTHREADS}
         ${LIB_GLOG}
         ${LIB_YCSB}
+        ${LIB_YAML}
         GTest::GTest
         GTest::Main
         )

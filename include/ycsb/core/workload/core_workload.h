@@ -302,14 +302,16 @@ namespace ycsb::core::workload {
             }
             auto value = std::to_string(keyNum);
             int fill = zeroPadding - (int)value.size();
+            fill = fill < 0 ? 0 : fill;
             std::string keyPrefix = "user";
-            keyPrefix.reserve(fill + keyPrefix.size() + value.size() + 1);
+            keyPrefix.reserve(keyPrefix.size() + fill + value.size());
             for (int i = 0; i < fill; i++) {
                 keyPrefix.push_back('0');
             }
             return keyPrefix + value;
         }
-    protected:
+
+    public:
         static std::unique_ptr<NumberGenerator> getFieldLengthGenerator(const YAML::Node& n) noexcept(false) {
             std::unique_ptr<NumberGenerator> fieldLengthGenerator;
             auto fieldLengthDistribution = n[FIELD_LENGTH_DISTRIBUTION_PROPERTY].as<std::string>(FIELD_LENGTH_DISTRIBUTION_PROPERTY_DEFAULT);
@@ -318,17 +320,19 @@ namespace ycsb::core::workload {
             auto fieldLengthHistogram = n[FIELD_LENGTH_HISTOGRAM_FILE_PROPERTY].as<std::string>(FIELD_LENGTH_HISTOGRAM_FILE_PROPERTY_DEFAULT);
             if (fieldLengthDistribution == "constant") {
                 fieldLengthGenerator = ConstantIntegerGenerator::NewConstantIntegerGenerator(fieldLength);
-            } else if (fieldLengthDistribution == "constant") {
+            } else if (fieldLengthDistribution == "uniform") {
                 fieldLengthGenerator = UniformLongGenerator::NewUniformLongGenerator(minFieldLength, fieldLength);
             } else if (fieldLengthDistribution == "zipfian") {
                 fieldLengthGenerator = ZipfianGenerator::NewZipfianGenerator(minFieldLength, fieldLength);
             } else if (fieldLengthDistribution == "histogram") {
                 // TODO: HistogramGenerator
+                CHECK(false) << "not implemented yet.";
             } else {
                 throw utils::WorkloadException("Unknown field length distribution \"" + fieldLengthDistribution + "\"");
             }
             return fieldLengthGenerator;
         }
+
     public:
         // A single thread init the workload.
         void init(const YAML::Node& n) override {
@@ -418,6 +422,7 @@ namespace ycsb::core::workload {
             insertionRetryLimit = n[INSERTION_RETRY_LIMIT].as<int>(INSERTION_RETRY_LIMIT_DEFAULT);
             insertionRetryInterval = n[INSERTION_RETRY_INTERVAL].as<int>(INSERTION_RETRY_INTERVAL_DEFAULT);
         }
+
     private:
         void buildSingleValue(utils::ByteIteratorMap& value, const std::string& key) {
             const auto& fieldKey = fieldnames[fieldChooser->nextValue()];
@@ -447,7 +452,6 @@ namespace ycsb::core::workload {
             }
         }
 
-    private:
         std::string buildDeterministicValue(const std::string& key, const std::string& fieldKey) {
             auto size = fieldLengthGenerator->nextValue();
             std::string sb;
@@ -688,7 +692,7 @@ namespace ycsb::core::workload {
         }
 
 
-    protected:
+    public:
         /**
          * Creates a weighted discrete values with database operations for a workload to perform.
          * Weights/proportions are read from the properties list and defaults are used

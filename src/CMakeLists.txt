@@ -3,6 +3,7 @@ project(divider)
 
 # This project depend on some sub project
 add_subdirectory(division)
+add_subdirectory(ycsb)
 
 # After source files is built.
 set(SOURCE_FILES main.cpp)

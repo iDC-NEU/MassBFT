@@ -1,17 +1,17 @@
 # Download and unpack googletest at configure time
 # See: http://crascit.com/2015/07/25/cmake-gtest/
-configure_file(CMakeLists.txt.in googletest-download/CMakeLists.txt)
+configure_file(CMakeLists.txt.in src/googletest-download/CMakeLists.txt)
 # Call CMake to download and Google Test
 execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
         RESULT_VARIABLE result
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download )
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src/googletest-download)
 if(result)
     message(FATAL_ERROR "CMake step for googletest failed: ${result}")
 endif()
 # Build the downloaded google test
 execute_process(COMMAND ${CMAKE_COMMAND} --build .
         RESULT_VARIABLE result
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download )
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src/googletest-download)
 if(result)
     message(FATAL_ERROR "Build step for googletest failed: ${result}")
 endif()
@@ -25,8 +25,8 @@ set(INSTALL_GMOCK OFF CACHE BOOL "" FORCE)
 
 # Add googletest directly to our build. This defines
 # the gtest and gtest_main targets.
-add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
-        ${CMAKE_CURRENT_BINARY_DIR}/googletest-build)
+add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/src/googletest
+        ${CMAKE_CURRENT_BINARY_DIR}/src/googletest-build)
 
 # This is a bit of a hack that can be used to get gtest libraries to build in C++11 if you aren't using CMAKE_CXX_STANDARD
 #

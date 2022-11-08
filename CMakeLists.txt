@@ -15,6 +15,12 @@ set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR})
 # include INSTALL_INCLUDE_DIR
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+add_subdirectory(vendor/googletest)
+add_subdirectory(vendor/yamlcpp)
+
+include_directories(${CMAKE_BINARY_DIR}/include)
+LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib)
+
 # set libs name
 SET(LIB_PTHREADS pthread)
 SET(LIB_GLOG glog)

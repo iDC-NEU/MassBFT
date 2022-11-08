@@ -6,7 +6,6 @@ project (unit_tests)
 # enable CTest testing
 enable_testing()
 
-add_subdirectory(googletest)
 add_subdirectory(division)
 add_subdirectory(common)
 add_subdirectory(ycsb)

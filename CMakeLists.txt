@@ -33,12 +33,14 @@ CPMAddPackage(
 )
 
 CPMAddPackage(
+  NAME spdlog
   GITHUB_REPOSITORY gabime/spdlog
   VERSION 1.8.2
   OPTIONS "SPDLOG_FMT_EXTERNAL 1"
 )
 
 CPMAddPackage(
+  NAME yaml-cpp
   GITHUB_REPOSITORY jbeder/yaml-cpp
   VERSION 0.7.0
   GIT_TAG yaml-cpp-0.7.0
@@ -63,7 +65,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 target_compile_options(${PROJECT_NAME} PUBLIC "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/permissive->")
 
 # Link dependencies
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt spdlog::spdlog yaml-cpp::yaml-cpp)
 
 target_include_directories(
   ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
@@ -77,14 +79,6 @@ target_include_directories(
 # header paths
 string(TOLOWER ${PROJECT_NAME}/version.h VERSION_HEADER_LOCATION)
 
-packageProject(
-  NAME ${PROJECT_NAME}
-  VERSION ${PROJECT_VERSION}
-  NAMESPACE ${PROJECT_NAME}
-  BINARY_DIR ${PROJECT_BINARY_DIR}
-  INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
-  INCLUDE_DESTINATION include/${PROJECT_NAME}-${PROJECT_VERSION}
-  VERSION_HEADER "${VERSION_HEADER_LOCATION}"
-  COMPATIBILITY SameMajorVersion
-  DEPENDENCIES "fmt 8.1.1;spdlog 1.8.2;yaml-cpp 0.7.0"
-)
+add_subdirectory(standalone)
+add_subdirectory(tests)
+add_subdirectory(doc)

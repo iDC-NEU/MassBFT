@@ -18,7 +18,7 @@ CPMAddPackage(
 
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 add_executable(${PROJECT_NAME} ${sources})
-target_link_libraries(${PROJECT_NAME} gtest gtest_main gmock glog yaml-cpp NBP)
+target_link_libraries(${PROJECT_NAME} gtest gtest_main gmock NBP ${COMMON_DEPENDENCIES})
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 
 # enable compiler warnings

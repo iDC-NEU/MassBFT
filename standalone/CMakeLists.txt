@@ -16,4 +16,4 @@ add_executable(${PROJECT_NAME}_ycsb ${sources})
 
 set_target_properties(${PROJECT_NAME}_ycsb PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "NBP_ycsb")
 
-target_link_libraries(${PROJECT_NAME}_ycsb NBP cxxopts yaml-cpp glog pthread)
+target_link_libraries(${PROJECT_NAME}_ycsb NBP cxxopts ${COMMON_DEPENDENCIES})

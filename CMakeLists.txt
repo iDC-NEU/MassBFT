@@ -52,6 +52,8 @@ CPMAddPackage(
         OPTIONS "WITH_GFLAGS OFF"
 )
 
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread)
+
 # ---- Add source files ----
 
 # Note: globbing sources is considered bad practice as CMake's generators may not detect new files
@@ -70,7 +72,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 target_compile_options(${PROJECT_NAME} PUBLIC "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/permissive->")
 
 # Link dependencies
-target_link_libraries(${PROJECT_NAME} PRIVATE glog yaml-cpp pthread)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${COMMON_DEPENDENCIES})
 
 target_include_directories(
         ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>

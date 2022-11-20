@@ -6,22 +6,19 @@ project(NBPTests LANGUAGES CXX)
 
 option(ENABLE_TEST_COVERAGE "Enable test coverage" OFF)
 
-# --- Import tools ----
-
-include(../cmake/tools.cmake)
-
-# ---- Dependencies ----
-
-include(../cmake/CPM.cmake)
-
-CPMAddPackage("gh:onqtam/doctest@2.4.8")
-CPMAddPackage("gh:TheLartians/Format.cmake@1.7.3")
+CPMAddPackage(
+        NAME googletest
+        GITHUB_REPOSITORY google/googletest
+        GIT_TAG release-1.12.1
+        VERSION 1.12.1
+        OPTIONS "INSTALL_GTEST OFF" "gtest_force_shared_crt"
+)
 
 # ---- Create binary ----
 
-file(GLOB sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ycsb/*.cpp)
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 add_executable(${PROJECT_NAME} ${sources})
-target_link_libraries(${PROJECT_NAME} doctest::doctest NBP)
+target_link_libraries(${PROJECT_NAME} gtest gtest_main gmock glog yaml-cpp NBP)
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 
 # enable compiler warnings
@@ -35,13 +32,7 @@ endif()
 # ---- Add GreeterTests ----
 
 enable_testing()
-
-# Note: doctest and similar testing frameworks can automatically configure CMake tests. For other
-# testing frameworks add the tests target instead: add_test(NAME ${PROJECT_NAME} COMMAND
-# ${PROJECT_NAME})
-
-include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
-doctest_discover_tests(${PROJECT_NAME})
+add_test(${PROJECT_NAME} ${PROJECT_NAME})
 
 # ---- code coverage ----
 

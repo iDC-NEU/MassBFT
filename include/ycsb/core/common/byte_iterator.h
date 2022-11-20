@@ -226,24 +226,7 @@ namespace ycsb::utils {
 
     private:
         void fillBytesImpl(std::vector<char>& buffer, int base) {
-            auto bytes = generator.nextValue();
-
-            switch (buffer.size() - base) {
-                default:
-                    buffer[base + 5] = (char) (((bytes >> 25) & 95) + ' ');
-                case 5:
-                    buffer[base + 4] = (char) (((bytes >> 20) & 63) + ' ');
-                case 4:
-                    buffer[base + 3] = (char) (((bytes >> 15) & 31) + ' ');
-                case 3:
-                    buffer[base + 2] = (char) (((bytes >> 10) & 95) + ' ');
-                case 2:
-                    buffer[base + 1] = (char) (((bytes >> 5) & 63) + ' ');
-                case 1:
-                    buffer[base + 0] = (char) (((bytes) & 31) + ' ');
-                case 0:
-                    break;
-            }
+            CHECK(false);
         }
         void fillBytes() {
             if (bufOff == buf.size()) {

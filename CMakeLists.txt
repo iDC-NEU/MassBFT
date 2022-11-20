@@ -8,9 +8,19 @@ project(
         LANGUAGES CXX
 )
 
-find_package(Threads)
 # Set debug and release flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+
+### CHECK g++ version
+if(CMAKE_COMPILER_IS_GNUCXX)
+  execute_process(COMMAND ${CMAKE_C_COMPILER} -dumpversion OUTPUT_VARIABLE GCC_VERSION)
+  if (GCC_VERSION VERSION_GREATER 11.0 OR GCC_VERSION VERSION_EQUAL 11.0)
+    message(STATUS "Support C++20.")
+    set(CMAKE_CXX_STANDARD 20)
+  else ()
+    message(FATAL_ERROR "C++20 needed. Therefore a gcc compiler with a version higher than 11.0 is needed.")
+  endif()
+endif(CMAKE_COMPILER_IS_GNUCXX)
 
 # ---- Include guards ----
 
@@ -25,6 +35,9 @@ endif()
 # see https://github.com/TheLartians/CPM.cmake for more info
 
 include(vendor/CPM.cmake)
+
+### Thread support
+include(FindThreads)
 
 # PackageProject.cmake will be used to make our target installable
 CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.8.0")
@@ -49,10 +62,81 @@ CPMAddPackage(
         GITHUB_REPOSITORY google/glog
         VERSION 0.6.0
         GIT_TAG v0.6.0
-        OPTIONS "WITH_GFLAGS OFF"
+        OPTIONS "WITH_GFLAGS OFF" "WITH_GTEST OFF"
 )
 
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread)
+### Add zmq support (only link cppzmq is enough)
+CPMAddPackage(
+        NAME zmq
+        GITHUB_REPOSITORY zeromq/libzmq
+        VERSION 22.11.20
+        GIT_TAG 8d4f4efef0b45a242c0b0f927d715ac79d863729
+        OPTIONS "ZMQ_BUILD_TESTS OFF" "ENABLE_CURVE OFF" "WITH_TLS OFF"
+)
+
+CPMAddPackage(
+        NAME cppzmq
+        GITHUB_REPOSITORY zeromq/cppzmq
+        VERSION v4.9.0
+        GIT_TAG c66fc6094b2a03439dea8469719e221e80e2e8e7
+)
+
+### concurrent map header only
+CPMAddPackage(
+        NAME unordered_dense  ## include the project name
+        GITHUB_REPOSITORY martinus/unordered_dense
+        VERSION v2.0.0
+        GIT_TAG bf7336568fce3993d0fdb136a9b8599f46d8fb40
+)
+
+### SPMC queue header only
+CPMAddPackage(
+        NAME RiftenDeque  ## include the project name
+        GITHUB_REPOSITORY ConorWilliams/ConcurrentDeque
+        GIT_TAG 1552c895c60b2ca8986abd3f3e4fd38847687d25
+)
+
+### MPMC queue header only
+CPMAddPackage(
+        NAME MPMCQueue  ## include the project name
+        GITHUB_REPOSITORY rigtorp/MPMCQueue
+        GIT_TAG 28d05c021d68fc5280b593329d1982ed02f9d7b3
+)
+
+### A thread pool
+CPMAddPackage(
+        NAME ThreadPool
+        GITHUB_REPOSITORY DeveloperPaul123/thread-pool
+        GIT_TAG 80b3c8b40e881a3b4f88599e873321a46d66f232
+        OPTIONS "TP_BUILD_TESTS OFF" "TP_BUILD_EXAMPLES OFF" "TP_BUILD_BENCHMARKS OFF"
+)
+
+### Crypto support
+find_package(openssl
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+### Protobuf support
+find_package(pbwrapper
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+### zpp-bits support
+find_package(zppbits
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense MPMCQueue RiftenDeque ThreadPool crypto protobuf)
+
+### compile protobuf
+include_directories(${CMAKE_BINARY_DIR}/include)
+LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib)
 
 # ---- Add source files ----
 

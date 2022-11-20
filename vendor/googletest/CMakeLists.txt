@@ -1,20 +1,7 @@
 # Download and unpack googletest at configure time
-# See: http://crascit.com/2015/07/25/cmake-gtest/
-configure_file(CMakeLists.txt.in src/googletest-download/CMakeLists.txt)
-# Call CMake to download and Google Test
-execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-        RESULT_VARIABLE result
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src/googletest-download)
-if(result)
-    message(FATAL_ERROR "CMake step for googletest failed: ${result}")
-endif()
-# Build the downloaded google test
-execute_process(COMMAND ${CMAKE_COMMAND} --build .
-        RESULT_VARIABLE result
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/src/googletest-download)
-if(result)
-    message(FATAL_ERROR "Build step for googletest failed: ${result}")
-endif()
+SET(REPO_NAME googletest)
+
+DOWNLOAD_REPO()
 
 # Prevent overriding the parent project's compiler/linker
 # settings on Windows

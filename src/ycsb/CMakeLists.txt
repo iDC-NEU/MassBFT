@@ -13,6 +13,8 @@ add_executable(${PROJECT_NAME}
         ycsb.cpp
         )
 
+add_dependencies(ycsb_client build_external_projects)
+
 target_link_libraries(${PROJECT_NAME}
         ${LIB_PTHREADS}
         ${LIB_GLOG}

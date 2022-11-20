@@ -50,5 +50,33 @@ function(INSTALL_REPO)
 endfunction()
 
 add_subdirectory(googletest)
+
+include(ExternalProject)
+
+# Build gflags as an external project.
+ExternalProject_Add(gflags_external_project
+        SOURCE_DIR  gflags
+        PREFIX      ${CMAKE_CURRENT_BINARY_DIR}
+        CMAKE_ARGS  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        )
+include_directories(BEFORE SYSTEM ${GFLAGS_INCLUDE_DIR})
+#link_directories(${GFLAGS_LIB_DIR})
+
+# Build glog as an external project.
+ExternalProject_Add(glog_external_project
+        SOURCE_DIR  glog
+        PREFIX      ${CMAKE_CURRENT_BINARY_DIR}
+        CMAKE_ARGS  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        DEPENDS     gflags_external_project
+        )
+include_directories(BEFORE SYSTEM ${GLOG_INCLUDE_DIR})
+# link_directories(${GLOG_LIB_DIR})
+
+add_custom_target(build_external_projects
+        DEPENDS gflags_external_project
+        DEPENDS glog_external_project)
+
 add_subdirectory(yamlcpp)
 add_subdirectory(zeromq)

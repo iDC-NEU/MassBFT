@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.12)
 project(divider)
 
 # This project depend on some sub project
-add_subdirectory(division)
 add_subdirectory(ycsb)
 
 # After source files is built.

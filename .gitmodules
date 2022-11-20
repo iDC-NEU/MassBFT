@@ -1,6 +1,0 @@
-[submodule "vendor/gflags"]
-	path = vendor/gflags
-	url = https://github.com/gflags/gflags
-[submodule "vendor/glog"]
-	path = vendor/glog
-	url = https://github.com/google/glog

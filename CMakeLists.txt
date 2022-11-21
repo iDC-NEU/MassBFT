@@ -132,7 +132,14 @@ find_package(zppbits
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense MPMCQueue RiftenDeque ThreadPool crypto protobuf)
+### Erasure code support
+find_package(erasurecode
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense MPMCQueue RiftenDeque ThreadPool crypto protobuf erasurecode)
 
 ### compile protobuf
 include_directories(${CMAKE_BINARY_DIR}/include)

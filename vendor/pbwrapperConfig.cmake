@@ -4,6 +4,7 @@ CPMAddPackage(
         NAME protobuf
         GITHUB_REPOSITORY protocolbuffers/protobuf
         GIT_TAG 847ace296ca55574e22c7c458b1cbee6bf7e4789
+        VERSION v3.21.4.0
         OPTIONS "protobuf_BUILD_TESTS OFF"
 )
 
@@ -36,6 +37,3 @@ if(NOT EXISTS "${PROTOBUF_PROTOC_EXECUTABLE}")
         message(FATAL_ERROR "Install step for protobuf failed: ${result}")
     endif()
 endif()
-
-
-message(${PROTOBUF_PROTOC_EXECUTABLE})

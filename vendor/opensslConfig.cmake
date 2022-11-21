@@ -11,7 +11,6 @@ if(NOT EXISTS "${PROJECT_BINARY_DIR}/bin/openssl")
     message("Start configure openssl")
     include(ProcessorCount)
     ProcessorCount(N)
-    # now that the repo is copied into ${CMAKE_CURRENT_BINARY_DIR}/src/${REPO_NAME}
     # Call CMake to generate makefile
     execute_process(COMMAND ${openssl_SOURCE_DIR}/Configure --prefix=${PROJECT_BINARY_DIR} --libdir=${PROJECT_BINARY_DIR}/lib --openssldir=${PROJECT_BINARY_DIR}/crypto
             RESULT_VARIABLE result

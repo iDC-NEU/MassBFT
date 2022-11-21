@@ -103,6 +103,13 @@ CPMAddPackage(
         GIT_TAG 28d05c021d68fc5280b593329d1982ed02f9d7b3
 )
 
+### Another MPMC queue header only (not linearizable)
+CPMAddPackage(
+        NAME concurrentqueue  ## include the project name
+        GITHUB_REPOSITORY cameron314/concurrentqueue
+        GIT_TAG 65d6970912fc3f6bb62d80edf95ca30e0df85137
+)
+
 ### A thread pool
 CPMAddPackage(
         NAME ThreadPool
@@ -132,14 +139,14 @@ find_package(zppbits
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
-### Erasure code support
+### Erasure code support, must link erasurecode dl
 find_package(erasurecode
         CONFIG
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense MPMCQueue RiftenDeque ThreadPool crypto protobuf erasurecode)
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense MPMCQueue concurrentqueue RiftenDeque ThreadPool crypto protobuf erasurecode dl libgrc.so)
 
 ### compile protobuf
 include_directories(${CMAKE_BINARY_DIR}/include)

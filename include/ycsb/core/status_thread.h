@@ -4,7 +4,8 @@
 
 #pragma once
 
-#include "common/concurrent_queue/light_weight_semaphore.h"
+#include "concurrentqueue.h"
+#include "lightweightsemaphore.h"
 #include "client_thread.h"
 #include "ycsb/core/measurements/measurements.h"
 #include <vector>

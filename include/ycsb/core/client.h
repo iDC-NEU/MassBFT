@@ -8,7 +8,8 @@
 #include <vector>
 #include <thread>
 #include <string>
-#include "common/concurrent_queue/light_weight_semaphore.h"
+#include "concurrentqueue.h"
+#include "lightweightsemaphore.h"
 #include "yaml-cpp/yaml.h"
 #include "glog/logging.h"
 #include "ycsb/core/workload/workload.h"

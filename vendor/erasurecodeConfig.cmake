@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 CPMAddPackage(
         NAME liberasurecode
-        GITHUB_REPOSITORY openstack/liberasurecode
+        GITHUB_REPOSITORY sydxsty/liberasurecode
         VERSION v1.6.3
-        GIT_TAG 296cf48e5a78b0e2a5f1b768585112b7f7f24e5d
+        GIT_TAG 5f0e8f9db9039b511eee69fcc9f465278f04846c
 )
 
 if(NOT EXISTS "${PROJECT_BINARY_DIR}/lib/liberasurecode.a")
@@ -34,6 +34,20 @@ if(NOT EXISTS "${PROJECT_BINARY_DIR}/lib/liberasurecode.a")
     endif()
     message("Start installing libErasureCode")
     execute_process(COMMAND make install
+            RESULT_VARIABLE result
+            WORKING_DIRECTORY ${liberasurecode_SOURCE_DIR})
+    if(result)
+        message(FATAL_ERROR "Install step for libErasureCode failed: ${result}")
+    endif()
+
+    message("Start copy libgrc file")
+    execute_process(COMMAND cp -f libgrc.so ${PROJECT_BINARY_DIR}/lib
+            RESULT_VARIABLE result
+            WORKING_DIRECTORY ${liberasurecode_SOURCE_DIR})
+    if(result)
+        message(FATAL_ERROR "Install step for libErasureCode failed: ${result}")
+    endif()
+    execute_process(COMMAND cp -f libgrc.h ${PROJECT_BINARY_DIR}/include
             RESULT_VARIABLE result
             WORKING_DIRECTORY ${liberasurecode_SOURCE_DIR})
     if(result)

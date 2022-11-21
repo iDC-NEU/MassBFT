@@ -5,7 +5,8 @@
 #include "common/thread_local_store.h"
 
 #include "gtest/gtest.h"
-#include "common/concurrent_queue/light_weight_semaphore.h"
+#include "concurrentqueue.h"
+#include "lightweightsemaphore.h"
 #include <vector>
 #include <thread>
 

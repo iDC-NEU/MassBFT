@@ -35,7 +35,6 @@ package main
 import (
 	"C"
 	"bytes"
-	"fmt"
 	"github.com/klauspost/reedsolomon"
 	"github.com/orcaman/concurrent-map/v2"
 	"log"
@@ -49,11 +48,15 @@ func (i Integer) String() string {
 	return strconv.Itoa(int(i))
 }
 
-var encoders cmap.ConcurrentMap[Integer, reedsolomon.Encoder]
+var engines cmap.ConcurrentMap[Integer, reedsolomon.Encoder]
 var maxIndex int64
+var encodeBuffer cmap.ConcurrentMap[Integer, [][]byte]
+var decodeBuffer cmap.ConcurrentMap[Integer, []byte]
 
 func init() {
-	encoders = cmap.NewStringer[Integer, reedsolomon.Encoder]()
+	engines = cmap.NewStringer[Integer, reedsolomon.Encoder]()
+	encodeBuffer = cmap.NewStringer[Integer, [][]byte]()
+	decodeBuffer = cmap.NewStringer[Integer, []byte]()
 	maxIndex = 0
 }
 
@@ -65,22 +68,24 @@ func instanceCreate(dataNum, parityNum int) int {
 		return -1
 	}
 	old := maxIndex // grab a token
-	for atomic.CompareAndSwapInt64(&maxIndex, old, maxIndex+1) {
+	for !atomic.CompareAndSwapInt64(&maxIndex, old, maxIndex+1) {
 		old = maxIndex
 	}
-	encoders.Set(Integer(old), instance)
+	engines.Set(Integer(old), instance)
 	return int(old)
 }
 
 //export instanceDestroy
 func instanceDestroy(id int) int {
-	encoders.Remove(Integer(id))
+	engines.Remove(Integer(id))
+	encodeBuffer.Remove(Integer(id))
+	decodeBuffer.Remove(Integer(id))
 	return 0
 }
 
 //export encode
 func encode(id int, data []byte, shards *[][]byte, fragmentLen *int) int {
-	enc, suc := encoders.Get(Integer(id))
+	enc, suc := engines.Get(Integer(id))
 	if !suc {
 		return -1
 	}
@@ -95,20 +100,21 @@ func encode(id int, data []byte, shards *[][]byte, fragmentLen *int) int {
 		log.Println("Error encode data")
 		return -1
 	}
+	encodeBuffer.Set(Integer(id), shardsReal)
 	*shards = shardsReal
 	return 0
 }
 
 //export encodeCleanup
 func encodeCleanup(id int, shards *[][]byte) {
-	*shards = nil
+
 }
 
 // shards[i] = nil in order
 //
 //export decode
 func decode(id int, shards [][]byte, dataSize int, data *[]byte) int {
-	enc, suc := encoders.Get(Integer(id))
+	enc, suc := engines.Get(Integer(id))
 	if !suc {
 		return -1
 	}
@@ -122,12 +128,12 @@ func decode(id int, shards [][]byte, dataSize int, data *[]byte) int {
 		log.Println("Verification failed. Reconstructing data")
 		err := enc.Reconstruct(shards)
 		if err != nil {
-			fmt.Println("Reconstruct failed -", err)
+			log.Println("Reconstruct failed -", err)
 			return -1
 		}
 		ok, err := enc.Verify(shards)
 		if !ok {
-			fmt.Println("Verification failed after reconstruction, data likely corrupted.")
+			log.Println("Verification failed after reconstruction, data likely corrupted.")
 			return -1
 		}
 		if err != nil {
@@ -137,13 +143,19 @@ func decode(id int, shards [][]byte, dataSize int, data *[]byte) int {
 	}
 	buf := new(bytes.Buffer)
 	err = enc.Join(buf, shards, dataSize)
-	*data = buf.Bytes()
+	if err != nil {
+		log.Println("Error decode data", err)
+		return -1
+	}
+	dataReal := buf.Bytes()
+	decodeBuffer.Set(Integer(id), dataReal)
+	*data = dataReal
 	return 0
 }
 
 //export decodeCleanup
 func decodeCleanup(id int, data *[]byte) {
-	*data = nil
+
 }
 
 func main() {}

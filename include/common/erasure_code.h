@@ -5,27 +5,92 @@
 #pragma once
 
 #include "erasurecode.h"
+#include "libgrc.h"
 #include "glog/logging.h"
 #include <optional>
 #include <memory>
 
 namespace util {
-    class ECEncodeHelper {
+    class EncodeResult {
     public:
-        ECEncodeHelper(int id, int dataNum, int parityNum)
-                :_id(id),_dataNum(dataNum), _parityNum(parityNum) { }
+        explicit EncodeResult(int size) :_size(size) {}
 
-        ECEncodeHelper(const ECEncodeHelper&) = delete;
+        EncodeResult(const EncodeResult&) = delete;
 
-        ~ECEncodeHelper() {
+        virtual ~EncodeResult() = default;
+
+        [[nodiscard]] virtual std::optional<std::string_view> get(int index) const = 0;
+
+        [[nodiscard]] virtual std::optional<std::vector<std::string_view>> getAll() const = 0;
+        
+        [[nodiscard]] inline int size() const { return _size; }
+
+    protected:
+        virtual bool encode(const std::string& data) = 0;
+        
+    private:
+        const int _size;
+        
+    };
+
+    class DecodeResult {
+    public:
+        DecodeResult() = default;
+
+        DecodeResult(const DecodeResult&) = delete;
+
+        virtual ~DecodeResult() = default;
+
+        [[nodiscard]] virtual std::optional<std::string_view> getData() const  = 0;
+
+    protected:
+        virtual bool decode(const std::vector<std::string_view>& fragmentList) = 0;
+
+    };
+
+    class ErasureCode {
+    public:
+        ErasureCode(int dataNum, int parityNum) :_dataNum(dataNum),_parityNum(parityNum) {}
+
+        ErasureCode(const ErasureCode&) = delete;
+
+        virtual ~ErasureCode() = default;
+
+        [[nodiscard]] virtual std::unique_ptr<EncodeResult> encode(const std::string& data) const = 0;
+
+        [[nodiscard]] virtual std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList) const = 0;
+
+    protected:
+        const int _dataNum, _parityNum;
+    };
+
+    // Call by LibEC
+    class LibECEncodeResult : public EncodeResult {
+    public:
+        LibECEncodeResult(int id, int dataNum, int parityNum)
+                :EncodeResult(dataNum+parityNum), _id(id),_dataNum(dataNum), _parityNum(parityNum) { }
+
+        LibECEncodeResult(const LibECEncodeResult&) = delete;
+
+        ~LibECEncodeResult() override {
             auto ret = liberasurecode_encode_cleanup(_id, encodedData, encodedParity);
             if (ret != 0) {
-                LOG(WARNING) << "ECEncodeHelper free memory failed!";
+                LOG(WARNING) << "LibECEncodeResult free memory failed!";
             }
         }
 
+        bool encode(const std::string& data) override {
+            CHECK(encodedData == nullptr || encodedParity == nullptr);  // only call encode once for each instance
+            auto ret = liberasurecode_encode(_id, data.data(), data.size(), &encodedData, &encodedParity, &_fragmentLen);
+            if (ret != 0) {
+                return false;
+            }
+            return true;
+        }
+
+    protected:
         // WARNING: return a string_view, be careful
-        [[nodiscard]] std::optional<std::string_view> get(int index) const {
+        [[nodiscard]] std::optional<std::string_view> get(int index) const override {
             auto partyIndex = index - _dataNum;
             if (partyIndex < 0) {
                 return std::string_view(encodedData[index], _fragmentLen);
@@ -36,19 +101,18 @@ namespace util {
             return std::nullopt;
         }
 
-        [[nodiscard]] inline int size() const {
-            return _dataNum+_parityNum;
-        }
-
-    protected:
-        friend class ErasureCode;
-        bool encode(const std::string& data) {
-            CHECK(encodedData == nullptr && encodedParity == nullptr);  // only call encode once for each instance
-            auto ret = liberasurecode_encode(_id, data.data(), data.size(), &encodedData, &encodedParity, &_fragmentLen);
-            if (ret != 0) {
-                return false;
+        [[nodiscard]] std::optional<std::vector<std::string_view>> getAll() const override {
+            if (encodedData == nullptr || encodedParity == nullptr) {
+                return std::nullopt;
             }
-            return true;
+            std::vector<std::string_view> fragmentList;
+            for(int i=0; i<_dataNum; i++) {
+                fragmentList.emplace_back(encodedData[i], _fragmentLen);
+            }
+            for(int i=0; i<_parityNum; i++) {
+                fragmentList.emplace_back(encodedParity[i], _fragmentLen);
+            }
+            return fragmentList;
         }
 
     private:
@@ -58,39 +122,34 @@ namespace util {
         const int _id, _dataNum, _parityNum;
     };
 
-    class ECDecodeHelper {
+    // Call by LibEC
+    class LibECDecodeResult : public DecodeResult {
     public:
-        explicit ECDecodeHelper(int id) : _id(id) { }
+        explicit LibECDecodeResult(int id) : _id(id) { }
 
-        ECDecodeHelper(const ECEncodeHelper&) = delete;
+        LibECDecodeResult(const LibECDecodeResult&) = delete;
 
-        ~ECDecodeHelper() {
+        ~LibECDecodeResult() override {
             auto ret = liberasurecode_decode_cleanup(_id, originPayload);
             if (ret != 0) {
-                LOG(WARNING) << "ECDecodeHelper free memory failed!";
+                LOG(WARNING) << "LibECDecodeResult free memory failed!";
             }
         }
 
-        // WARNING: return a string_view, be careful
-        [[nodiscard]] std::optional<std::string_view> getData() const {
-            if (originPayload == nullptr || originDataSize == 0) {
-                return std::nullopt;
+        bool decode(const std::vector<std::string_view>& fragmentList) override {
+            // calculate fragmentLen
+            size_t fragmentLen = 0;
+            for (const auto& fragment: fragmentList) {
+                if (!fragment.empty()) {
+                    fragmentLen = fragment.size();
+                    break;
+                }
             }
-            return std::string_view(originPayload, originDataSize);
-        }
-
-    protected:
-        friend class ErasureCode;
-        bool decode(const std::vector<std::string_view>& fragmentList) {
-            if (fragmentList.empty()) {
-                return false;
-            }
-            auto fragmentLen = fragmentList[0].size();
             std::vector<const char*> rawFL;
             rawFL.reserve(fragmentList.size());
             for (const auto& fragment: fragmentList) {
                 if (fragmentLen != fragment.size()) {
-                    return false;   // check size are equal
+                    continue;   // skip empty string_view
                 }
                 rawFL.push_back(fragment.data());
             }
@@ -102,19 +161,29 @@ namespace util {
             return true;
         }
 
+    protected:
+        // WARNING: return a string_view, be careful
+        [[nodiscard]] std::optional<std::string_view> getData() const override {
+            if (originPayload == nullptr || originDataSize == 0) {
+                return std::nullopt;
+            }
+            return std::string_view(originPayload, originDataSize);
+        }
+
     private:
         const int _id;
         uint64_t originDataSize = 0;            /* data size in bytes ,from fragment hdr */
         char *originPayload = nullptr;            /* buffer to store original payload in */
     };
 
-    class ErasureCode {
+    // LibEC impl
+    class LibErasureCode : public ErasureCode {
     public:
         using BackEndType = ec_backend_id_t;
-        ErasureCode(int dataNum, int parityNum, BackEndType bt=EC_BACKEND_ISA_L_RS_VAND)
-                :_dataNum(dataNum),_parityNum(parityNum) {
+        LibErasureCode(int dataNum, int parityNum, BackEndType bt=EC_BACKEND_ISA_L_RS_VAND)
+        : ErasureCode(dataNum, parityNum) {
             if(!liberasurecode_backend_available(bt)) {
-                LOG(WARNING) << "ErasureCode backend " << bt <<" not available, switch to LIBERASURECODE_RS_VAND.";
+                LOG(WARNING) << "LibErasureCode backend " << bt <<" not available, switch to LIBERASURECODE_RS_VAND.";
                 bt = EC_BACKEND_LIBERASURECODE_RS_VAND;
             }
             if(!liberasurecode_backend_available(bt)) {
@@ -131,24 +200,27 @@ namespace util {
             }
         }
 
-        virtual ~ErasureCode() {
+        ~LibErasureCode() override {
             if(liberasurecode_instance_destroy(id) != 0) {
                 LOG(WARNING) << "Failed to destroy erasure code instance, id: " << id;
             }
         }
 
-        ErasureCode(const ErasureCode&) = delete;
+        LibErasureCode(const LibErasureCode&) = delete;
 
-        std::unique_ptr<ECEncodeHelper> encode(const std::string& data) {
-            auto storage = std::make_unique<ECEncodeHelper>(id, _dataNum, _parityNum);
+        [[nodiscard]] std::unique_ptr<EncodeResult> encode(const std::string& data) const override {
+            auto storage = std::make_unique<LibECEncodeResult>(id, _dataNum, _parityNum);
             if(storage->encode(data)) {
                 return storage;
             }
             return nullptr;
         }
 
-        std::unique_ptr<ECDecodeHelper> decode(const std::vector<std::string_view>& fragmentList) {
-            auto storage = std::make_unique<ECDecodeHelper>(id);
+        [[nodiscard]] std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList) const override {
+            if (fragmentList.empty()) {
+                return nullptr;
+            }
+            auto storage = std::make_unique<LibECDecodeResult>(id);
             if(storage->decode(fragmentList)) {
                 return storage;
             }
@@ -157,6 +229,152 @@ namespace util {
 
     private:
         int id;
-        const int _dataNum, _parityNum;
+    };
+
+    // Call by GoEC
+    class GoEncodeResult : public EncodeResult {
+    public:
+        GoEncodeResult(int id, int size)
+                :EncodeResult(size), _id(id) { }
+
+        GoEncodeResult(const GoEncodeResult&) = delete;
+
+        ~GoEncodeResult() override {
+            encodeCleanup(_id, &shards);
+        }
+
+        bool encode(const std::string& data) override {
+            CHECK(_fragmentLen == 0);  // only call encode once for each instance
+            GoSlice dw = {(void *)data.data(), static_cast<GoInt>(data.size()), static_cast<GoInt>(data.capacity())};
+            auto ret = ::encode(_id, dw, &shards, &_fragmentLen);
+            if (ret != 0) {
+                return false;
+            }
+            return true;
+        }
+
+    protected:
+        // WARNING: return a string_view, be careful
+        [[nodiscard]] std::optional<std::string_view> get(int index) const override {
+            DCHECK(shards.len == this->size()) << "encode size does not meet, bug found!";
+            if (index < shards.len) {
+                auto& fragmentRef = static_cast<const GoSlice*>(shards.data)[index];
+                DCHECK(fragmentRef.len == _fragmentLen) << "fragment size does not meet, bug found!";
+                return std::string_view(static_cast<const char*>(fragmentRef.data), fragmentRef.len);
+            }
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<std::vector<std::string_view>> getAll() const override {
+            if (shards.data == nullptr) {
+                return std::nullopt;
+            }
+            std::vector<std::string_view> fragmentList;
+            for (int i=0; i<shards.len; i++) {
+                auto& fragmentRef = static_cast<const GoSlice*>(shards.data)[i];
+                DCHECK(fragmentRef.len == _fragmentLen) << "fragment size does not meet, bug found!";
+                fragmentList.emplace_back(static_cast<const char*>(fragmentRef.data), fragmentRef.len);
+            }
+            return fragmentList;
+        }
+
+    private:
+        GoSlice shards{};
+        GoInt _fragmentLen{};            /* length, in bytes of the fragments */
+        const int _id;
+    };
+
+    // Call by GoEC
+    class GoECDecodeResult : public DecodeResult {
+    public:
+        explicit GoECDecodeResult(int id, int dataNum) : _id(id), _dataNum(dataNum) { }
+
+        GoECDecodeResult(const GoECDecodeResult&) = delete;
+
+        ~GoECDecodeResult() override {
+            decodeCleanup(_id, &data);
+        }
+
+        bool decode(const std::vector<std::string_view>& fragmentList) override {
+            // calculate fragmentLen
+            size_t fragmentLen = 0;
+            for (const auto& fragment: fragmentList) {
+                if (!fragment.empty()) {
+                    fragmentLen = fragment.size();
+                    break;
+                }
+            }
+            // calculate dataLen
+            auto dataLen = fragmentLen*_dataNum;
+            // setup rawFL
+            std::vector<GoSlice> rawFL;
+            rawFL.reserve(fragmentList.size());
+            for (const auto& fragment: fragmentList) {
+                if (!fragment.empty()) {
+                    rawFL.emplace_back(GoSlice{(void *)fragment.data(), static_cast<GoInt>(fragment.size()), static_cast<GoInt>(fragment.size())});
+                } else {
+                    rawFL.emplace_back(GoSlice{nullptr, static_cast<GoInt>(0), static_cast<GoInt>(0)});
+                }
+            }
+            auto ret = ::decode(_id, GoSlice{rawFL.data(), static_cast<GoInt>(rawFL.size()), static_cast<GoInt>(rawFL.capacity())}, static_cast<GoInt>(dataLen), &data);
+            if (ret != 0) {
+                return false;
+            }
+            return true;
+        }
+
+    protected:
+        // WARNING: return a string_view, be careful
+        [[nodiscard]] std::optional<std::string_view> getData() const override {
+            if (data.data == nullptr) {
+                return std::nullopt;
+            }
+            return std::string_view(static_cast<char*>(data.data), data.len);
+        }
+
+    private:
+        const int _id, _dataNum;    // data shard count
+        GoSlice data{};
+    };
+
+    class GoErasureCode : public ErasureCode {
+    public:
+        GoErasureCode(int dataNum, int parityNum): ErasureCode(dataNum, parityNum) {
+            id = instanceCreate(dataNum, parityNum);
+            if (id < 0) {
+                CHECK(false) << "create instance failed.";
+            }
+
+        }
+
+        GoErasureCode(const GoErasureCode&) = delete;
+
+        ~GoErasureCode() override {
+            if(instanceDestroy(id) != 0) {
+                LOG(WARNING) << "Failed to destroy erasure code instance, id: " << id;
+            }
+        }
+
+        [[nodiscard]] std::unique_ptr<EncodeResult> encode(const std::string& data) const override {
+            auto storage = std::make_unique<GoEncodeResult>(id, _dataNum+_parityNum);
+            if(storage->encode(data)) {
+                return storage;
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList) const override {
+            if ((int)fragmentList.size() != this->_parityNum+this->_dataNum) {
+                return nullptr;
+            }
+            auto storage = std::make_unique<GoECDecodeResult>(id, _dataNum);
+            if(storage->decode(fragmentList)) {
+                return storage;
+            }
+            return nullptr;
+        }
+
+    private:
+        GoInt id;
     };
 }

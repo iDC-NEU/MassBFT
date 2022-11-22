@@ -3,7 +3,6 @@
 //
 
 #include "common/erasure_code.h"
-#include "libgrc.h"
 
 #include "gtest/gtest.h"
 #include "concurrentqueue.h"
@@ -41,11 +40,12 @@ protected:
 };
 
 TEST_F(ESTest, ReconstructData) {
-    util::ErasureCode ec(20, 40);
+    util::GoErasureCode ec(20, 40);
     std::string dataEncode;
     for(int i=0; i<1000; i++) {
         dataEncode += std::to_string(i*3);
     }
+    LOG(INFO) << "----construct and restore----";
     LOG(INFO) << "original data size: " << dataEncode.size();
     auto encodeResult = ec.encode(dataEncode);
     std::vector<std::string_view> svList;
@@ -63,25 +63,30 @@ TEST_F(ESTest, ReconstructData) {
     LOG(INFO) << "Erasure data size(60 pieces): " << erasureDataSize;
     auto decodeResult = ec.decode(svList);
     auto dataDecode = decodeResult->getData().value_or("");
-    EXPECT_TRUE(dataDecode == dataEncode);
-    LOG(INFO) << "Lost random 40 pieces";
+    EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
+
+    LOG(INFO) << "----Lost random 40 pieces----";
     std::vector<std::string_view> svListPartialView;
-    for(int i=0; i<20; i++) {
-        svListPartialView.push_back(svList[1*3]);
+    for(int i=0; i<60; i++) {
+        if (i%3+1 != 0) {
+            svListPartialView.emplace_back("");
+        } else {
+            svListPartialView.push_back(svList[i]);
+        }
     }
-    EXPECT_TRUE(svListPartialView.size() == 20);
     decodeResult = ec.decode(svList);
     dataDecode = decodeResult->getData().value_or("");
-    EXPECT_TRUE(dataDecode == dataEncode);
+    EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
 }
 
 TEST_F(ESTest, SizeTest) {
     int m=900, n=300;
-    util::ErasureCode ec(n, m-n); // m=4, n=1
+    util::GoErasureCode ec(n, m-n); // m=4, n=1
     std::string dataEncode;
     for(int i=0; i<200000; i++) {
         dataEncode += std::to_string(i*3);
     }
+    LOG(INFO) << "----Encode / decode size test----";
     LOG(INFO) << "original data size: " << dataEncode.size();
     util::Timer timer;
     auto encodeResult = ec.encode(dataEncode);
@@ -99,37 +104,41 @@ TEST_F(ESTest, SizeTest) {
     }
     LOG(INFO) << "Erasure data size: " << erasureDataSize << ", encode time: " << spanEncode;
     std::vector<std::string_view> svListPartialView;
-    for(int i=0; i<n; i++) {
-        svListPartialView.push_back(svList[i]);
+    for(int i=0; i<(int)svList.size(); i++) {
+        if (i<n) {
+            svListPartialView.push_back(svList[i]);
+        } else {
+            svListPartialView.emplace_back("");
+        }
     }
     timer.start();
     auto decodeResult = ec.decode(svList);
     auto spanDecode = timer.end();
-    LOG(INFO) << "Lost random m-n pieces, decode time: " << spanDecode;
+    LOG(INFO) << "Lost m-n pieces, decode time: " << spanDecode;
     auto dataDecode = decodeResult->getData().value_or("");
-    EXPECT_TRUE(dataDecode == dataEncode);
+    EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
     LOG(INFO) << "Percentage:" << double(m)/n << " vs " << double(erasureDataSize) / double(dataEncode.size());
 }
 
 TEST_F(ESTest, EncodePerformance) {
     int m=900, n=300;
-    util::ErasureCode ec(n, m-n); // m=4, n=1
+    util::GoErasureCode ec(n, m-n); // m=4, n=1
     std::string dataEncode;
     for(int i=0; i<200000; i++) {
         dataEncode += std::to_string(i*3);
     }
+    LOG(INFO) << "----Encode performance test----";
     LOG(INFO) << "original data size: " << dataEncode.size();
     util::Timer timer;
     for(int i=0; i<1000; i++) {
-        ec.encode(dataEncode);
+        EXPECT_TRUE(ec.encode(dataEncode) != nullptr);
     }
     auto spanEncode = timer.end();
     LOG(INFO) << "Encode time: " << spanEncode;
+    auto encodeResult = ec.encode(dataEncode);
 }
 
 TEST_F(ESTest, MultiThreadReconstructData) {
-    auto id = instanceCreate(10,10);
-    LOG(INFO) <<id;
     start(100);
     sleep(1);
     sema_.signal((int)t_list_.size());

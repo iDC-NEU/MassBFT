@@ -200,11 +200,8 @@ namespace util {
             }
         }
 
-        ~LibErasureCode() override {
-            if(liberasurecode_instance_destroy(id) != 0) {
-                LOG(WARNING) << "Failed to destroy erasure code instance, id: " << id;
-            }
-        }
+        // Do not use liberasurecode_instance_destroy to destroy any instance
+        ~LibErasureCode() override = default;
 
         LibErasureCode(const LibErasureCode&) = delete;
 

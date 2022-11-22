@@ -17,6 +17,9 @@ protected:
     };
 
     void TearDown() override {
+    };
+
+    void stop() {
         for(auto& t: t_list_) {
             if(t.joinable()) {
                 t.join();
@@ -25,9 +28,7 @@ protected:
         t_list_.clear();
     };
 
-    void start(int thread_cnt) {
-        auto createMulti = [this](auto id) {
-        };
+    void start(int thread_cnt ,auto createMulti) {
         for (auto i=0; i<thread_cnt; i++) {
             t_list_.template emplace_back(createMulti, i);
         }
@@ -136,6 +137,35 @@ protected:
         LOG(INFO) << "Decode time: " << spanEncode;
     }
 
+    void multiThreadProcessing(auto ecCreateFunc, int m, int n, int tc) {
+        LOG(INFO) << "----MultiThread Encode performance test----";
+        util::Timer timer;
+        start(tc, [&](int tid) {
+            std::string dataEncode; // each thread use a different data
+            for(int i=tid; i<200000+tid; i++) {
+                dataEncode += std::to_string(i*3);
+            }
+            auto ec(ecCreateFunc(tid));
+            while(!sema_.wait());
+            for(int i=0; i<10; i++) {
+                EXPECT_TRUE(ec->encode(dataEncode) != nullptr);
+            }
+            auto encodeResult = ec->encode(dataEncode);
+            auto svList = encodeResult->getAll();
+            EXPECT_TRUE((int)svList->size() == m);
+            for(int i=0; i<10; i++) {
+                EXPECT_TRUE(ec->decode(svList.value()) != nullptr);
+            }
+            auto decodeResult = ec->decode(svList.value());
+            auto dataDecode = decodeResult->getData().value_or("");
+            EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
+        });
+        sema_.signal((int)t_list_.size());
+        stop();
+        auto spanEncode = timer.end();
+        LOG(INFO) << "Encode-decode time: " << spanEncode;
+    }
+
 protected:
     moodycamel::LightweightSemaphore sema_;
     std::vector<std::thread> t_list_;
@@ -171,8 +201,17 @@ TEST_F(ESTest, EncodePerformance) {
 }
 
 TEST_F(ESTest, MultiThreadReconstructData) {
-    start(100);
-    sleep(1);
-    sema_.signal((int)t_list_.size());
-    sleep(1);
+    int m=900, n=300, tc=20;
+    LOG(INFO) << "GoErasureCode: ";
+    multiThreadProcessing([&](int){
+        return new util::GoErasureCode(n, m-n);
+    }, m, n, tc);
+    LOG(INFO) << "LibErasureCode: ";
+    std::vector<std::unique_ptr<util::LibErasureCode>> esList;
+    for(int i=0; i<tc; i++) {   // for LibErasureCode, we have to init all of them in the first place
+        esList.push_back(std::make_unique<util::LibErasureCode>(n, m-n));
+    }
+    multiThreadProcessing([&](int tid){
+        return esList[tid].get();
+    }, m, n, tc);
 }

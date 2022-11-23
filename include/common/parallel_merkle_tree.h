@@ -112,6 +112,9 @@ namespace pmt {
         // if wp is created locally, free wp when destruct
         std::unique_ptr<dp::thread_pool<>> wpGuard = nullptr;
 
+    public:
+        [[nodiscard]] inline const auto& getRoot() const { return Root; }
+
     protected:
         explicit MerkleTree(const Config &c) : config(c) { }
 
@@ -127,25 +130,23 @@ namespace pmt {
                 return nullptr;
             }
             auto mt = std::unique_ptr<MerkleTree>(new MerkleTree(c));
-            // If RunInParallel is true and NumRoutines is unset, then set NumRoutines to the number of CPU.
-            if (mt->config.RunInParallel && mt->config.NumRoutines == 0) {
+            // If NumRoutines is unset, then set NumRoutines to the number of CPU.
+            if (mt->config.NumRoutines == 0) {
                 mt->config.NumRoutines = (int) sysconf(_SC_NPROCESSORS_ONLN);
+            }
+            // task channel capacity is passed as 0, so use the default value: 2 * numWorkers
+            if(wpPtr == nullptr) {
+                mt->wpGuard = std::make_unique<dp::thread_pool<>>(mt->config.NumRoutines);
+                mt->wp = mt->wpGuard.get();
+            } else {
+                mt->wp = wpPtr;
             }
             mt->Depth = calTreeDepth((int) blocks.size());
             if (mt->config.RunInParallel) {
-                // task channel capacity is passed as 0, so use the default value: 2 * numWorkers
-                if(mt->wp = wpPtr, mt->wp == nullptr) {
-                    mt->wpGuard = std::make_unique<dp::thread_pool<>>(mt->config.NumRoutines);
-                    mt->wp = mt->wpGuard.get();
-                } else {
-                    mt->wp = wpPtr;
-                }
-                auto ret = mt->leafGenParallel(blocks);
-                if (!ret) {
+                if (!mt->leafGenParallel(blocks)) {
                     LOG(ERROR) << "generate merkle tree failed";
                     return nullptr;
                 }
-                mt->Leaves = std::move(ret.value());
             } else {
                 auto ret = MerkleTree::leafGen(blocks);
                 if (!ret) {
@@ -296,7 +297,7 @@ namespace pmt {
             }
         }
 
-        static std::optional<std::vector<byteString>> leafGen(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
+        static std::optional<std::vector<byteString>> leafGen(const std::vector<std::unique_ptr<DataBlock>> &blocks) {  //TODO
             auto lenLeaves = blocks.size();
             std::vector<byteString> leaves(lenLeaves);
 
@@ -315,9 +316,9 @@ namespace pmt {
             return leaves;
         }
 
-        std::optional<std::vector<byteString>> leafGenParallel(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
+        bool leafGenParallel(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
             int lenLeaves = (int) blocks.size();
-            std::vector<byteString> leaves(lenLeaves);
+            this->Leaves.resize(lenLeaves);
             auto numRoutines = config.NumRoutines;
             if (numRoutines > lenLeaves) {
                 numRoutines = lenLeaves;
@@ -328,7 +329,7 @@ namespace pmt {
             for (auto i = 0; i < numRoutines; i++) {
                 argList[i].mt = this;
                 argList[i].dataBlockField = &blocks;
-                argList[i].byteField1 = &leaves;
+                argList[i].byteField1 = &this->Leaves;
                 argList[i].intField1 = i; // starting index
                 argList[i].intField2 = lenLeaves;
                 argList[i].intField3 = numRoutines;
@@ -337,10 +338,10 @@ namespace pmt {
             for (auto &future: futureList) {
                 if (!future.get()) {
                     LOG(WARNING) << "leafGenParallel failed!";
-                    return std::nullopt;
+                    return false;
                 }
             }
-            return leaves;
+            return true;
         }
 
         // leafGenHandler generates the leaves in parallel.
@@ -531,7 +532,7 @@ namespace pmt {
                         argList[j].intField2 = prevLen;
                         argList[j].intField3 = config.NumRoutines;
                         argList[j].uint32Field = i; // tree depth
-                        futureList.push_back(wp->enqueue(treeBuildHandler, argList[i]));
+                        futureList.push_back(wp->enqueue(treeBuildHandler, argList[j]));
                     }
                     for (auto &future_: futureList) {
                         if (!future_.get()) {

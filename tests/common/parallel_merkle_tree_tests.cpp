@@ -49,10 +49,6 @@ protected:
         }
     }
 
-
-};
-
-TEST_F(PMTreeTest, TestMerkleTreeNew_proofGen) {
     struct args_type {
         vector_ptr<DataBlockPtr> blocks;
         pmt::Config config;
@@ -62,6 +58,10 @@ TEST_F(PMTreeTest, TestMerkleTreeNew_proofGen) {
         args_type args;
         bool wantErr;
     };
+
+};
+
+TEST_F(PMTreeTest, TestMerkleTreeNew_proofGen) {
     std::vector<test_case> tests;
 
     tests.push_back({
@@ -173,7 +173,188 @@ TEST_F(PMTreeTest, TestMerkleTreeNew_proofGen) {
 
 }
 
-TEST_F(PMTreeTest, MultiGetStore) {
+TEST_F(PMTreeTest, TestMerkleTreeNew_buildTree) {
+    std::vector<test_case> tests;
 
+    tests.push_back({
+                            .name= "test_build_tree_2",
+                            .args= {
+                                    .blocks = genTestDataBlocks(2),
+                                    .config = {
+                                            .NumRoutines = 0,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = false,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
 
+    tests.push_back({
+                            .name= "test_build_tree_5",
+                            .args= {
+                                    .blocks = genTestDataBlocks(5),
+                                    .config = {
+                                            .NumRoutines = 0,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = false,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
+
+    tests.push_back({
+                            .name= "test_build_tree_8",
+                            .args= {
+                                    .blocks = genTestDataBlocks(8),
+                                    .config = {
+                                            .NumRoutines = 0,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = false,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
+    tests.push_back({
+                            .name= "test_build_tree_1000",
+                            .args= {
+                                    .blocks = genTestDataBlocks(1000),
+                                    .config = {
+                                            .NumRoutines = 0,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = false,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
+
+    for (const auto& tt : tests) {
+        LOG(INFO) << "testing " << tt.name;
+        auto mt = pmt::MerkleTree::New(tt.args.config, *tt.args.blocks);
+
+        if ((mt == nullptr) != tt.wantErr) {
+            ASSERT_TRUE(false) << "Build() error, want: " << tt.wantErr;
+        }
+
+        auto m1 = pmt::MerkleTree::New({}, *tt.args.blocks);
+        if (m1 == nullptr) {
+            ASSERT_TRUE(false) << "test setup error";
+        }
+
+        if ((mt->getRoot() != m1->getRoot()) && !tt.wantErr) {
+            LOG(ERROR) << "mt Root: " << util::OpenSSLHash::bytesToString(mt->getRoot());
+            LOG(ERROR) << "m1 Root: " << util::OpenSSLHash::bytesToString(m1->getRoot());
+            ASSERT_TRUE(false) << "tree generated is wrong";
+        }
+    }
+}
+
+TEST_F(PMTreeTest, TestMerkleTreeNew_treeBuildParallel) {
+    std::vector<test_case> tests;
+
+    tests.push_back({
+                            .name= "test_build_tree_parallel_2",
+                            .args= {
+                                    .blocks = genTestDataBlocks(2),
+                                    .config = {
+                                            .NumRoutines = 4,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = true,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
+
+    tests.push_back({
+                            .name= "test_build_tree_parallel_4",
+                            .args= {
+                                    .blocks = genTestDataBlocks(4),
+                                    .config = {
+                                            .NumRoutines = 4,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = true,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
+
+    tests.push_back({
+                            .name= "test_build_tree_parallel_5",
+                            .args= {
+                                    .blocks = genTestDataBlocks(5),
+                                    .config = {
+                                            .NumRoutines = 4,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = true,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
+
+    tests.push_back({
+                            .name= "test_build_tree_parallel_8",
+                            .args= {
+                                    .blocks = genTestDataBlocks(8),
+                                    .config = {
+                                            .NumRoutines = 4,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = true,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
+
+    tests.push_back({
+                            .name= "test_build_tree_parallel_8_32",
+                            .args= {
+                                    .blocks = genTestDataBlocks(8),
+                                    .config = {
+                                            .NumRoutines = 32,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = true,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
+
+    tests.push_back({
+                            .name= "test_build_tree_parallel_1000_32",
+                            .args= {
+                                    .blocks = genTestDataBlocks(1000),
+                                    .config = {
+                                            .NumRoutines = 32,
+                                            .Mode = pmt::ModeType::ModeTreeBuild,
+                                            .RunInParallel = true,
+                                            .NoDuplicates = false,
+                                    },
+                            },
+                            .wantErr= false,
+                    });
+    for (const auto& tt : tests) {
+        LOG(INFO) << "testing " << tt.name;
+        auto mt = pmt::MerkleTree::New(tt.args.config, *tt.args.blocks);
+
+        if ((mt == nullptr) != tt.wantErr) {
+            ASSERT_TRUE(false) << "Build() error, want: " << tt.wantErr;
+        }
+
+        auto m1 = pmt::MerkleTree::New({}, *tt.args.blocks);
+        if (m1 == nullptr) {
+            ASSERT_TRUE(false) << "test setup error";
+        }
+
+        if ((mt->getRoot() != m1->getRoot()) && !tt.wantErr) {
+            LOG(ERROR) << "mt Root: " << util::OpenSSLHash::bytesToString(mt->getRoot());
+            LOG(ERROR) << "m1 Root: " << util::OpenSSLHash::bytesToString(m1->getRoot());
+            ASSERT_TRUE(false) << "tree generated is wrong";
+        }
+    }
 }

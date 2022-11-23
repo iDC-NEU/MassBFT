@@ -11,6 +11,7 @@
 #include <vector>
 #include <functional>
 #include <cmath>
+#include <bitset>
 
 namespace pmt {
 
@@ -43,7 +44,7 @@ namespace pmt {
         // HashFuncType is the signature of the hash functions used for Merkle Tree generation.
         // Customizable hash function used for tree generation.
         static std::optional<byteString> HashFunc(std::initializer_list<byteString> strList) {
-            util::OpenSSLHash hash;
+            util::OpenSSLSHA256 hash;
             for (const auto &str: strList) {
                 if (!hash.update(std::string_view(reinterpret_cast<const char *>(str.data()), str.size()))) {
                     return std::nullopt;
@@ -69,26 +70,30 @@ namespace pmt {
     struct Proof {
         std::vector<byteString> Siblings{}; // sibling nodes to the Merkle Tree path of the data block
         uint32_t Path{};        // path variable indicating whether the neighbor is on the left or right
+
+        bool operator==(const Proof& rhs) const {
+            return  Path==rhs.Path && rhs.Siblings.size()==Siblings.size() && [&]->auto {
+                for(auto i=0; i< (int)rhs.Siblings.size(); i++) {
+                    if(this->Siblings[i] != rhs.Siblings[i])
+                        return false;
+                }
+                return true;
+            }();
+        }
+
+        [[nodiscard]] inline bool equal(const Proof& rhs) const { return *this==rhs; }
+
+        [[nodiscard]] std::string toString() const {
+            std::stringstream buf;
+            buf << "Path: " << std::bitset<8>(this->Path) <<", Siblings: ";
+            for(const auto& sib: Siblings) {
+                buf << "\n\t" << OpenSSL::bytesToString(sib);
+            }
+            return buf.str();
+        }
     };
 
     class MerkleTree;
-
-    // argType is used as the arguments for the handler functions when performing parallel computations.
-    // All the handler functions use this universal argument struct to eliminate interface conversion overhead.
-    // Each field in the struct may be used for different purpose in different handler functions,
-    // please refer to the comments at each handler function for details.
-    struct argType {
-        MerkleTree *mt{};
-        const std::vector<byteString> *byteField1{};
-        std::vector<byteString> *byteField2{};
-        const std::vector<std::unique_ptr<DataBlock>> *dataBlockField{};
-        int intField1{};
-        int intField2{};
-        int intField3{};
-        int intField4{};
-        int intField5{};
-        uint32_t uint32Field{};
-    };
 
     // MerkleTree implements the Merkle Tree structure
     class MerkleTree {
@@ -114,6 +119,8 @@ namespace pmt {
 
     public:
         [[nodiscard]] inline const auto& getRoot() const { return Root; }
+
+        [[nodiscard]] inline const auto& getProofs() const { return Proofs; }
 
     protected:
         explicit MerkleTree(const Config &c) : config(c) { }
@@ -227,7 +234,7 @@ namespace pmt {
                     if (!res) {
                         return false;
                     }
-                    buf[idx >> 1] = std::move(res.value());
+                    buf[idx >> 1] = std::move(*res);
                 }
                 prevLen >>= 1;
                 this->fixOdd(buf, prevLen);
@@ -237,7 +244,7 @@ namespace pmt {
             if (!res) {
                 return false;
             }
-            Root = std::move(res.value());
+            Root = std::move(*res);
             return true;
         }
 
@@ -303,12 +310,12 @@ namespace pmt {
                 if (!ret) {
                     return false;
                 }
-                auto data = std::move(ret.value());
+                auto data = std::move(*ret);
                 auto hash = Config::HashFunc({data});
                 if (!hash) {
                     return false;
                 }
-                this->Leaves[i] = std::move(hash.value());
+                this->Leaves[i] = std::move(*hash);
             }
             return true;
         }
@@ -320,17 +327,10 @@ namespace pmt {
             if (numRoutines > lenLeaves) {
                 numRoutines = lenLeaves;
             }
-            std::vector<argType> argList(numRoutines);
             std::vector<std::future<bool>> futureList;
             futureList.reserve(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
-                argList[i].mt = this;
-                argList[i].dataBlockField = &blocks;
-                argList[i].byteField2 = &this->Leaves;
-                argList[i].intField1 = i; // starting index
-                argList[i].intField2 = lenLeaves;
-                argList[i].intField3 = numRoutines;
-                futureList.push_back(wp->enqueue(leafGenHandler, argList[i]));
+                futureList.push_back(wp->enqueue(leafGenHandler, &this->Leaves, &blocks, i, lenLeaves, numRoutines));
             }
             for (auto &future: futureList) {
                 if (!future.get()) {
@@ -350,24 +350,22 @@ namespace pmt {
         //	intField1: start
         //	intField2: lenLeaves
         //	intField3: numRoutines
-        static bool leafGenHandler(const argType &arg) {
-            const auto &blocks = *arg.dataBlockField;
-            auto &leaves = *arg.byteField2;
-            auto start = arg.intField1;
-            auto lenLeaves = arg.intField2;
-            auto numRoutines = arg.intField3;
-
+        static bool leafGenHandler(std::vector<byteString>* leaves,
+                                   const std::vector<std::unique_ptr<DataBlock>>* blocks,
+                                   int start,
+                                   int lenLeaves,
+                                   int numRoutines) {
             for (int i = start; i < lenLeaves; i += numRoutines) {
-                auto ret = blocks[i]->Serialize();
+                auto ret = (*blocks)[i]->Serialize();
                 if (!ret) {
                     return false;
                 }
-                auto data = std::move(ret.value());
+                auto data = std::move(*ret);
                 auto hash = Config::HashFunc({data});
                 if (!hash) {
                     return false;
                 }
-                leaves[i] = std::move(hash.value());
+                (*leaves)[i] = std::move(*hash);
             }
             return true;
         }
@@ -381,19 +379,17 @@ namespace pmt {
         //	intField1: start
         //	intField2: prevLen
         //	intField3: numRoutines
-        static bool proofGenHandler(const argType &arg) {
-            const auto &buf1 = *arg.byteField1;
-            auto &buf2 = *arg.byteField2;
-            auto start = arg.intField1;
-            auto prevLen = arg.intField2;
-            auto numRoutines = arg.intField3;
-
+        static bool proofGenHandler(const std::vector<byteString>* buf1,
+                                    std::vector<byteString>* buf2,
+                                    int start,
+                                    int prevLen,
+                                    int numRoutines) {
             for (auto i = start; i < prevLen; i += (numRoutines << 1)) {
-                auto newHash = Config::HashFunc({buf1[i], buf1[i + 1]});
+                auto newHash = Config::HashFunc({(*buf1)[i], (*buf1)[i + 1]});
                 if (!newHash) {
                     return false;
                 }
-                buf2[i >> 1] = newHash.value();
+                (*buf2)[i >> 1] = std::move(*newHash);
             }
             return true;
         }
@@ -412,17 +408,10 @@ namespace pmt {
                 if (numRoutines > prevLen) {
                     numRoutines = prevLen;
                 }
-                std::vector<argType> argList(numRoutines);
                 std::vector<std::future<bool>> futureList;
                 futureList.reserve(numRoutines);
                 for (auto i = 0; i < numRoutines; i++) {
-                    argList[i].mt = this;
-                    argList[i].byteField1 = &buf1;
-                    argList[i].byteField2 = &buf2;
-                    argList[i].intField1 = i << 1; // starting index
-                    argList[i].intField2 = prevLen;
-                    argList[i].intField3 = numRoutines;
-                    futureList.push_back(wp->enqueue(proofGenHandler, argList[i]));
+                    futureList.push_back(wp->enqueue(proofGenHandler, &buf1, &buf2, i << 1, prevLen, numRoutines));
                 }
                 for (auto &future: futureList) {
                     if (!future.get()) {
@@ -439,7 +428,7 @@ namespace pmt {
             if (!newHash) {
                 return false;
             }
-            Root = newHash.value();
+            Root = std::move(*newHash);
             return true;
         }
 
@@ -453,16 +442,15 @@ namespace pmt {
         //	intField3: step
         //	intField4: bufLen
         //	intField5: numRoutines
-        static bool updateProofHandler(const argType &arg) {
-            auto &mt = *arg.mt;
-            const auto &buf = *arg.byteField1;
-            auto start = arg.intField1;
-            auto batch = arg.intField2;
-            auto step = arg.intField3;
-            auto bufLen = arg.intField4;
-            auto numRoutines = arg.intField5;
+        static bool updateProofHandler(MerkleTree *mt,
+                                       const std::vector<byteString>* buf,
+                                       int start,
+                                       int batch,
+                                       int step,
+                                       int bufLen,
+                                       int numRoutines) {
             for (auto i = start; i < bufLen; i += (numRoutines << 1)) {
-                mt.updatePairProof(buf, i, batch, step);
+                mt->updatePairProof(*buf, i, batch, step);
             }
             // return the nil error to be compatible with the handler type
             return true;
@@ -474,18 +462,10 @@ namespace pmt {
             if (numRoutines > bufLen) {
                 numRoutines = bufLen;
             }
-            std::vector<argType> argList(numRoutines);
             std::vector<std::future<bool>> futureList;
             futureList.reserve(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
-                argList[i].mt = this;
-                argList[i].byteField1 = &buf;
-                argList[i].intField1 = i << 1; // starting index
-                argList[i].intField2 = batch;
-                argList[i].intField3 = step;
-                argList[i].intField4 = bufLen;
-                argList[i].intField5 = numRoutines;
-                futureList.push_back(wp->enqueue(updateProofHandler, argList[i]));
+                futureList.push_back(wp->enqueue(updateProofHandler, this, &buf, i << 1, batch, step, bufLen, numRoutines));
             }
             for (auto &future: futureList) {
                 if (!future.get()) {
@@ -515,16 +495,10 @@ namespace pmt {
                     if (numRoutines > prevLen) {
                         numRoutines = prevLen;
                     }
-                    auto argList = std::vector<argType>(numRoutines);
                     std::vector<std::future<bool>> futureList;
                     futureList.reserve(numRoutines);
                     for (auto j = 0; j < numRoutines; j++) {
-                        argList[j].mt = this;
-                        argList[j].intField1 = j << 1; // starting index
-                        argList[j].intField2 = prevLen;
-                        argList[j].intField3 = config.NumRoutines;
-                        argList[j].uint32Field = i; // tree depth
-                        futureList.push_back(wp->enqueue(treeBuildHandler, argList[j]));
+                        futureList.push_back(wp->enqueue(treeBuildHandler, this, j << 1, prevLen, config.NumRoutines, i));
                     }
                     for (auto &future_: futureList) {
                         if (!future_.get()) {
@@ -538,7 +512,7 @@ namespace pmt {
                         if (!ret) {
                             return false;
                         }
-                        this->tree[i + 1][j >> 1] = std::move(ret.value());
+                        this->tree[i + 1][j >> 1] = std::move(*ret);
                     }
                 }
                 prevLen = (int) this->tree[i + 1].size();
@@ -548,7 +522,7 @@ namespace pmt {
             if (!ret) {
                 return false;
             }
-            this->Root = std::move(ret.value());
+            this->Root = std::move(*ret);
             return future.get();
         }
 
@@ -561,19 +535,17 @@ namespace pmt {
         //	intField2: prevLen
         //	intField3: numRoutines
         //	uint32Field: depth
-        static bool treeBuildHandler(const argType &arg) {
-            auto &mt = *arg.mt;
-            auto start = arg.intField1;
-            auto prevLen = arg.intField2;
-            auto numRoutines = arg.intField3;
-            auto depth = arg.uint32Field;
-
+        static bool treeBuildHandler(MerkleTree *mt,
+                                     int start,
+                                     int prevLen,
+                                     int numRoutines,
+                                     uint32_t depth) {
             for (auto i = start; i < prevLen; i += (numRoutines << 1)) {
-                auto ret = Config::HashFunc({mt.tree[depth][i], mt.tree[depth][i + 1]});
+                auto ret = Config::HashFunc({mt->tree[depth][i], mt->tree[depth][i + 1]});
                 if (!ret) {
                     return false;
                 }
-                mt.tree[depth + 1][i >> 1] = std::move(ret.value());
+                mt->tree[depth + 1][i >> 1] = std::move(*ret);
             }
             return true;
         }
@@ -590,13 +562,13 @@ namespace pmt {
             if (!ret) {
                 return std::nullopt;
             }
-            auto data = std::move(ret.value());
+            auto data = std::move(*ret);
 
             ret = Config::HashFunc({data});
             if (!ret) {
                 return std::nullopt;
             }
-            auto hash = std::move(ret.value());
+            auto hash = std::move(*ret);
 
             auto path = proof.Path;
             for (const auto &n: proof.Siblings) {
@@ -608,7 +580,7 @@ namespace pmt {
                 if (!ret) {
                     return std::nullopt;
                 }
-                hash = std::move(ret.value());
+                hash = std::move(*ret);
                 path >>= 1;
             }
             return hash == root;
@@ -626,12 +598,12 @@ namespace pmt {
             if (!ret) {
                 return std::nullopt;
             }
-            auto blockByte = std::move(ret.value());
+            auto blockByte = std::move(*ret);
             ret = Config::HashFunc({blockByte});
             if (!ret) {
                 return std::nullopt;
             }
-            auto blockHash = std::move(ret.value());
+            auto blockHash = std::move(*ret);
             auto swBlockHash = std::string(reinterpret_cast<const char *>(blockHash.data()), blockHash.size());
             if (!leafMap.contains(swBlockHash)) {
                 LOG(WARNING) << "data block is not a member of the Merkle Tree";

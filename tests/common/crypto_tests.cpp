@@ -23,27 +23,27 @@ protected:
 };
 
 TEST_F(CryptoTest, TestStaticFunc) {
-    util::OpenSSLHash::initOpenSSLCrypto();
-    util::OpenSSLHash::digestType defaultMsg;
-    ASSERT_TRUE(util::OpenSSLHash::bytesToString(util::OpenSSLHash::generateSHA1(msg).value_or(defaultMsg)) == kat1) << "SHA1 FAIL";
-    ASSERT_TRUE(util::OpenSSLHash::bytesToString(util::OpenSSLHash::generateSHA256(msg).value_or(defaultMsg)) == kat256) << "SHA256 FAIL";
+    OpenSSL::initOpenSSLCrypto();
+    OpenSSL::digestType defaultMsg;
+    ASSERT_TRUE(OpenSSL::bytesToString(util::OpenSSLSHA1::generateDigest(msg).value_or(defaultMsg)) == kat1) << "SHA1 FAIL";
+    ASSERT_TRUE(OpenSSL::bytesToString(util::OpenSSLSHA256::generateDigest(msg).value_or(defaultMsg)) == kat256) << "SHA256 FAIL";
 }
 
 TEST_F(CryptoTest, TestDynamicFunc) {
-    util::OpenSSLHash::initOpenSSLCrypto();
-    util::OpenSSLHash::digestType defaultMsg;
-    auto hash = util::OpenSSLHash();
+    OpenSSL::initOpenSSLCrypto();
+    OpenSSL::digestType defaultMsg;
+    auto hash = util::OpenSSLSHA256();
     ASSERT_TRUE(hash.update(msg)) << "update failed";
-    ASSERT_TRUE(util::OpenSSLHash::bytesToString(hash.final().value_or(defaultMsg)) == kat256) << "SHA256 FAIL";
+    ASSERT_TRUE(OpenSSL::bytesToString(hash.final().value_or(defaultMsg)) == kat256) << "SHA256 FAIL";
     std::string sv = msg;
     ASSERT_TRUE(hash.update(sv.substr(0,10))) << "update failed";
-    ASSERT_TRUE(util::OpenSSLHash::bytesToString(hash.updateFinal(sv.substr(10)).value_or(defaultMsg)) == kat256) << "SHA256 FAIL";
+    ASSERT_TRUE(OpenSSL::bytesToString(hash.updateFinal(sv.substr(10)).value_or(defaultMsg)) == kat256) << "SHA256 FAIL";
 }
 
 TEST_F(CryptoTest, SingleThreadPerformance) {
-    util::OpenSSLHash::initOpenSSLCrypto();
-    util::OpenSSLHash::digestType defaultMsg;
-    auto hash = util::OpenSSLHash();
+    OpenSSL::initOpenSSLCrypto();
+    OpenSSL::digestType defaultMsg;
+    auto hash = util::OpenSSLSHA256();
     std::string dataEncode; // each thread use a different data
     for (int i=0; i<200000; i++) {
         dataEncode += std::to_string(i*3);

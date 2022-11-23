@@ -37,3 +37,5 @@ if(NOT EXISTS "${PROJECT_BINARY_DIR}/bin/openssl")
         message(FATAL_ERROR "Install step for openssl failed: ${result}")
     endif()
 endif()
+
+set(OPENSSL_ROOT_DIR ${PROJECT_BINARY_DIR})

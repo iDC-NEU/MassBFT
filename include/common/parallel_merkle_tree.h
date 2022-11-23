@@ -79,7 +79,7 @@ namespace pmt {
     // please refer to the comments at each handler function for details.
     struct argType {
         MerkleTree *mt{};
-        std::vector<byteString> *byteField1{};
+        const std::vector<byteString> *byteField1{};
         std::vector<byteString> *byteField2{};
         const std::vector<std::unique_ptr<DataBlock>> *dataBlockField{};
         int intField1{};
@@ -148,12 +148,10 @@ namespace pmt {
                     return nullptr;
                 }
             } else {
-                auto ret = MerkleTree::leafGen(blocks);
-                if (!ret) {
+                if (!mt->leafGen(blocks)) {
                     LOG(ERROR) << "generate merkle tree failed";
                     return nullptr;
                 }
-                mt->Leaves = std::move(ret.value());
             }
             if (mt->config.Mode == ModeType::ModeProofGen) {
                 if (mt->config.RunInParallel) {
@@ -207,8 +205,7 @@ namespace pmt {
         }
 
         void initProofs() {
-            auto numLeaves = Leaves.size();
-            Proofs.clear();
+            const auto numLeaves = Leaves.size();
             Proofs.resize(numLeaves);
             for (auto i = 0; i < (int) numLeaves; i++) {
                 Proofs[i] = std::make_unique<Proof>();
@@ -217,7 +214,7 @@ namespace pmt {
         }
 
         bool proofGen() {
-            int numLeaves = (int) Leaves.size();
+            const int numLeaves = (int) Leaves.size();
             initProofs();
             std::vector<byteString> buf = Leaves;
             int prevLen = numLeaves;
@@ -275,7 +272,7 @@ namespace pmt {
         }
 
 
-        void updateProofs(std::vector<byteString> &buf, int bufLen, int step) {
+        void updateProofs(const std::vector<byteString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
             for (auto i = 0; i < bufLen; i += 2) {
                 this->updatePairProof(buf, i, batch, step);
@@ -283,7 +280,7 @@ namespace pmt {
         }
 
 
-        void updatePairProof(std::vector<byteString> &buf, int idx, int batch, int step) {
+        void updatePairProof(const std::vector<byteString> &buf, int idx, int batch, int step) {
             auto start = idx * batch;
             int end = start + batch < (int) Proofs.size() ? start + batch : (int) Proofs.size();
             for (auto i = start; i < end; i++) {
@@ -297,23 +294,23 @@ namespace pmt {
             }
         }
 
-        static std::optional<std::vector<byteString>> leafGen(const std::vector<std::unique_ptr<DataBlock>> &blocks) {  //TODO
+        bool leafGen(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
             auto lenLeaves = blocks.size();
-            std::vector<byteString> leaves(lenLeaves);
+            this->Leaves.resize(lenLeaves);
 
             for (auto i = 0; i < (int) lenLeaves; i++) {
                 auto ret = blocks[i]->Serialize();
                 if (!ret) {
-                    return std::nullopt;
+                    return false;
                 }
                 auto data = std::move(ret.value());
                 auto hash = Config::HashFunc({data});
                 if (!hash) {
-                    return std::nullopt;
+                    return false;
                 }
-                leaves[i] = hash.value();
+                this->Leaves[i] = std::move(hash.value());
             }
-            return leaves;
+            return true;
         }
 
         bool leafGenParallel(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
@@ -329,7 +326,7 @@ namespace pmt {
             for (auto i = 0; i < numRoutines; i++) {
                 argList[i].mt = this;
                 argList[i].dataBlockField = &blocks;
-                argList[i].byteField1 = &this->Leaves;
+                argList[i].byteField2 = &this->Leaves;
                 argList[i].intField1 = i; // starting index
                 argList[i].intField2 = lenLeaves;
                 argList[i].intField3 = numRoutines;
@@ -348,14 +345,14 @@ namespace pmt {
         // arg fields:
         //
         //	mt: the Merkle Tree instance
-        //	byteField1: leaves
+        //	byteField2: leaves
         //	dataBlockField: blocks
         //	intField1: start
         //	intField2: lenLeaves
         //	intField3: numRoutines
         static bool leafGenHandler(const argType &arg) {
             const auto &blocks = *arg.dataBlockField;
-            auto &leaves = *arg.byteField1;
+            auto &leaves = *arg.byteField2;
             auto start = arg.intField1;
             auto lenLeaves = arg.intField2;
             auto numRoutines = arg.intField3;
@@ -385,7 +382,7 @@ namespace pmt {
         //	intField2: prevLen
         //	intField3: numRoutines
         static bool proofGenHandler(const argType &arg) {
-            auto &buf1 = *arg.byteField1;
+            const auto &buf1 = *arg.byteField1;
             auto &buf2 = *arg.byteField2;
             auto start = arg.intField1;
             auto prevLen = arg.intField2;
@@ -403,8 +400,8 @@ namespace pmt {
 
         bool proofGenParallel() {
             this->initProofs();
-            int numLeaves = (int) Leaves.size();
-            std::vector<byteString> buf1 = Leaves;
+            const int numLeaves = (int) Leaves.size();
+            std::vector<byteString> buf1 = Leaves;  // have to perform deep copy
             int prevLen = numLeaves;
             this->fixOdd(buf1, prevLen);
             std::vector<byteString> buf2(prevLen >> 1);
@@ -433,7 +430,6 @@ namespace pmt {
                         return false;
                     }
                 }
-                //------------------------------------
                 buf1.swap(buf2);
                 prevLen >>= 1;
                 this->fixOdd(buf1, prevLen);
@@ -457,13 +453,9 @@ namespace pmt {
         //	intField3: step
         //	intField4: bufLen
         //	intField5: numRoutines
-        //
-        // return:
-        //
-        //	nothing (nil)
         static bool updateProofHandler(const argType &arg) {
             auto &mt = *arg.mt;
-            auto &buf = *arg.byteField1;
+            const auto &buf = *arg.byteField1;
             auto start = arg.intField1;
             auto batch = arg.intField2;
             auto step = arg.intField3;
@@ -476,7 +468,7 @@ namespace pmt {
             return true;
         }
 
-        void updateProofsParallel(std::vector<byteString> &buf, int bufLen, int step) {
+        void updateProofsParallel(const std::vector<byteString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
             auto numRoutines = config.NumRoutines;
             if (numRoutines > bufLen) {
@@ -504,7 +496,7 @@ namespace pmt {
         }
 
         bool treeBuild() {
-            auto numLeaves = Leaves.size();
+            const auto numLeaves = Leaves.size();
             auto future = wp->enqueue([this] {
                 for (auto i = 0; i < (int) Leaves.size(); i++) {
                     leafMap[std::string(reinterpret_cast<const char *>(Leaves[i].data()), Leaves[i].size())] = i;

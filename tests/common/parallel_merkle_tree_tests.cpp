@@ -898,3 +898,79 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuildParallel) {
     }
     LOG(INFO) << "BenchmarkMerkleTreeBuildParallel 100 run costs: " << timer.end();
 }
+
+// 17.5ms in go, 11.2ms in c++
+TEST_F(PMTreeTest, SimpleTest) {
+    auto genData = []()-> vector_ptr<DataBlockPtr> {
+        auto blocks = std::make_unique<std::vector<DataBlockPtr>>(4);
+        for (auto i = 0; i < 4; i++) {
+            auto block = std::make_unique<mockDataBlock>();
+            const auto data = "data" + std::to_string(i);
+            std::copy(data.begin(), data.end(), std::back_inserter(block->data));
+            (*blocks)[i] = std::move(block);
+        }
+        return blocks;
+    };
+    auto testCases = genData();
+    pmt::Config config;
+    config.Mode = pmt::ModeType::ModeProofGenAndTreeBuild;
+    config.RunInParallel = true;
+    auto wp = std::make_unique<dp::thread_pool<>>((int) sysconf(_SC_NPROCESSORS_ONLN) / 2);
+    auto mt = pmt::MerkleTree::New(config, *testCases, wp.get());
+    for (auto i = 0; i < (int)testCases->size(); i++) {
+        auto got = mt->Verify(*(*testCases)[i], mt->getProofs()[i]);
+        if (got == std::nullopt) {
+            ASSERT_TRUE(false) << "Verify() error";
+        }
+        if (!got.value()) {
+            ASSERT_TRUE(false) << "Verify() result err";
+        }
+    }
+    const auto& proofs = mt->getProofs();
+    util::OpenSSLSHA256 sha256;
+    auto leaf00 = (*testCases)[0]->Serialize().value();
+    sha256.update({reinterpret_cast<const char *>(leaf00.data()), leaf00.size()});
+    auto res00 = sha256.final().value();
+    auto leaf01 = (*testCases)[1]->Serialize().value();
+    sha256.update({reinterpret_cast<const char *>(leaf01.data()), leaf01.size()});
+    auto res01 = sha256.final().value();
+
+    auto leaf10 = (*testCases)[2]->Serialize().value();
+    sha256.update({reinterpret_cast<const char *>(leaf10.data()), leaf10.size()});
+    auto res10 = sha256.final().value();
+    auto leaf11 = (*testCases)[3]->Serialize().value();
+    sha256.update({reinterpret_cast<const char *>(leaf11.data()), leaf11.size()});
+    auto res11 = sha256.final().value();
+
+    sha256.update({reinterpret_cast<const char *>(res00.data()), res00.size()});
+    sha256.update({reinterpret_cast<const char *>(res01.data()), res01.size()});
+    auto res0 = sha256.final().value();
+
+    sha256.update({reinterpret_cast<const char *>(res10.data()), res10.size()});
+    sha256.update({reinterpret_cast<const char *>(res11.data()), res11.size()});
+    auto res1 = sha256.final().value();
+
+    sha256.update({reinterpret_cast<const char *>(res0.data()), res0.size()});
+    sha256.update({reinterpret_cast<const char *>(res1.data()), res1.size()});
+    auto final = sha256.final().value();
+    if (final != mt->getRoot()) {
+        LOG(INFO) << "----Expect Proofs----";
+        LOG(INFO) << proofs[0].toString();
+        LOG(INFO) << proofs[1].toString();
+        LOG(INFO) << proofs[2].toString();
+        LOG(INFO) << proofs[3].toString();
+        LOG(INFO) << "----Expect Root----";
+        LOG(INFO) << util::OpenSSLSHA256::toString(mt->getRoot());
+        LOG(INFO) << "----Level2----";
+        LOG(INFO) << util::OpenSSLSHA256::toString(res00);
+        LOG(INFO) << util::OpenSSLSHA256::toString(res01);
+        LOG(INFO) << util::OpenSSLSHA256::toString(res10);
+        LOG(INFO) << util::OpenSSLSHA256::toString(res11);
+        LOG(INFO) << "----Level1----";
+        LOG(INFO) << util::OpenSSLSHA256::toString(res0);
+        LOG(INFO) << util::OpenSSLSHA256::toString(res1);
+        LOG(INFO) << "----Level0----";
+        LOG(INFO) << util::OpenSSLSHA256::toString(final);
+        ASSERT_TRUE(false) << "Merkle tree generation error";
+    }
+}

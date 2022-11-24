@@ -98,8 +98,8 @@ namespace pmt {
         [[nodiscard]] std::string toString() const {
             std::stringstream buf;
             buf << "Path: " << std::bitset<8>(this->Path) <<", Siblings: ";
-            for(const auto& sib: Siblings) {
-                buf << "\n\t" << util::OpenSSLSHA256::toString(*sib);
+            for(auto i=0; i<(int)Siblings.size(); i++) {
+                buf << "\n\t" << "Siblings depth: "<< Siblings.size()-i << "\t" << util::OpenSSLSHA256::toString(*Siblings[i]);
             }
             return buf.str();
         }
@@ -340,7 +340,10 @@ namespace pmt {
         // factor >= 1
         static inline auto calculateNumRoutine(int numRoutines, int workCount, int factor=16) {
             if (numRoutines > workCount/factor) {
-                numRoutines = workCount/factor+1;
+                numRoutines = workCount/factor;
+            }
+            if (numRoutines == 0) {
+                numRoutines = 1;
             }
             return numRoutines;
         }
@@ -593,7 +596,7 @@ namespace pmt {
             auto hash(*ret2);
             auto path = proof.Path;
             for (const auto &n: proof.Siblings) {
-                if ((path & 1) == 1) {
+                if ((path & 1) == 1) {  // hash leaf 1 before leaf 0
                     ret2 = Config::HashFunc(hash, *n);
                 } else {
                     ret2 = Config::HashFunc(*n, hash);

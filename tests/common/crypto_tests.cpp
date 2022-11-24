@@ -23,7 +23,8 @@ protected:
 };
 
 TEST_F(CryptoTest, TestStaticFunc) {
-    OpenSSL::initOpenSSLCrypto();
+    util::OpenSSLSHA1::initCrypto();
+    util::OpenSSLSHA256::initCrypto();
     util::OpenSSLSHA1::digestType defaultSha1Msg;
     util::OpenSSLSHA256::digestType defaultSha256Msg;
     ASSERT_TRUE(util::OpenSSLSHA1::toString(util::OpenSSLSHA1::generateDigest(msg).value_or(defaultSha1Msg)) == kat1) << "SHA1 FAIL";
@@ -31,7 +32,7 @@ TEST_F(CryptoTest, TestStaticFunc) {
 }
 
 TEST_F(CryptoTest, TestDynamicFunc) {
-    OpenSSL::initOpenSSLCrypto();
+    util::OpenSSLSHA256::initCrypto();
     util::OpenSSLSHA256::digestType defaultSha256Msg;
     auto hash = util::OpenSSLSHA256();
     ASSERT_TRUE(hash.update(msg)) << "update failed";
@@ -42,7 +43,7 @@ TEST_F(CryptoTest, TestDynamicFunc) {
 }
 
 TEST_F(CryptoTest, SingleThreadPerformance) {
-    OpenSSL::initOpenSSLCrypto();
+    util::OpenSSLSHA256::initCrypto();
     auto hash = util::OpenSSLSHA256();
     std::string dataEncode; // each thread use a different data
     for (int i=0; i<200000; i++) {

@@ -10,6 +10,8 @@
 class PMTreeTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        util::OpenSSLSHA1::initCrypto();
+        util::OpenSSLSHA256::initCrypto();
     };
 
     void TearDown() override {
@@ -847,7 +849,6 @@ TEST_F(PMTreeTest, TestVerify) {
 
 // 35.6ms in go, 13.6ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeNew) {
-    OpenSSL::initOpenSSLCrypto();
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
     auto wp = std::make_unique<dp::thread_pool<>>((int) sysconf(_SC_NPROCESSORS_ONLN) / 2);
@@ -860,7 +861,6 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeNew) {
 
 // 17.1ms in go, 23.3ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeNewParallel) {
-    OpenSSL::initOpenSSLCrypto();
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
     config.RunInParallel = true;
@@ -874,7 +874,6 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeNewParallel) {
 
 // 31.1ms in go, 11.0ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeBuild) {
-    OpenSSL::initOpenSSLCrypto();
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
     config.Mode = pmt::ModeType::ModeTreeBuild;
@@ -888,7 +887,6 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuild) {
 
 // 17.5ms in go, 13.4ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeBuildParallel) {
-    OpenSSL::initOpenSSLCrypto();
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
     config.Mode = pmt::ModeType::ModeTreeBuild;

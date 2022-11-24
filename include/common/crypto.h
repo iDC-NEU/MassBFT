@@ -21,11 +21,6 @@ namespace OpenSSL {
     constexpr static inline const auto SHA256 = "SHA256";
     constexpr static inline const auto SHA1 = "SHA1";
 
-    inline void initOpenSSLCrypto() {
-        OpenSSL_add_all_digests();
-        OpenSSL_add_all_algorithms();
-    }
-
     template <int N>
     using digestType = std::array<uint8_t, N>;
 
@@ -67,6 +62,12 @@ namespace util {
             return OpenSSL::bytesToString<N>(md);
         }
 
+        static inline void initCrypto() {
+            OpenSSL_add_all_digests();
+            OpenSSL_add_all_algorithms();
+            EVP_DigestInit_ex(ctxStatic, _digest, nullptr);
+        }
+
         explicit OpenSSLHash() :ctx(EVP_MD_CTX_new()) {
             reset();
         }
@@ -76,7 +77,7 @@ namespace util {
         ~OpenSSLHash() = default;
 
         inline bool reset() {
-            return EVP_DigestInit_ex(ctx.get(), _digest, nullptr);
+            return EVP_MD_CTX_copy_ex(ctx.get(), ctxStatic);
         }
 
         inline bool update(std::string_view data) {
@@ -85,7 +86,7 @@ namespace util {
 
         inline std::optional<OpenSSL::digestType<N>> final() {
             OpenSSL::digestType<N> md;
-            bool ret = EVP_DigestFinal_ex(ctx.get(), md.data(), &_mdLen);
+            bool ret = EVP_DigestFinal_ex(ctx.get(), md.data(), nullptr);
             reset();
             if (!ret) {
                 return std::nullopt;
@@ -102,8 +103,8 @@ namespace util {
 
     private:
         EVP_MD_CTX_ptr ctx;
+        static inline EVP_MD_CTX *ctxStatic = EVP_MD_CTX_create();
         static inline const EVP_MD* _digest = EVP_MD_fetch(nullptr, mdDigestType, nullptr);
-        static inline unsigned int _mdLen = EVP_MD_size(EVP_MD_fetch(nullptr, mdDigestType, nullptr));
     };
 
     using OpenSSLSHA256 = OpenSSLHash<OpenSSL::SHA256, 32>;

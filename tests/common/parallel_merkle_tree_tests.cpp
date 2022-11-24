@@ -899,7 +899,6 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuildParallel) {
     LOG(INFO) << "BenchmarkMerkleTreeBuildParallel 100 run costs: " << timer.end();
 }
 
-// 17.5ms in go, 11.2ms in c++
 TEST_F(PMTreeTest, SimpleTest) {
     auto genData = []()-> vector_ptr<DataBlockPtr> {
         auto blocks = std::make_unique<std::vector<DataBlockPtr>>(4);

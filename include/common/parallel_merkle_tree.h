@@ -405,11 +405,10 @@ namespace pmt {
             std::vector<byteString>* buf1 = proofGenBufList.back().get();  // have to perform deep copy
             int prevLen = numLeaves;
             this->fixOdd(*buf1, prevLen);
+            this->updateProofsParallel(*buf1, numLeaves, 0);
 
             proofGenBufList.push_back(std::make_unique<std::vector<byteString>>(prevLen >> 1));
             std::vector<byteString>* buf2 = proofGenBufList.back().get();
-            this->updateProofsParallel(*buf1, numLeaves, 0);
-
             auto numRoutines = config.NumRoutines;
             for (auto step = 1; step < int(Depth); step++) {
                 if (numRoutines > prevLen) {

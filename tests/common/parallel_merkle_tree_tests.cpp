@@ -847,7 +847,7 @@ TEST_F(PMTreeTest, TestVerify) {
     }
 }
 
-// 35.6ms in go, 13.6ms in c++
+// 35.6ms in go, 13.1ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeNew) {
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
@@ -859,7 +859,7 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeNew) {
     LOG(INFO) << "BenchmarkMerkleTreeNew 100 run costs: " << timer.end();
 }
 
-// 17.1ms in go, 23.3ms in c++
+// 17.1ms in go, 18.5ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeNewParallel) {
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
@@ -872,7 +872,7 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeNewParallel) {
     LOG(INFO) << "BenchmarkMerkleTreeNewParallel 100 run costs: " << timer.end();
 }
 
-// 31.1ms in go, 11.0ms in c++
+// 31.1ms in go, 10.2ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeBuild) {
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
@@ -885,7 +885,7 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuild) {
     LOG(INFO) << "BenchmarkMerkleTreeBuild 100 run costs: " << timer.end();
 }
 
-// 17.5ms in go, 13.4ms in c++
+// 17.5ms in go, 11.2ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeBuildParallel) {
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;

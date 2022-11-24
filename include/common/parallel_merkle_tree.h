@@ -327,7 +327,7 @@ namespace pmt {
                     return false;
                 }
                 auto data = std::move(*ret);
-                auto hash = Config::HashFunc({data});
+                auto hash = Config::HashFunc(data);
                 if (!hash) {
                     return false;
                 }
@@ -336,13 +336,20 @@ namespace pmt {
             return true;
         }
 
+        // If there is too little data to calculate, lower the count of worker threads.
+        // factor >= 1
+        static inline auto calculateNumRoutine(int numRoutines, int workCount, int factor=16) {
+            if (numRoutines > workCount/factor) {
+                numRoutines = workCount/factor+1;
+            }
+            return numRoutines;
+        }
+
         bool leafGenParallel(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
             int lenLeaves = (int) blocks.size();
             this->Leaves.resize(lenLeaves);
-            auto numRoutines = config.NumRoutines;
-            if (numRoutines > lenLeaves) {
-                numRoutines = lenLeaves;
-            }
+
+            auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, lenLeaves);
             std::vector<std::future<bool>> futureList;
             futureList.reserve(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
@@ -377,7 +384,7 @@ namespace pmt {
                     return false;
                 }
                 auto data = std::move(*ret);
-                auto hash = Config::HashFunc({data});
+                auto hash = Config::HashFunc(data);
                 if (!hash) {
                     return false;
                 }
@@ -421,11 +428,8 @@ namespace pmt {
 
             proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(prevLen >> 1));
             std::vector<hashString>* buf2 = proofGenBufList.back().get();
-            auto numRoutines = config.NumRoutines;
             for (auto step = 1; step < int(Depth); step++) {
-                if (numRoutines > prevLen) {
-                    numRoutines = prevLen;
-                }
+                auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
                 std::vector<std::future<bool>> futureList;
                 futureList.reserve(numRoutines);
                 for (auto i = 0; i < numRoutines; i++) {
@@ -479,10 +483,8 @@ namespace pmt {
 
         void updateProofsParallel(const std::vector<hashString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
-            auto numRoutines = config.NumRoutines;
-            if (numRoutines > bufLen) {
-                numRoutines = bufLen;
-            }
+
+            auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, bufLen);
             std::vector<std::future<bool>> futureList;
             futureList.reserve(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
@@ -512,14 +514,13 @@ namespace pmt {
             for (uint32_t i = 0; i < Depth - 1; i++) {
                 this->tree[i + 1] = std::vector<hashString>(prevLen >> 1);
                 if (config.RunInParallel) {
-                    auto numRoutines = config.NumRoutines;
-                    if (numRoutines > prevLen) {
-                        numRoutines = prevLen;
-                    }
+                    auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
                     std::vector<std::future<bool>> futureList;
                     futureList.reserve(numRoutines);
                     for (auto j = 0; j < numRoutines; j++) {
-                        futureList.push_back(wp->enqueue(treeBuildHandler, this, j << 1, prevLen, config.NumRoutines, i));
+                        // ----in the original version, numRoutines==config::NumRoutines----
+                        futureList.push_back(wp->enqueue(treeBuildHandler, this, j << 1, prevLen, numRoutines, i));
+                        // -----------------------------------------------------------------
                     }
                     for (auto &future_: futureList) {
                         if (!future_.get()) {
@@ -585,7 +586,7 @@ namespace pmt {
             }
             auto data = std::move(*ret);
 
-            auto ret2 = Config::HashFunc({data});
+            auto ret2 = Config::HashFunc(data);
             if (!ret2) {
                 return std::nullopt;
             }
@@ -619,7 +620,7 @@ namespace pmt {
                 return std::nullopt;
             }
             auto blockByte = std::move(*ret);
-            auto ret2 = Config::HashFunc({blockByte});
+            auto ret2 = Config::HashFunc(blockByte);
             if (!ret2) {
                 return std::nullopt;
             }

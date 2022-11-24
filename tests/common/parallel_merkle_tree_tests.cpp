@@ -474,7 +474,7 @@ TEST_F(PMTreeTest, TestMerkleTreeNew_proofGenAndTreeBuild) {
         for (auto i = 0; i < (int)tt.args.blocks->size(); i++) {
             const auto& mtProofs = mt->getProofs();
             const auto& m1Proofs = m1->getProofs();
-            if (!m1Proofs[i]->equal(*mtProofs[i])) {
+            if (!m1Proofs[i].equal(mtProofs[i])) {
                 ASSERT_TRUE(false) << "proofs generated are wrong for block " << i;
             }
         }
@@ -574,7 +574,7 @@ TEST_F(PMTreeTest, TestMerkleTreeNew_proofGenAndTreeBuildParallel) {
         for (auto i = 0; i < (int)tt.args.blocks->size(); i++) {
             const auto& mtProofs = mt->getProofs();
             const auto& m1Proofs = m1->getProofs();
-            if (!m1Proofs[i]->equal(*mtProofs[i])) {
+            if (!m1Proofs[i].equal(mtProofs[i])) {
                 ASSERT_TRUE(false) << "proofs generated are wrong for block " << i;
             }
         }
@@ -677,7 +677,7 @@ TEST_F(PMTreeTest, TestMerkleTree_Verify) {
         }
 
         for (auto i = 0; i < tt.blockSize; i++) {
-            auto got = mt->Verify(*(*blocks)[i], *mt->getProofs()[i]);
+            auto got = mt->Verify(*(*blocks)[i], mt->getProofs()[i]);
             if ((got == std::nullopt) != tt.wantErr) {
                 ASSERT_TRUE(false) << "Verify() error, want: " << tt.wantErr;
             }
@@ -790,10 +790,10 @@ TEST_F(PMTreeTest, TestMerkleTree_GenerateProof) {
                 continue;
             }
 
-            if ((ret.value()!=*m1->getProofs()[i]) && !tt.wantErr) {
+            if ((ret.value()!=m1->getProofs()[i]) && !tt.wantErr) {
                 ASSERT_TRUE(false) << "GenerateProof() "<< i <<
                                    ", got: " << ret.value().toString() <<
-                                   ", want: " << m1->getProofs()[i]->toString();
+                                   ", want: " << m1->getProofs()[i].toString();
             }
         }
     }
@@ -808,7 +808,7 @@ TEST_F(PMTreeTest, TestVerify) {
     struct shared_test_case {
         std::string name;
         pmt::DataBlock* dataBlock;
-        pmt::Proof* proof;
+        pmt::Proof proof;
         pmt::byteString root;
         bool want;
     };
@@ -818,7 +818,7 @@ TEST_F(PMTreeTest, TestVerify) {
     tests.push_back({
                             .name= "test_ok",
                             .dataBlock = (*blocks)[0].get(),
-                            .proof = mt->getProofs()[0].get(),
+                            .proof = mt->getProofs()[0],
                             .root = mt->getRoot(),
                             .want= true,
                     });
@@ -826,12 +826,12 @@ TEST_F(PMTreeTest, TestVerify) {
     tests.push_back({
                             .name= "test_wrong_root",
                             .dataBlock = (*blocks)[0].get(),
-                            .proof = mt->getProofs()[0].get(),
+                            .proof = mt->getProofs()[0],
                             .root = byteString(badRoot.begin(), badRoot.end()),
                             .want = false,
                     });
     for (const auto& tt : tests) {
-        auto result = pmt::MerkleTree::Verify(*tt.dataBlock, *tt.proof, tt.root);
+        auto result = pmt::MerkleTree::Verify(*tt.dataBlock, tt.proof, tt.root);
 
         if (result == std::nullopt) {
             ASSERT_TRUE(false) << "Verify()) error";
@@ -842,12 +842,55 @@ TEST_F(PMTreeTest, TestVerify) {
     }
 }
 
-// 35.8ms in go, 81.6ms in c++
+// 35.6ms in go, 20.8ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeNew) {
+    OpenSSL::initOpenSSLCrypto();
+    auto testCases = genTestDataBlocks(benchSize);
+    pmt::Config config;
+    auto wp = std::make_unique<dp::thread_pool<>>((int) sysconf(_SC_NPROCESSORS_ONLN) / 2);
+    util::Timer timer;
+    for(int i=0; i<100; i++) {
+        pmt::MerkleTree::New(config, *testCases, wp.get());
+    }
+    LOG(INFO) << "BenchmarkMerkleTreeNew 100 run costs: " << timer.end();
+}
+
+// 17.1ms in go, 33.2ms in c++
+TEST_F(PMTreeTest, BenchmarkMerkleTreeNewParallel) {
+    OpenSSL::initOpenSSLCrypto();
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
     config.RunInParallel = true;
-    auto wp = std::make_unique<dp::thread_pool<>>((int) sysconf(_SC_NPROCESSORS_ONLN));
+    auto wp = std::make_unique<dp::thread_pool<>>((int) sysconf(_SC_NPROCESSORS_ONLN) / 2);
+    util::Timer timer;
+    for(int i=0; i<100; i++) {
+        pmt::MerkleTree::New(config, *testCases, wp.get());
+    }
+    LOG(INFO) << "BenchmarkMerkleTreeNew 100 run costs: " << timer.end();
+}
+
+// 31.1ms in go, 14.1ms in c++
+TEST_F(PMTreeTest, BenchmarkMerkleTreeBuild) {
+    OpenSSL::initOpenSSLCrypto();
+    auto testCases = genTestDataBlocks(benchSize);
+    pmt::Config config;
+    config.Mode = pmt::ModeType::ModeTreeBuild;
+    auto wp = std::make_unique<dp::thread_pool<>>((int) sysconf(_SC_NPROCESSORS_ONLN) / 2);
+    util::Timer timer;
+    for(int i=0; i<100; i++) {
+        pmt::MerkleTree::New(config, *testCases, wp.get());
+    }
+    LOG(INFO) << "BenchmarkMerkleTreeNew 100 run costs: " << timer.end();
+}
+
+// 17.5ms in go, 15.8ms in c++
+TEST_F(PMTreeTest, BenchmarkMerkleTreeBuildParallel) {
+    OpenSSL::initOpenSSLCrypto();
+    auto testCases = genTestDataBlocks(benchSize);
+    pmt::Config config;
+    config.Mode = pmt::ModeType::ModeTreeBuild;
+    config.RunInParallel = true;
+    auto wp = std::make_unique<dp::thread_pool<>>((int) sysconf(_SC_NPROCESSORS_ONLN) / 2);
     util::Timer timer;
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());

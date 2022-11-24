@@ -24,25 +24,25 @@ protected:
 
 TEST_F(CryptoTest, TestStaticFunc) {
     OpenSSL::initOpenSSLCrypto();
-    OpenSSL::digestType defaultMsg;
-    ASSERT_TRUE(OpenSSL::bytesToString(util::OpenSSLSHA1::generateDigest(msg).value_or(defaultMsg)) == kat1) << "SHA1 FAIL";
-    ASSERT_TRUE(OpenSSL::bytesToString(util::OpenSSLSHA256::generateDigest(msg).value_or(defaultMsg)) == kat256) << "SHA256 FAIL";
+    util::OpenSSLSHA1::digestType defaultSha1Msg;
+    util::OpenSSLSHA256::digestType defaultSha256Msg;
+    ASSERT_TRUE(util::OpenSSLSHA1::toString(util::OpenSSLSHA1::generateDigest(msg).value_or(defaultSha1Msg)) == kat1) << "SHA1 FAIL";
+    ASSERT_TRUE(util::OpenSSLSHA256::toString(util::OpenSSLSHA256::generateDigest(msg).value_or(defaultSha256Msg)) == kat256) << "SHA256 FAIL";
 }
 
 TEST_F(CryptoTest, TestDynamicFunc) {
     OpenSSL::initOpenSSLCrypto();
-    OpenSSL::digestType defaultMsg;
+    util::OpenSSLSHA256::digestType defaultSha256Msg;
     auto hash = util::OpenSSLSHA256();
     ASSERT_TRUE(hash.update(msg)) << "update failed";
-    ASSERT_TRUE(OpenSSL::bytesToString(hash.final().value_or(defaultMsg)) == kat256) << "SHA256 FAIL";
+    ASSERT_TRUE(util::OpenSSLSHA256::toString(hash.final().value_or(defaultSha256Msg)) == kat256) << "SHA256 FAIL";
     std::string sv = msg;
     ASSERT_TRUE(hash.update(sv.substr(0,10))) << "update failed";
-    ASSERT_TRUE(OpenSSL::bytesToString(hash.updateFinal(sv.substr(10)).value_or(defaultMsg)) == kat256) << "SHA256 FAIL";
+    ASSERT_TRUE(util::OpenSSLSHA256::toString(hash.updateFinal(sv.substr(10)).value_or(defaultSha256Msg)) == kat256) << "SHA256 FAIL";
 }
 
 TEST_F(CryptoTest, SingleThreadPerformance) {
     OpenSSL::initOpenSSLCrypto();
-    OpenSSL::digestType defaultMsg;
     auto hash = util::OpenSSLSHA256();
     std::string dataEncode; // each thread use a different data
     for (int i=0; i<200000; i++) {

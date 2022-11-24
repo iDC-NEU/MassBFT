@@ -264,8 +264,8 @@ TEST_F(PMTreeTest, TestMerkleTreeNew_buildTree) {
         }
 
         if ((mt->getRoot() != m1->getRoot()) && !tt.wantErr) {
-            LOG(ERROR) << "mt Root: " << OpenSSL::bytesToString(mt->getRoot());
-            LOG(ERROR) << "m1 Root: " << OpenSSL::bytesToString(m1->getRoot());
+            LOG(ERROR) << "mt Root: " << util::OpenSSLSHA256::toString(mt->getRoot());
+            LOG(ERROR) << "m1 Root: " << util::OpenSSLSHA256::toString(m1->getRoot());
             ASSERT_TRUE(false) << "tree generated is wrong";
         }
     }
@@ -375,8 +375,8 @@ TEST_F(PMTreeTest, TestMerkleTreeNew_treeBuildParallel) {
         }
 
         if ((mt->getRoot() != m1->getRoot()) && !tt.wantErr) {
-            LOG(ERROR) << "mt Root: " << OpenSSL::bytesToString(mt->getRoot());
-            LOG(ERROR) << "m1 Root: " << OpenSSL::bytesToString(m1->getRoot());
+            LOG(ERROR) << "mt Root: " << util::OpenSSLSHA256::toString(mt->getRoot());
+            LOG(ERROR) << "m1 Root: " << util::OpenSSLSHA256::toString(m1->getRoot());
             ASSERT_TRUE(false) << "tree generated is wrong";
         }
     }
@@ -809,10 +809,9 @@ TEST_F(PMTreeTest, TestVerify) {
         std::string name;
         pmt::DataBlock* dataBlock;
         pmt::Proof proof;
-        pmt::byteString root;
+        pmt::hashString root;
         bool want;
     };
-    auto badRoot = std::string_view("test_wrong_root");
     std::vector<shared_test_case> tests;
 
     tests.push_back({
@@ -827,9 +826,13 @@ TEST_F(PMTreeTest, TestVerify) {
                             .name= "test_wrong_root",
                             .dataBlock = (*blocks)[0].get(),
                             .proof = mt->getProofs()[0],
-                            .root = byteString(badRoot.begin(), badRoot.end()),
+                            .root{},
                             .want = false,
                     });
+
+    auto badRoot = std::string_view("test_wrong_root");
+    std::copy_n(badRoot.begin(), 32, tests.back().root.begin());
+
     for (const auto& tt : tests) {
         auto result = pmt::MerkleTree::Verify(*tt.dataBlock, tt.proof, tt.root);
 
@@ -842,7 +845,7 @@ TEST_F(PMTreeTest, TestVerify) {
     }
 }
 
-// 35.6ms in go, 20.8ms in c++
+// 35.6ms in go, 13.6ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeNew) {
     OpenSSL::initOpenSSLCrypto();
     auto testCases = genTestDataBlocks(benchSize);
@@ -855,7 +858,7 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeNew) {
     LOG(INFO) << "BenchmarkMerkleTreeNew 100 run costs: " << timer.end();
 }
 
-// 17.1ms in go, 33.2ms in c++
+// 17.1ms in go, 23.3ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeNewParallel) {
     OpenSSL::initOpenSSLCrypto();
     auto testCases = genTestDataBlocks(benchSize);
@@ -866,10 +869,10 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeNewParallel) {
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());
     }
-    LOG(INFO) << "BenchmarkMerkleTreeNew 100 run costs: " << timer.end();
+    LOG(INFO) << "BenchmarkMerkleTreeNewParallel 100 run costs: " << timer.end();
 }
 
-// 31.1ms in go, 14.1ms in c++
+// 31.1ms in go, 11.0ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeBuild) {
     OpenSSL::initOpenSSLCrypto();
     auto testCases = genTestDataBlocks(benchSize);
@@ -880,10 +883,10 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuild) {
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());
     }
-    LOG(INFO) << "BenchmarkMerkleTreeNew 100 run costs: " << timer.end();
+    LOG(INFO) << "BenchmarkMerkleTreeBuild 100 run costs: " << timer.end();
 }
 
-// 17.5ms in go, 15.8ms in c++
+// 17.5ms in go, 13.4ms in c++
 TEST_F(PMTreeTest, BenchmarkMerkleTreeBuildParallel) {
     OpenSSL::initOpenSSLCrypto();
     auto testCases = genTestDataBlocks(benchSize);
@@ -895,5 +898,5 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuildParallel) {
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());
     }
-    LOG(INFO) << "BenchmarkMerkleTreeNew 100 run costs: " << timer.end();
+    LOG(INFO) << "BenchmarkMerkleTreeBuildParallel 100 run costs: " << timer.end();
 }

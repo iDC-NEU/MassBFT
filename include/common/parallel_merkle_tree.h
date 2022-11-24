@@ -30,6 +30,8 @@ namespace pmt {
 
     using byteString = std::vector<uint8_t>;
 
+    using hashString = std::array<uint8_t, defaultHashLen>;
+
     // DataBlock is the interface of input data blocks to generate the Merkle Tree.
     class DataBlock {
     public:
@@ -43,12 +45,22 @@ namespace pmt {
     struct Config {
         // HashFuncType is the signature of the hash functions used for Merkle Tree generation.
         // Customizable hash function used for tree generation.
-        static std::optional<byteString> HashFunc(std::initializer_list<byteString> strList) {
+        static std::optional<hashString> HashFunc(const hashString& h1, const hashString& h2) {
             util::OpenSSLSHA256 hash;
-            for (const auto &str: strList) {
-                if (!hash.update(std::string_view(reinterpret_cast<const char *>(str.data()), str.size()))) {
-                    return std::nullopt;
-                }
+
+            if (!hash.update(std::string_view(reinterpret_cast<const char *>(h1.data()), h1.size())) ||
+                    !hash.update(std::string_view(reinterpret_cast<const char *>(h2.data()), h2.size())) ) {
+                return std::nullopt;
+            }
+            return hash.final();
+        }
+
+        // HashFuncType is the signature of the hash functions used for Merkle Tree generation.
+        // Customizable hash function used for tree generation.
+        static std::optional<hashString> HashFunc(const byteString& str) {
+            util::OpenSSLSHA256 hash;
+            if (!hash.update(std::string_view(reinterpret_cast<const char *>(str.data()), str.size()))) {
+                return std::nullopt;
             }
             return hash.final();
         }
@@ -68,7 +80,7 @@ namespace pmt {
 
     // Proof implements the Merkle Tree proof.
     struct Proof {
-        std::vector<const byteString*> Siblings{}; // sibling nodes to the Merkle Tree path of the data block
+        std::vector<const hashString*> Siblings{}; // sibling nodes to the Merkle Tree path of the data block
         uint32_t Path{};        // path variable indicating whether the neighbor is on the left or right
 
         bool operator==(const Proof& rhs) const {
@@ -87,7 +99,7 @@ namespace pmt {
             std::stringstream buf;
             buf << "Path: " << std::bitset<8>(this->Path) <<", Siblings: ";
             for(const auto& sib: Siblings) {
-                buf << "\n\t" << OpenSSL::bytesToString(*sib);
+                buf << "\n\t" << util::OpenSSLSHA256::toString(*sib);
             }
             return buf.str();
         }
@@ -103,11 +115,11 @@ namespace pmt {
         // only available when config mode is ModeTreeBuild or ModeProofGenAndTreeBuild
         ankerl::unordered_dense::map<std::string, int> leafMap;
         // tree is the Merkle Tree structure, only available when config mode is ModeTreeBuild or ModeProofGenAndTreeBuild
-        std::vector<std::vector<byteString>> tree;
+        std::vector<std::vector<hashString>> tree;
         // Root is the Merkle root hash
-        byteString Root;
+        hashString Root{};
         // Leaves are Merkle Tree leaves, i.e. the hashes of the data blocks for tree generation
-        std::vector<byteString> Leaves;
+        std::vector<hashString> Leaves;
         // Proofs are proofs to the data blocks generated during the tree building process
         std::vector<Proof> Proofs;
         // Depth is the Merkle Tree depth
@@ -118,7 +130,7 @@ namespace pmt {
         std::unique_ptr<dp::thread_pool<>> wpGuard = nullptr;
 
         // copy-on-write, save time
-        std::vector<std::unique_ptr<std::vector<byteString>>> proofGenBufList;
+        std::vector<std::unique_ptr<std::vector<hashString>>> proofGenBufList;
     public:
         [[nodiscard]] inline const auto& getRoot() const { return Root; }
 
@@ -224,37 +236,37 @@ namespace pmt {
         bool proofGen() {
             const int numLeaves = (int) Leaves.size();
             initProofs();
-            proofGenBufList.push_back(std::make_unique<std::vector<byteString>>(Leaves));
-            std::vector<byteString>* buf = proofGenBufList.back().get();
+            proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(Leaves));
+            std::vector<hashString>* buf = proofGenBufList.back().get();
             int prevLen = numLeaves;
             this->fixOdd(*buf, prevLen);
             this->updateProofs(*buf, numLeaves, 0);
 
             for (auto step = 1; step < int(Depth); step++) {
-                proofGenBufList.push_back(std::make_unique<std::vector<byteString>>(*buf));
+                proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(*buf));
                 buf = proofGenBufList.back().get();  // must re-create buf, copy-on-write
                 for (auto idx = 0; idx < prevLen; idx += 2) {
-                    auto res = Config::HashFunc({(*buf)[idx], (*buf)[idx + 1]});
+                    auto res = Config::HashFunc((*buf)[idx], (*buf)[idx + 1]);
                     if (!res) {
                         return false;
                     }
-                    (*buf)[idx >> 1] = std::move(*res);
+                    (*buf)[idx >> 1] = *res;
                 }
                 prevLen >>= 1;
                 this->fixOdd(*buf, prevLen);
                 this->updateProofs(*buf, prevLen, step);
             }
-            auto res = Config::HashFunc({(*buf)[0], (*buf)[1]});
+            auto res = Config::HashFunc((*buf)[0], (*buf)[1]);
             if (!res) {
                 return false;
             }
-            Root = std::move(*res);
+            Root = *res;
             return true;
         }
 
         // generate a dummy hash to make odd-length buffer even
-        static byteString getDummyHash() {
-            byteString dummyBytes(defaultHashLen);
+        static hashString getDummyHash() {
+            hashString dummyBytes;
             for (auto &b: dummyBytes) {
                 b = random() % 256;
             }
@@ -264,11 +276,11 @@ namespace pmt {
         // if the length of the buffer calculating the Merkle Tree is odd, then append a node to the buffer
         // if AllowDuplicates is true, append a node by duplicating the previous node
         // otherwise, append a node by random
-        void fixOdd(std::vector<byteString> &buf, int &prevLen) const {
+        void fixOdd(std::vector<hashString> &buf, int &prevLen) const {
             if ((prevLen & 1) == 0) {
                 return;
             }
-            byteString appendNode;
+            hashString appendNode;
             if (config.NoDuplicates) {
                 appendNode = getDummyHash();
             } else {
@@ -283,7 +295,7 @@ namespace pmt {
         }
 
 
-        void updateProofs(const std::vector<byteString> &buf, int bufLen, int step) {
+        void updateProofs(const std::vector<hashString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
             for (auto i = 0; i < bufLen; i += 2) {
                 this->updatePairProof(buf, i, batch, step);
@@ -291,7 +303,7 @@ namespace pmt {
         }
 
 
-        void updatePairProof(const std::vector<byteString> &buf, int idx, int batch, int step) {
+        void updatePairProof(const std::vector<hashString> &buf, int idx, int batch, int step) {
             auto start = idx * batch;
             int end = start + batch < (int) Proofs.size() ? start + batch : (int) Proofs.size();
             for (auto i = start; i < end; i++) {
@@ -319,7 +331,7 @@ namespace pmt {
                 if (!hash) {
                     return false;
                 }
-                this->Leaves[i] = std::move(*hash);
+                this->Leaves[i] = *hash;
             }
             return true;
         }
@@ -354,7 +366,7 @@ namespace pmt {
         //	intField1: start
         //	intField2: lenLeaves
         //	intField3: numRoutines
-        static bool leafGenHandler(std::vector<byteString>* leaves,
+        static bool leafGenHandler(std::vector<hashString>* leaves,
                                    const std::vector<std::unique_ptr<DataBlock>>* blocks,
                                    int start,
                                    int lenLeaves,
@@ -369,7 +381,7 @@ namespace pmt {
                 if (!hash) {
                     return false;
                 }
-                (*leaves)[i] = std::move(*hash);
+                (*leaves)[i] = *hash;
             }
             return true;
         }
@@ -383,17 +395,17 @@ namespace pmt {
         //	intField1: start
         //	intField2: prevLen
         //	intField3: numRoutines
-        static bool proofGenHandler(const std::vector<byteString>* buf1,
-                                    std::vector<byteString>* buf2,
+        static bool proofGenHandler(const std::vector<hashString>* buf1,
+                                    std::vector<hashString>* buf2,
                                     int start,
                                     int prevLen,
                                     int numRoutines) {
             for (auto i = start; i < prevLen; i += (numRoutines << 1)) {
-                auto newHash = Config::HashFunc({(*buf1)[i], (*buf1)[i + 1]});
+                auto newHash = Config::HashFunc((*buf1)[i], (*buf1)[i + 1]);
                 if (!newHash) {
                     return false;
                 }
-                (*buf2)[i >> 1] = std::move(*newHash);
+                (*buf2)[i >> 1] = *newHash;
             }
             return true;
         }
@@ -401,14 +413,14 @@ namespace pmt {
         bool proofGenParallel() {
             this->initProofs();
             const int numLeaves = (int) Leaves.size();
-            proofGenBufList.push_back(std::make_unique<std::vector<byteString>>(Leaves));
-            std::vector<byteString>* buf1 = proofGenBufList.back().get();  // have to perform deep copy
+            proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(Leaves));
+            std::vector<hashString>* buf1 = proofGenBufList.back().get();  // have to perform deep copy
             int prevLen = numLeaves;
             this->fixOdd(*buf1, prevLen);
             this->updateProofsParallel(*buf1, numLeaves, 0);
 
-            proofGenBufList.push_back(std::make_unique<std::vector<byteString>>(prevLen >> 1));
-            std::vector<byteString>* buf2 = proofGenBufList.back().get();
+            proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(prevLen >> 1));
+            std::vector<hashString>* buf2 = proofGenBufList.back().get();
             auto numRoutines = config.NumRoutines;
             for (auto step = 1; step < int(Depth); step++) {
                 if (numRoutines > prevLen) {
@@ -419,8 +431,8 @@ namespace pmt {
                 for (auto i = 0; i < numRoutines; i++) {
                     futureList.push_back(wp->enqueue(proofGenHandler, buf1, buf2, i << 1, prevLen, numRoutines));
                 }
-                proofGenBufList.push_back(std::make_unique<std::vector<byteString>>(*buf1));
                 buf1 = buf2;
+                proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(prevLen >> 1));
                 buf2 = proofGenBufList.back().get();
                 prevLen >>= 1;
                 for (auto &future: futureList) {
@@ -433,11 +445,11 @@ namespace pmt {
                 this->fixOdd(*buf1, prevLen);
                 this->updateProofsParallel(*buf1, prevLen, step);
             }
-            auto newHash = Config::HashFunc({(*buf1)[0], (*buf1)[1]});
+            auto newHash = Config::HashFunc((*buf1)[0], (*buf1)[1]);
             if (!newHash) {
                 return false;
             }
-            Root = std::move(*newHash);
+            Root = *newHash;
             return true;
         }
 
@@ -452,7 +464,7 @@ namespace pmt {
         //	intField4: bufLen
         //	intField5: numRoutines
         static bool updateProofHandler(MerkleTree *mt,
-                                       const std::vector<byteString>* buf,
+                                       const std::vector<hashString>* buf,
                                        int start,
                                        int batch,
                                        int step,
@@ -465,7 +477,7 @@ namespace pmt {
             return true;
         }
 
-        void updateProofsParallel(const std::vector<byteString> &buf, int bufLen, int step) {
+        void updateProofsParallel(const std::vector<hashString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
             auto numRoutines = config.NumRoutines;
             if (numRoutines > bufLen) {
@@ -492,13 +504,13 @@ namespace pmt {
                 }
                 return true;
             });
-            this->tree = std::vector<std::vector<byteString>>(Depth);
+            this->tree = std::vector<std::vector<hashString>>(Depth);
             this->tree[0] = Leaves;
             int prevLen = (int) numLeaves;
             this->fixOdd(tree[0], prevLen);
 
             for (uint32_t i = 0; i < Depth - 1; i++) {
-                this->tree[i + 1] = std::vector<byteString>(prevLen >> 1);
+                this->tree[i + 1] = std::vector<hashString>(prevLen >> 1);
                 if (config.RunInParallel) {
                     auto numRoutines = config.NumRoutines;
                     if (numRoutines > prevLen) {
@@ -517,21 +529,21 @@ namespace pmt {
                     }
                 } else {
                     for (auto j = 0; j < prevLen; j += 2) {
-                        auto ret = Config::HashFunc({tree[i][j], tree[i][j + 1]});
+                        auto ret = Config::HashFunc(tree[i][j], tree[i][j + 1]);
                         if (!ret) {
                             return false;
                         }
-                        this->tree[i + 1][j >> 1] = std::move(*ret);
+                        this->tree[i + 1][j >> 1] = *ret;
                     }
                 }
                 prevLen = (int) this->tree[i + 1].size();
                 this->fixOdd(this->tree[i + 1], prevLen);
             }
-            auto ret = Config::HashFunc({tree[Depth - 1][0], tree[Depth - 1][1]});
+            auto ret = Config::HashFunc(tree[Depth - 1][0], tree[Depth - 1][1]);
             if (!ret) {
                 return false;
             }
-            this->Root = std::move(*ret);
+            this->Root = *ret;
             return future.get();
         }
 
@@ -550,11 +562,11 @@ namespace pmt {
                                      int numRoutines,
                                      uint32_t depth) {
             for (auto i = start; i < prevLen; i += (numRoutines << 1)) {
-                auto ret = Config::HashFunc({mt->tree[depth][i], mt->tree[depth][i + 1]});
+                auto ret = Config::HashFunc(mt->tree[depth][i], mt->tree[depth][i + 1]);
                 if (!ret) {
                     return false;
                 }
-                mt->tree[depth + 1][i >> 1] = std::move(*ret);
+                mt->tree[depth + 1][i >> 1] = *ret;
             }
             return true;
         }
@@ -566,30 +578,29 @@ namespace pmt {
         }
 
         // Verify verifies the data block with the Merkle Tree proof and Merkle root hash
-        static std::optional<bool> Verify(const DataBlock &dataBlock, const Proof &proof, const byteString &root) {
+        static std::optional<bool> Verify(const DataBlock &dataBlock, const Proof &proof, const hashString &root) {
             auto ret = dataBlock.Serialize();
             if (!ret) {
                 return std::nullopt;
             }
             auto data = std::move(*ret);
 
-            ret = Config::HashFunc({data});
-            if (!ret) {
+            auto ret2 = Config::HashFunc({data});
+            if (!ret2) {
                 return std::nullopt;
             }
-            auto hash = std::move(*ret);
-
+            auto hash(*ret2);
             auto path = proof.Path;
             for (const auto &n: proof.Siblings) {
                 if ((path & 1) == 1) {
-                    ret = Config::HashFunc({hash, *n});
+                    ret2 = Config::HashFunc(hash, *n);
                 } else {
-                    ret = Config::HashFunc({*n, hash});
+                    ret2 = Config::HashFunc(*n, hash);
                 }
-                if (!ret) {
+                if (!ret2) {
                     return std::nullopt;
                 }
-                hash = std::move(*ret);
+                hash = *ret2;
                 path >>= 1;
             }
             return hash == root;
@@ -608,11 +619,11 @@ namespace pmt {
                 return std::nullopt;
             }
             auto blockByte = std::move(*ret);
-            ret = Config::HashFunc({blockByte});
-            if (!ret) {
+            auto ret2 = Config::HashFunc({blockByte});
+            if (!ret2) {
                 return std::nullopt;
             }
-            auto blockHash = std::move(*ret);
+            auto blockHash = *ret2;
             auto swBlockHash = std::string(blockHash.begin(), blockHash.end());
             if (!leafMap.contains(swBlockHash)) {
                 LOG(WARNING) << "data block is not a member of the Merkle Tree";
@@ -620,7 +631,7 @@ namespace pmt {
             }
             auto idx = leafMap.at(swBlockHash);
             uint32_t path = 0;
-            std::vector<const byteString*> siblings(Depth);
+            std::vector<const hashString*> siblings(Depth);
             for (uint32_t i = 0; i < Depth; i++) {
                 if ((idx & 1) == 1) {
                     siblings[i] = &tree[i][idx - 1];

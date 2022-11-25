@@ -955,29 +955,29 @@ TEST_F(PMTreeTest, SimpleTest) {
     const auto& proofs = mt->getProofs();
     util::OpenSSLSHA256 sha256;
     auto leaf00 = (*testCases)[0]->Serialize().value();
-    sha256.update({reinterpret_cast<const char *>(leaf00.data()), leaf00.size()});
+    sha256.update(leaf00.data(), leaf00.size());
     auto res00 = sha256.final().value();
     auto leaf01 = (*testCases)[1]->Serialize().value();
-    sha256.update({reinterpret_cast<const char *>(leaf01.data()), leaf01.size()});
+    sha256.update(leaf01.data(), leaf01.size());
     auto res01 = sha256.final().value();
 
     auto leaf10 = (*testCases)[2]->Serialize().value();
-    sha256.update({reinterpret_cast<const char *>(leaf10.data()), leaf10.size()});
+    sha256.update(leaf10.data(), leaf10.size());
     auto res10 = sha256.final().value();
     auto leaf11 = (*testCases)[3]->Serialize().value();
-    sha256.update({reinterpret_cast<const char *>(leaf11.data()), leaf11.size()});
+    sha256.update(leaf11.data(), leaf11.size());
     auto res11 = sha256.final().value();
 
-    sha256.update({reinterpret_cast<const char *>(res00.data()), res00.size()});
-    sha256.update({reinterpret_cast<const char *>(res01.data()), res01.size()});
+    sha256.update(res00.data(), res00.size());
+    sha256.update(res01.data(), res01.size());
     auto res0 = sha256.final().value();
 
-    sha256.update({reinterpret_cast<const char *>(res10.data()), res10.size()});
-    sha256.update({reinterpret_cast<const char *>(res11.data()), res11.size()});
+    sha256.update(res10.data(), res10.size());
+    sha256.update(res11.data(), res11.size());
     auto res1 = sha256.final().value();
 
-    sha256.update({reinterpret_cast<const char *>(res0.data()), res0.size()});
-    sha256.update({reinterpret_cast<const char *>(res1.data()), res1.size()});
+    sha256.update(res0.data(), res0.size());
+    sha256.update(res1.data(), res1.size());
     auto final = sha256.final().value();
     if (final != mt->getRoot()) {
         LOG(INFO) << "----Expect Proofs----";

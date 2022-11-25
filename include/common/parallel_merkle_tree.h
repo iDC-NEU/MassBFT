@@ -48,8 +48,8 @@ namespace pmt {
         static std::optional<hashString> HashFunc(const hashString& h1, const hashString& h2) {
             util::OpenSSLSHA256 hash;
 
-            if (!hash.update(std::string_view(reinterpret_cast<const char *>(h1.data()), h1.size())) ||
-                    !hash.update(std::string_view(reinterpret_cast<const char *>(h2.data()), h2.size())) ) {
+            if (!hash.update(h1.data(), h1.size()) ||
+                    !hash.update(h2.data(), h2.size()) ) {
                 return std::nullopt;
             }
             return hash.final();
@@ -59,7 +59,7 @@ namespace pmt {
         // Customizable hash function used for tree generation.
         static std::optional<hashString> HashFunc(const byteString& str) {
             util::OpenSSLSHA256 hash;
-            if (!hash.update(std::string_view(reinterpret_cast<const char *>(str.data()), str.size()))) {
+            if (!hash.update(str.data(), str.size())) {
                 return std::nullopt;
             }
             return hash.final();

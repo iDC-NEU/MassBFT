@@ -27,19 +27,21 @@ TEST_F(CryptoTest, TestStaticFunc) {
     util::OpenSSLSHA256::initCrypto();
     util::OpenSSLSHA1::digestType defaultSha1Msg;
     util::OpenSSLSHA256::digestType defaultSha256Msg;
-    ASSERT_TRUE(util::OpenSSLSHA1::toString(util::OpenSSLSHA1::generateDigest(msg).value_or(defaultSha1Msg)) == kat1) << "SHA1 FAIL";
-    ASSERT_TRUE(util::OpenSSLSHA256::toString(util::OpenSSLSHA256::generateDigest(msg).value_or(defaultSha256Msg)) == kat256) << "SHA256 FAIL";
+    auto msgView = std::string_view(msg);
+    ASSERT_TRUE(util::OpenSSLSHA1::toString(util::OpenSSLSHA1::generateDigest(msgView.data(), msgView.size()).value_or(defaultSha1Msg)) == kat1) << "SHA1 FAIL";
+    ASSERT_TRUE(util::OpenSSLSHA256::toString(util::OpenSSLSHA256::generateDigest(msgView.data(), msgView.size()).value_or(defaultSha256Msg)) == kat256) << "SHA256 FAIL";
 }
 
 TEST_F(CryptoTest, TestDynamicFunc) {
     util::OpenSSLSHA256::initCrypto();
     util::OpenSSLSHA256::digestType defaultSha256Msg;
     auto hash = util::OpenSSLSHA256();
-    ASSERT_TRUE(hash.update(msg)) << "update failed";
+    auto msgView = std::string_view(msg);
+    ASSERT_TRUE(hash.update(msgView.data(), msgView.size())) << "update failed";
     ASSERT_TRUE(util::OpenSSLSHA256::toString(hash.final().value_or(defaultSha256Msg)) == kat256) << "SHA256 FAIL";
-    std::string sv = msg;
-    ASSERT_TRUE(hash.update(sv.substr(0,10))) << "update failed";
-    ASSERT_TRUE(util::OpenSSLSHA256::toString(hash.updateFinal(sv.substr(10)).value_or(defaultSha256Msg)) == kat256) << "SHA256 FAIL";
+
+    ASSERT_TRUE(hash.update(msgView.data(), 10)) << "update failed";
+    ASSERT_TRUE(util::OpenSSLSHA256::toString(hash.updateFinal(msgView.data()+10, msgView.size()-10).value_or(defaultSha256Msg)) == kat256) << "SHA256 FAIL";
 }
 
 TEST_F(CryptoTest, SingleThreadPerformance) {
@@ -52,7 +54,7 @@ TEST_F(CryptoTest, SingleThreadPerformance) {
     LOG(INFO) << "Data Size: " << dataEncode.size();
     util::Timer timer;
     for (int i=0; i<1000; i++) {
-        hash.updateFinal(dataEncode);
+        hash.updateFinal(dataEncode.data(), dataEncode.size());
     }
     LOG(INFO) << "Total Time spend: " << timer.end();
 }

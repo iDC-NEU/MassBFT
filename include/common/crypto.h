@@ -5,7 +5,6 @@
 #pragma once
 
 #include <openssl/evp.h>
-#include <openssl/sha.h>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -47,11 +46,11 @@ namespace util {
     public:
         using digestType = OpenSSL::digestType<N>;
         // generic MD digest runner
-        static std::optional<OpenSSL::digestType<N>> generateDigest(std::string_view data) {
+        static std::optional<OpenSSL::digestType<N>> generateDigest(const void *d, size_t cnt) {
             OpenSSL::digestType<N> md;
             EVP_MD_CTX_ptr ctx(EVP_MD_CTX_new());
             if(EVP_DigestInit_ex(ctx.get(), OpenSSLHash::_digest, nullptr) &&
-               EVP_DigestUpdate(ctx.get(), data.data(), data.size()) &&
+               EVP_DigestUpdate(ctx.get(), d, cnt) &&
                EVP_DigestFinal_ex(ctx.get(), md.data(), nullptr)) {
                 return md;
             }
@@ -80,8 +79,8 @@ namespace util {
             return EVP_MD_CTX_copy_ex(ctx.get(), ctxStatic);
         }
 
-        inline bool update(std::string_view data) {
-            return EVP_DigestUpdate(ctx.get(), data.data(), data.size());
+        inline bool update(const void *d, size_t cnt) {
+            return EVP_DigestUpdate(ctx.get(), d, cnt);
         }
 
         inline std::optional<OpenSSL::digestType<N>> final() {
@@ -94,8 +93,8 @@ namespace util {
             return md;
         }
 
-        inline std::optional<OpenSSL::digestType<N>> updateFinal(std::string_view data) {
-            if (!update(data)) {
+        inline std::optional<OpenSSL::digestType<N>> updateFinal(const void *d, size_t cnt) {
+            if (!update(d, cnt)) {
                 return std::nullopt;
             }
             return final();
@@ -109,4 +108,5 @@ namespace util {
 
     using OpenSSLSHA256 = OpenSSLHash<OpenSSL::SHA256, 32>;
     using OpenSSLSHA1 = OpenSSLHash<OpenSSL::SHA1, 20>;
+
 }

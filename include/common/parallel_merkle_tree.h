@@ -5,7 +5,7 @@
 #pragma once
 
 #include "ankerl/unordered_dense.h"
-#include "thread_pool/thread_pool.h"
+#include "common/thread_pool_light.h"
 #include "common/crypto.h"
 #include "glog/logging.h"
 #include <vector>
@@ -125,9 +125,9 @@ namespace pmt {
         // Depth is the Merkle Tree depth
         uint32_t Depth{};
         // thread pool
-        dp::thread_pool<>* wp = nullptr;
+        util::thread_pool_light* wp = nullptr;
         // if wp is created locally, free wp when destruct
-        std::unique_ptr<dp::thread_pool<>> wpGuard = nullptr;
+        std::unique_ptr<util::thread_pool_light> wpGuard = nullptr;
 
         // copy-on-write, save time
         std::vector<std::unique_ptr<std::vector<hashString>>> proofGenBufList;
@@ -145,7 +145,7 @@ namespace pmt {
         MerkleTree(const MerkleTree&) = delete;
 
         // New generates a new Merkle Tree with specified configuration.
-        static std::unique_ptr<MerkleTree> New(const Config &c, const std::vector<std::unique_ptr<DataBlock>> &blocks, dp::thread_pool<>* wpPtr=nullptr) {
+        static std::unique_ptr<MerkleTree> New(const Config &c, const std::vector<std::unique_ptr<DataBlock>> &blocks, util::thread_pool_light* wpPtr=nullptr) {
             if (blocks.size() <= 1) {
                 LOG(ERROR) << "the number of data blocks must be greater than 1";
                 return nullptr;
@@ -157,7 +157,7 @@ namespace pmt {
             }
             // task channel capacity is passed as 0, so use the default value: 2 * numWorkers
             if(wpPtr == nullptr) {
-                mt->wpGuard = std::make_unique<dp::thread_pool<>>(mt->config.NumRoutines);
+                mt->wpGuard = std::make_unique<util::thread_pool_light>(mt->config.NumRoutines);
                 mt->wp = mt->wpGuard.get();
             } else {
                 mt->wp = wpPtr;
@@ -353,17 +353,14 @@ namespace pmt {
             this->Leaves.resize(lenLeaves);
 
             auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, lenLeaves);
-            std::vector<std::future<bool>> futureList;
-            futureList.reserve(numRoutines);
+            auto sema = util::NewSema();
             for (auto i = 0; i < numRoutines; i++) {
-                futureList.push_back(wp->enqueue(leafGenHandler, &this->Leaves, &blocks, i, lenLeaves, numRoutines));
+                wp->push_task([&, i=i]{
+                    leafGenHandler(&this->Leaves, &blocks, i, lenLeaves, numRoutines);
+                    sema.signal();
+                });
             }
-            for (auto &future: futureList) {
-                if (!future.get()) {
-                    LOG(WARNING) << "leafGenParallel failed!";
-                    return false;
-                }
-            }
+            util::wait_for_sema(sema, numRoutines);
             return true;
         }
 
@@ -431,23 +428,21 @@ namespace pmt {
 
             proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(prevLen >> 1));
             std::vector<hashString>* buf2 = proofGenBufList.back().get();
+            auto sema = util::NewSema();
             for (auto step = 1; step < int(Depth); step++) {
                 auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
-                std::vector<std::future<bool>> futureList;
-                futureList.reserve(numRoutines);
                 for (auto i = 0; i < numRoutines; i++) {
-                    futureList.push_back(wp->enqueue(proofGenHandler, buf1, buf2, i << 1, prevLen, numRoutines));
+                    wp->push_task([&, i=i] {
+                        proofGenHandler(buf1, buf2, i << 1, prevLen, numRoutines);
+                        sema.signal();
+                    });
+
                 }
                 buf1 = buf2;
                 proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(prevLen >> 1));
                 buf2 = proofGenBufList.back().get();
                 prevLen >>= 1;
-                for (auto &future: futureList) {
-                    if (!future.get()) {
-                        LOG(WARNING) << "proofGenParallel failed!";
-                        return false;
-                    }
-                }
+                util::wait_for_sema(sema, numRoutines);
                 // do not modify buf1 until all workers finished.
                 this->fixOdd(*buf1, prevLen);
                 this->updateProofsParallel(*buf1, prevLen, step);
@@ -487,23 +482,20 @@ namespace pmt {
         void updateProofsParallel(const std::vector<hashString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
 
+            auto sema = util::NewSema();
             auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, bufLen);
-            std::vector<std::future<bool>> futureList;
-            futureList.reserve(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
-                futureList.push_back(wp->enqueue(updateProofHandler, this, &buf, i << 1, batch, step, bufLen, numRoutines));
+                wp->push_task([&, i=i] {
+                    updateProofHandler(this, &buf, i << 1, batch, step, bufLen, numRoutines);
+                    sema.signal();
+                });
             }
-            for (auto &future: futureList) {
-                if (!future.get()) {
-                    LOG(WARNING) << "updateProofsParallel failed!";
-                    return;
-                }
-            }
+            util::wait_for_sema(sema, numRoutines);
         }
 
         bool treeBuild() {
             const auto numLeaves = Leaves.size();
-            auto future = wp->enqueue([this] {
+            auto future = wp->submit([this] {
                 for (auto i = 0; i < (int) Leaves.size(); i++) {
                     leafMap[std::string(Leaves[i].begin(), Leaves[i].end())] = i;
                 }
@@ -514,23 +506,20 @@ namespace pmt {
             int prevLen = (int) numLeaves;
             this->fixOdd(tree[0], prevLen);
 
+            auto sema = util::NewSema();
             for (uint32_t i = 0; i < Depth - 1; i++) {
                 this->tree[i + 1] = std::vector<hashString>(prevLen >> 1);
                 if (config.RunInParallel) {
                     auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
-                    std::vector<std::future<bool>> futureList;
-                    futureList.reserve(numRoutines);
                     for (auto j = 0; j < numRoutines; j++) {
                         // ----in the original version, numRoutines==config::NumRoutines----
-                        futureList.push_back(wp->enqueue(treeBuildHandler, this, j << 1, prevLen, numRoutines, i));
+                        wp->push_task([this, j=j, prevLen=prevLen, numRoutines=numRoutines, i=i, &sema]{
+                            treeBuildHandler(this, j << 1, prevLen, numRoutines, i);
+                            sema.signal();
+                        });
                         // -----------------------------------------------------------------
                     }
-                    for (auto &future_: futureList) {
-                        if (!future_.get()) {
-                            LOG(WARNING) << "treeBuildParallel failed!";
-                            return false;
-                        }
-                    }
+                    util::wait_for_sema(sema, numRoutines);
                 } else {
                     for (auto j = 0; j < prevLen; j += 2) {
                         auto ret = Config::HashFunc(tree[i][j], tree[i][j + 1]);
@@ -585,12 +574,14 @@ namespace pmt {
         static std::optional<bool> Verify(const DataBlock &dataBlock, const Proof &proof, const hashString &root) {
             auto ret = dataBlock.Serialize();
             if (!ret) {
+                LOG(ERROR) << "Serialize data block error";
                 return std::nullopt;
             }
             auto data = std::move(*ret);
 
             auto ret2 = Config::HashFunc(data);
             if (!ret2) {
+                LOG(ERROR) << "Call hash func error";
                 return std::nullopt;
             }
             auto hash(*ret2);

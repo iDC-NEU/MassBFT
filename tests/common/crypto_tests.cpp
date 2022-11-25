@@ -58,3 +58,40 @@ TEST_F(CryptoTest, SingleThreadPerformance) {
     }
     LOG(INFO) << "Total Time spend: " << timer.end();
 }
+
+
+
+TEST_F(CryptoTest, TestED) {
+
+
+    std::string key_ {
+            R"(
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDd9VXmpHjV4voFO+0ZoFPlRr5icZXquxsr9EkaOUO9B7Wl1DAgGI0EKCm1++Bl2Od32xZFeFuG07OTpTMVOCPA==
+-----END PUBLIC KEY-----
+)"
+    };
+    std::string msg { util::OpenSSLED25519::toHex("562d6ddfb3ceb5abb12d97bc35c4963d249f55b7c75eda618d365492ee98d469") };
+    std::string sig { util::OpenSSLED25519::toHex("304502204d6d070117d445f4c2fcdbd4df037a1c8cfee2a166353c2e562cd5efd06e914d022100bb06439ded1478bd19022519dc06a84ba18ea4bf30ea9eb9ea90f8b66dad12c7") };
+
+    util::OpenSSLED25519::initCrypto();
+    auto ret = util::OpenSSLED25519::generateKeyFiles({}, {}, {});
+    if(!ret) {
+        return;
+    }
+    auto [pub, pri] = std::move(*ret);
+
+    auto signer = util::OpenSSLED25519::NewFromPemString(pri, true, {});
+    auto validator = util::OpenSSLED25519::NewFromPemString(pub, false, {});
+
+    auto data = std::string_view("Test sign data: 304502204d6d070117d445f4c2fcdbd4df037a1c8cfee2a166353c2e562cd5efd06e914d022100bb06439ded1478bd19022519dc06a84ba18ea4bf30ea9eb9ea90f8b66dad12c7");
+
+    auto signatureRet = signer->sign(data.data(), data.size());
+    if (!signatureRet) {
+        return;
+    }
+    auto signature = *signatureRet;
+    LOG(INFO) << validator->verify(signature, data.data(), data.size());
+
+
+}

@@ -181,8 +181,7 @@ TEST_F(CryptoTest, TestED25519SignBenchmark) {
 
     auto workload = [&](int tid) {
         // use the same signer object
-        auto* signer = signerList[0].get();
-        auto* validator = validatorList[tid].get();
+        auto* signer = signerList[tid].get();
         auto* dataBlock = dataBlockList[tid].get();
 
         util::wait_for_sema(startSema);
@@ -203,7 +202,57 @@ TEST_F(CryptoTest, TestED25519SignBenchmark) {
     util::Timer timer;
     startSema.signal(threadCount);
     util::wait_for_sema(stopSema, threadCount);
-    LOG(INFO) << "Concurrent Sign cost" << timer.end();
-    LOG(INFO) << "Sign Performance " << timer.end()*10e9 / (dataPerRound*round) << " ns";
+    LOG(INFO) << "Concurrent Sign cost: " << timer.end() << " second";
+    LOG(INFO) << "Sign Performance " << timer.end()*10e6 / (dataPerRound*round) << " ms";
 
+    // ---- validate----
+    std::vector<std::vector<util::OpenSSLED25519::digestType>> digestMap;
+    digestMap.resize(threadCount);
+    for(auto& d: digestMap) {
+        d.resize(dataPerRound);
+    }
+
+    auto workloadValidate = [&](int tid) {
+        // use the same signer object
+        auto* signer = signerList[tid].get();
+        auto* dataBlock = dataBlockList[tid].get();
+        auto& digestList = digestMap[tid];
+
+        for (int i=0; i<dataPerRound; i++) {
+            auto signatureRet = signer->sign((*dataBlock)[i].data(), (*dataBlock)[i].size());
+            if (!signatureRet) {
+                ASSERT_TRUE(false) << "signer->sign error";
+            }
+            digestList[i] = *signatureRet;
+        }
+        // emit ready signal
+        stopSema.signal();
+
+        util::wait_for_sema(startSema);
+
+        for(int i=0; i<round; i++) {
+            int j = 0;
+            dataBlock = dataBlockList[j].get();
+            auto* validator = validatorList[j].get();
+            auto& sigList = digestMap[j];
+            for (int k=0; k<(int)dataBlock->size(); k++) {
+                auto ret = validator->verify(sigList[k], (*dataBlock)[k].data(), (*dataBlock)[k].size());
+                if (!ret) {
+                    ASSERT_TRUE(false) << util::OpenSSLED25519::toString(sigList[k]);
+                }
+            }
+        }
+        stopSema.signal();
+    };
+
+    for (int i=0; i<threadCount; i++) {
+        wp->push_task(workloadValidate, i);
+    }
+
+    util::wait_for_sema(stopSema, threadCount);
+    timer.start();
+    startSema.signal(threadCount);
+    util::wait_for_sema(stopSema, threadCount);
+    LOG(INFO) << "Concurrent validate cost: " << timer.end() << " second";
+    LOG(INFO) << "Validate Performance " << timer.end()*10e6 / (dataPerRound*round) << " ms";
 }

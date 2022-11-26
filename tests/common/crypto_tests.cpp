@@ -81,8 +81,8 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDd9VXmpHjV4voFO+0ZoFPlRr5icZXquxsr9EkaOUO9B7
     }
     auto [pub, pri] = std::move(*ret);
 
-    auto signer = util::OpenSSLED25519::NewFromPemString(pri, true, {});
-    auto validator = util::OpenSSLED25519::NewFromPemString(pub, false, {});
+    auto signer = util::OpenSSLED25519::NewFromPemString(pri, {});
+    auto validator = util::OpenSSLED25519::NewFromPemString(pub, {});
 
     auto data = std::string_view("Test sign data: 304502204d6d070117d445f4c2fcdbd4df037a1c8cfee2a166353c2e562cd5efd06e914d022100bb06439ded1478bd19022519dc06a84ba18ea4bf30ea9eb9ea90f8b66dad12c7");
 

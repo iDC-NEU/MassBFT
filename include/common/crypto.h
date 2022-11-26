@@ -8,26 +8,40 @@
 #include <openssl/ec.h>
 #include <openssl/decoder.h>
 #include <openssl/encoder.h>
+#include <openssl/err.h>
 #include <memory>
 #include <optional>
 #include <vector>
 #include "glog/logging.h"
 
 namespace OpenSSL {
-    struct Delete {
+    struct DeleteMdCtx {
         void operator()(EVP_MD_CTX *p) const {
             EVP_MD_CTX_free(p);
         }
-
+    };
+    struct DeletePkeyCtx {
         void operator()(EVP_PKEY_CTX *p) const {
             EVP_PKEY_CTX_free(p);
         }
+    };
+    struct DeleteDecoderCtx {
         void operator()(OSSL_DECODER_CTX *p) const {
             OSSL_DECODER_CTX_free(p);
         }
     };
-    template<class T>
-    using Ptr = std::unique_ptr<T, Delete>;
+
+    struct DeletePkey {
+        void operator()(EVP_PKEY *p) const {
+            EVP_PKEY_free(p);
+        }
+    };
+
+    using EVP_MD_CTX_ptr = std::unique_ptr<EVP_MD_CTX, DeleteMdCtx>;
+    using EVP_PKEY_CTX_ptr = std::unique_ptr<EVP_PKEY_CTX, DeletePkeyCtx>;
+    using OSSL_DECODER_CTX_ptr = std::unique_ptr<OSSL_DECODER_CTX, DeleteDecoderCtx>;
+    using EVP_PKEY_ptr = std::unique_ptr<EVP_PKEY, DeletePkey>;
+
     constexpr static inline const auto SHA256 = "SHA256";
     constexpr static inline const auto SHA1 = "SHA1";
     constexpr static inline const auto ED25519 ="ED25519";
@@ -54,13 +68,12 @@ namespace util {
     /// These functions are not thread-safe unless you initialize OpenSSL.
     template <auto& mdDigestType, int N>
     class OpenSSLHash {
-        using EVP_MD_CTX_ptr = OpenSSL::Ptr<EVP_MD_CTX>;
     public:
         using digestType = OpenSSL::digestType<N>;
         // generic MD digest runner
         static std::optional<OpenSSL::digestType<N>> generateDigest(const void *d, size_t cnt) {
             OpenSSL::digestType<N> md;
-            EVP_MD_CTX_ptr ctx(EVP_MD_CTX_new());
+            OpenSSL::EVP_MD_CTX_ptr ctx(EVP_MD_CTX_new());
             if(EVP_DigestInit_ex(ctx.get(), OpenSSLHash::_digest, nullptr) == 1 &&
                EVP_DigestUpdate(ctx.get(), d, cnt) == 1 &&
                EVP_DigestFinal_ex(ctx.get(), md.data(), nullptr) == 1) {
@@ -113,7 +126,7 @@ namespace util {
         }
 
     private:
-        EVP_MD_CTX_ptr ctx;
+        OpenSSL::EVP_MD_CTX_ptr ctx;
         static inline EVP_MD_CTX *ctxStatic = EVP_MD_CTX_create();
         static inline const EVP_MD* _digest = EVP_MD_fetch(nullptr, mdDigestType, nullptr);
     };
@@ -126,8 +139,6 @@ namespace util {
     template <auto& mdDigestType, int N>
     class OpenSSLPKCS {
     public:
-        using EVP_PKEY_CTX_ptr = OpenSSL::Ptr<EVP_PKEY_CTX>;
-        using OSSL_DECODER_CTX_ptr = OpenSSL::Ptr<OSSL_DECODER_CTX>;
         using digestType = OpenSSL::digestType<N>;
 
         // return publicKey, privateKey
@@ -136,7 +147,7 @@ namespace util {
             unsigned char* privateKey = nullptr;
             size_t publicLen = 0;
             size_t privateLen = 0;
-            EVP_PKEY_CTX_ptr pKeyCtx(EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr));
+            OpenSSL::EVP_PKEY_CTX_ptr pKeyCtx(EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr));
             if(EVP_PKEY_keygen_init(pKeyCtx.get()) != 1) {
                 LOG(WARNING) << "EVP_PKEY_keygen_init fail";
                 return std::nullopt;
@@ -222,40 +233,42 @@ namespace util {
             OpenSSL_add_all_algorithms();
         }
 
-        static std::optional<OpenSSL::digestType<N>> doSign(EVP_PKEY *pkey, unsigned char *msg, size_t msg_len) {
+        static std::optional<OpenSSL::digestType<N>> doSign(EVP_PKEY *pkey, const void *d, size_t cnt) {
             OpenSSL::digestType<N> md;
-            size_t sigLen = 0;
-            EVP_PKEY_CTX_ptr ctx(EVP_PKEY_CTX_new(pkey, nullptr));
+            size_t sigLen = md.size();
+            OpenSSL::EVP_MD_CTX_ptr ctx(EVP_MD_CTX_new());
 
-            if(EVP_PKEY_sign_init(ctx.get()) == 1 &&
-               EVP_PKEY_sign(ctx.get(), md.data(), &sigLen, msg, msg_len) == 1) {
-                return md;
+            if (EVP_DigestSignInit_ex(ctx.get(), nullptr, nullptr, nullptr, nullptr, pkey, nullptr) != 1) {
+                LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
+                return std::nullopt;
             }
-            return std::nullopt;
+            if (EVP_DigestSign(ctx.get(), md.data(), &sigLen, reinterpret_cast<const unsigned char *>(d), cnt) != 1) {
+                LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
+                return std::nullopt;
+            }
+            return md;
         }
 
-        static bool doVerify(EVP_PKEY *pubKey, const OpenSSL::digestType<N>& md, unsigned char *msg, size_t msg_len) {
-            size_t sigLen = 0;
-            EVP_PKEY_CTX_ptr ctx(EVP_PKEY_CTX_new(pubKey, nullptr));
+        static bool doVerify(EVP_PKEY *pkey, const OpenSSL::digestType<N>& md, const void *d, size_t cnt) {
+            OpenSSL::EVP_MD_CTX_ptr ctx(EVP_MD_CTX_new());
 
-            if(EVP_PKEY_verify_init(ctx.get()) == 1 &&
-               EVP_PKEY_verify(ctx.get(), md.data(), &sigLen, msg, msg_len) == 1) {
-                return true;
+            if (EVP_DigestVerifyInit_ex(ctx.get(), nullptr, nullptr, nullptr, nullptr, pkey, nullptr) != 1) {
+                LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
+                return false;
             }
-            return false;
+            if(EVP_DigestVerify(ctx.get(), md.data(), md.size(), reinterpret_cast<const unsigned char *>(d), cnt) != 1) {
+                LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
+                return false;
+            }
+            return true;
         }
 
     protected:
-        static EVP_PKEY* decodePEM(std::string_view pemString, bool isPrivateKey, std::string_view password) {
+        static EVP_PKEY* decodePEM(std::string_view pemString, std::string_view password) {
             // the actual private key
             EVP_PKEY *pkey = nullptr;
             // a buffer context
-            OSSL_DECODER_CTX_ptr dCtx;
-            if (!isPrivateKey) {
-                dCtx.reset(OSSL_DECODER_CTX_new_for_pkey(&pkey, nullptr, nullptr, nullptr, EVP_PKEY_PUBLIC_KEY, nullptr, nullptr));
-            } else {
-                dCtx.reset(OSSL_DECODER_CTX_new_for_pkey(&pkey, nullptr, nullptr, nullptr, EVP_PKEY_KEYPAIR, nullptr, nullptr));
-            }
+            OpenSSL::OSSL_DECODER_CTX_ptr dCtx(OSSL_DECODER_CTX_new_for_pkey(&pkey, nullptr, nullptr, nullptr, 0, nullptr, nullptr));
             if (dCtx == nullptr) {
                 LOG(WARNING) << "OSSL_DECODER_CTX_new_for_pkey decode failed";
                 return nullptr;
@@ -292,58 +305,38 @@ namespace util {
         }
 
     public:
-        explicit OpenSSLPKCS(EVP_PKEY* pkey_) :pkey(pkey_), ctx(EVP_PKEY_CTX_new(pkey, nullptr)) { }
+        explicit OpenSSLPKCS(EVP_PKEY* pkey_) :pkey(pkey_) { }
 
-        static std::unique_ptr<OpenSSLPKCS> NewFromPemString(std::string_view pemString, bool isPrivateKey, std::string_view password) {
-            auto key = OpenSSLPKCS::decodePEM(pemString, isPrivateKey, password);
+        static std::unique_ptr<OpenSSLPKCS> NewFromPemString(std::string_view pemString, std::string_view password) {
+            auto key = OpenSSLPKCS::decodePEM(pemString, password);
             if (key == nullptr) {
                 return nullptr;
             }
             return std::make_unique<OpenSSLPKCS>(key);
         }
 
-        static std::unique_ptr<OpenSSLPKCS> NewFromPemFile(std::string_view pemPath, bool isPrivateKey, std::string_view password) {
+        static std::unique_ptr<OpenSSLPKCS> NewFromPemFile(std::string_view pemPath, std::string_view password) {
             auto ret = OpenSSLPKCS::loadPemFile(pemPath);
             if(!ret) {
                 return nullptr;
             }
-            return NewFromPemString(*ret, isPrivateKey, password);
+            return NewFromPemString(*ret, password);
         }
 
         OpenSSLPKCS(const OpenSSLPKCS&) = delete;
 
-        ~OpenSSLPKCS() {
-            if (pkey != nullptr) {
-                EVP_PKEY_free(pkey);
-            }
+        ~OpenSSLPKCS() = default;
+
+        inline std::optional<OpenSSL::digestType<N>> sign(const void *d, size_t cnt) const {
+            return OpenSSLPKCS::doSign(pkey.get(), d, cnt);
         }
 
-        std::optional<OpenSSL::digestType<N>> sign(const void *d, size_t cnt) {
-            OpenSSL::digestType<N> md;
-            size_t sigLen = 0;
-
-            if(EVP_PKEY_sign_init(ctx.get()) == 1) {
-
-                if (EVP_PKEY_sign(ctx.get(), md.data(), &sigLen, reinterpret_cast<const unsigned char *>(d), cnt) == 1) {
-                    return md;
-                }
-            }
-            return std::nullopt;
-        }
-
-        bool verify(const OpenSSL::digestType<N>& md, const void *msg, size_t msg_len) {
-            size_t sigLen = 0;
-
-            if(EVP_PKEY_verify_init(ctx.get()) == 1 &&
-               EVP_PKEY_verify(ctx.get(), md.data(), sigLen, reinterpret_cast<const unsigned char *>(msg), msg_len) == 1) {
-                return true;
-            }
-            return false;
+        inline bool verify(const OpenSSL::digestType<N>& md, const void *d, size_t cnt) const {
+            return OpenSSLPKCS::doVerify(pkey.get(), md, d, cnt);
         }
 
     private:
-        EVP_PKEY* pkey;
-        EVP_PKEY_CTX_ptr ctx;
+        OpenSSL::EVP_PKEY_ptr pkey;
     };
 
     using OpenSSLED25519 = OpenSSLPKCS<OpenSSL::ED25519, 64>;

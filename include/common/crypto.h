@@ -5,7 +5,6 @@
 #pragma once
 
 #include <openssl/evp.h>
-#include <openssl/ec.h>
 #include <openssl/decoder.h>
 #include <openssl/encoder.h>
 #include <openssl/err.h>
@@ -44,7 +43,7 @@ namespace OpenSSL {
 
     constexpr static inline const auto SHA256 = "SHA256";
     constexpr static inline const auto SHA1 = "SHA1";
-    constexpr static inline const auto ED25519 ="ED25519";
+    constexpr static inline const auto ED25519 =SN_ED25519;
 
     template <int N>
     using digestType = std::array<uint8_t, N>;
@@ -147,7 +146,7 @@ namespace util {
             unsigned char* privateKey = nullptr;
             size_t publicLen = 0;
             size_t privateLen = 0;
-            OpenSSL::EVP_PKEY_CTX_ptr pKeyCtx(EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr));
+            OpenSSL::EVP_PKEY_CTX_ptr pKeyCtx(EVP_PKEY_CTX_new_from_name(nullptr, mdDigestType, nullptr));
             if(EVP_PKEY_keygen_init(pKeyCtx.get()) != 1) {
                 LOG(WARNING) << "EVP_PKEY_keygen_init fail";
                 return std::nullopt;
@@ -221,9 +220,11 @@ namespace util {
         static std::string toHex(std::string_view readable) {
             std::string str;
             str.reserve(readable.size()/2);
+            char target[3] {'\0', '\0', '\0'};
             for (std::size_t i = 0; i < readable.size(); i += 2) {
-                std::string_view byte = readable.substr(i,2);
-                str.push_back((char)std::strtol(byte.data(), nullptr, 16));
+                target[0] = readable[i];
+                target[1] = readable[i+1];
+                str.push_back((char)std::strtol(target, nullptr, 16));
             }
             return str;
         }
@@ -271,6 +272,7 @@ namespace util {
             OpenSSL::OSSL_DECODER_CTX_ptr dCtx(OSSL_DECODER_CTX_new_for_pkey(&pkey, nullptr, nullptr, nullptr, 0, nullptr, nullptr));
             if (dCtx == nullptr) {
                 LOG(WARNING) << "OSSL_DECODER_CTX_new_for_pkey decode failed";
+                LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
                 return nullptr;
             }
             if (!password.empty()) {
@@ -283,6 +285,7 @@ namespace util {
             // fill in pkey
             if (OSSL_DECODER_from_data(dCtx.get(), &data, &dataLen) != 1) {
                 LOG(WARNING) << "OSSL_DECODER_from_data decode failed";
+                LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
                 return nullptr;
             }
             return pkey;
@@ -290,7 +293,10 @@ namespace util {
 
         static std::optional<std::string> loadPemFile(std::string_view pemPath) {
             BIO *bp = BIO_new(BIO_s_file());;
-            BIO_read_filename(bp, pemPath.data());
+            auto ret = BIO_read_filename(bp, pemPath.data());
+            if (ret != 1) {
+                return std::nullopt;
+            }
 
             std::string buf;
             buf.resize(1024*1024);    // 1MB is enough for a pem file
@@ -310,6 +316,24 @@ namespace util {
         static std::unique_ptr<OpenSSLPKCS> NewFromPemString(std::string_view pemString, std::string_view password) {
             auto key = OpenSSLPKCS::decodePEM(pemString, password);
             if (key == nullptr) {
+                return nullptr;
+            }
+            return std::make_unique<OpenSSLPKCS>(key);
+        }
+
+        static std::unique_ptr<OpenSSLPKCS> NewPrivateKeyFromHex(std::string_view hex) {
+            auto key = EVP_PKEY_new_raw_private_key_ex(nullptr, mdDigestType, nullptr, reinterpret_cast<const unsigned char *>(hex.data()), hex.size());
+            if (key == nullptr) {
+                LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
+                return nullptr;
+            }
+            return std::make_unique<OpenSSLPKCS>(key);
+        }
+
+        static std::unique_ptr<OpenSSLPKCS> NewPublicKeyFromHex(std::string_view hex) {
+            auto key = EVP_PKEY_new_raw_public_key_ex(nullptr, mdDigestType, nullptr, reinterpret_cast<const unsigned char *>(hex.data()), hex.size());
+            if (key == nullptr) {
+                LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
                 return nullptr;
             }
             return std::make_unique<OpenSSLPKCS>(key);

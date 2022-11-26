@@ -59,21 +59,7 @@ TEST_F(CryptoTest, SingleThreadPerformance) {
     LOG(INFO) << "Total Time spend: " << timer.end();
 }
 
-
-
-TEST_F(CryptoTest, TestED) {
-
-
-    std::string key_ {
-            R"(
------BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDd9VXmpHjV4voFO+0ZoFPlRr5icZXquxsr9EkaOUO9B7Wl1DAgGI0EKCm1++Bl2Od32xZFeFuG07OTpTMVOCPA==
------END PUBLIC KEY-----
-)"
-    };
-    std::string msg { util::OpenSSLED25519::toHex("562d6ddfb3ceb5abb12d97bc35c4963d249f55b7c75eda618d365492ee98d469") };
-    std::string sig { util::OpenSSLED25519::toHex("304502204d6d070117d445f4c2fcdbd4df037a1c8cfee2a166353c2e562cd5efd06e914d022100bb06439ded1478bd19022519dc06a84ba18ea4bf30ea9eb9ea90f8b66dad12c7") };
-
+TEST_F(CryptoTest, TestED25519KeyPairGeneration) {
     util::OpenSSLED25519::initCrypto();
     auto ret = util::OpenSSLED25519::generateKeyFiles({}, {}, {});
     if(!ret) {
@@ -84,14 +70,69 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDd9VXmpHjV4voFO+0ZoFPlRr5icZXquxsr9EkaOUO9B7
     auto signer = util::OpenSSLED25519::NewFromPemString(pri, {});
     auto validator = util::OpenSSLED25519::NewFromPemString(pub, {});
 
-    auto data = std::string_view("Test sign data: 304502204d6d070117d445f4c2fcdbd4df037a1c8cfee2a166353c2e562cd5efd06e914d022100bb06439ded1478bd19022519dc06a84ba18ea4bf30ea9eb9ea90f8b66dad12c7");
+    auto data = std::string_view("562d6ddfb3ceb5abb12d97bc35c4963d249f55b7c75eda618d365492ee98d469");
 
     auto signatureRet = signer->sign(data.data(), data.size());
     if (!signatureRet) {
         return;
     }
     auto signature = *signatureRet;
-    LOG(INFO) << validator->verify(signature, data.data(), data.size());
+    ASSERT_TRUE(validator->verify(signature, data.data(), data.size()) == 1) << ERR_error_string(ERR_get_error(), nullptr);
+}
 
+TEST_F(CryptoTest, TestED25519SaveAndLoadWithPasswd) {
+    const auto data = std::string("562d6ddfb3ceb5abb12d97bc35c4963d249f55b7c75eda618d365492ee98d469");
 
+    util::OpenSSLED25519::initCrypto();
+    auto ret = util::OpenSSLED25519::generateKeyFiles(data+".pub", data+".pri", data);
+    if(!ret) {
+        return;
+    }
+
+    auto signer = util::OpenSSLED25519::NewFromPemFile(data+".pri", data);
+    auto validator = util::OpenSSLED25519::NewFromPemFile(data+".pub", {});
+
+    auto signatureRet = signer->sign(data.data(), data.size());
+    if (!signatureRet) {
+        return;
+    }
+    auto signature = *signatureRet;
+    ASSERT_TRUE(validator->verify(signature, data.data(), data.size()) == 1) << ERR_error_string(ERR_get_error(), nullptr);
+}
+
+// Testcase from https://cryptobook.nakov.com/digital-signatures/eddsa-sign-verify-examples
+TEST_F(CryptoTest, TestED25519Verify) {
+    std::string pemPriKey =util::OpenSSLED25519::toHex("1498b5467a63dffa2dc9d9e069caf075d16fc33fdd4c3b01bfadae6433767d93");
+    std::string pemPubKey =util::OpenSSLED25519::toHex("b7a3c12dc0c8c748ab07525b701122b88bd78f600c76342d27f25e5f92444cde");
+
+    auto msg = std::string("Message for Ed25519 signing");
+    auto sig = util::OpenSSLED25519::toHex("6dd355667fae4eb43c6e0ab92e870edb2de0a88cae12dbd8591507f584fe4912babff497f1b8edf9567d2483d54ddc6459bea7855281b7a246a609e3001a4e08");
+
+    util::OpenSSLED25519::initCrypto();
+    // Init signer and validator
+    auto signer = util::OpenSSLED25519::NewPrivateKeyFromHex(pemPriKey);
+    if(!signer) {
+        ASSERT_TRUE(false) << "signer init error";
+    }
+    auto validator = util::OpenSSLED25519::NewPublicKeyFromHex(pemPubKey);
+    if(!validator) {
+        ASSERT_TRUE(false) << "validator init error";
+    }
+
+    // SIgn message
+    auto signatureRet = signer->sign(msg.data(), msg.size());
+    if (!signatureRet) {
+        return;
+    }
+    auto signature = *signatureRet;
+    std::copy(sig.begin(), sig.end(), signature.data());
+    if(!validator->verify(signature, msg.data(), msg.size())) {
+        ASSERT_TRUE(false) << "Validator verify error";
+    }
+
+    OpenSSL::digestType<64> md;
+    std::copy(sig.begin(), sig.end(), md.data());
+    if(!validator->verify(md, msg.data(), msg.size())) {
+        ASSERT_TRUE(false) << "Validator verify error";
+    }
 }

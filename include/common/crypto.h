@@ -292,7 +292,7 @@ namespace util {
         }
 
         static std::optional<std::string> loadPemFile(std::string_view pemPath) {
-            BIO *bp = BIO_new(BIO_s_file());;
+            BIO *bp = BIO_new(BIO_s_file());
             auto ret = BIO_read_filename(bp, pemPath.data());
             if (ret != 1) {
                 return std::nullopt;

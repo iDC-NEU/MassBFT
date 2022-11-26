@@ -203,7 +203,7 @@ TEST_F(CryptoTest, TestED25519SignBenchmark) {
     startSema.signal(threadCount);
     util::wait_for_sema(stopSema, threadCount);
     LOG(INFO) << "Concurrent Sign cost: " << timer.end() << " second";
-    LOG(INFO) << "Sign Performance " << timer.end()*10e6 / (dataPerRound*round) << " ms";
+    LOG(INFO) << "Sign Performance " << timer.end()*10e6 / (dataPerRound*round) << " us";
 
     // ---- validate----
     std::vector<std::vector<util::OpenSSLED25519::digestType>> digestMap;
@@ -254,5 +254,5 @@ TEST_F(CryptoTest, TestED25519SignBenchmark) {
     startSema.signal(threadCount);
     util::wait_for_sema(stopSema, threadCount);
     LOG(INFO) << "Concurrent validate cost: " << timer.end() << " second";
-    LOG(INFO) << "Validate Performance " << timer.end()*10e6 / (dataPerRound*round) << " ms";
+    LOG(INFO) << "Validate Performance " << timer.end()*10e6 / (dataPerRound*round) << " us";
 }

@@ -2,11 +2,13 @@
 // Created by peng on 11/22/22.
 //
 
-#include "common/crypto.h"
-#include "common/timer.h"
-
 #include "gtest/gtest.h"
 #include "glog/logging.h"
+
+#include "common/crypto.h"
+#include "common/timer.h"
+#include "common/thread_pool_light.h"
+
 #include <vector>
 
 
@@ -63,7 +65,7 @@ TEST_F(CryptoTest, TestED25519KeyPairGeneration) {
     util::OpenSSLED25519::initCrypto();
     auto ret = util::OpenSSLED25519::generateKeyFiles({}, {}, {});
     if(!ret) {
-        return;
+        ASSERT_TRUE(false) << "generateKeyFiles error";
     }
     auto [pub, pri] = std::move(*ret);
 
@@ -74,7 +76,7 @@ TEST_F(CryptoTest, TestED25519KeyPairGeneration) {
 
     auto signatureRet = signer->sign(data.data(), data.size());
     if (!signatureRet) {
-        return;
+        ASSERT_TRUE(false) << "signer->sign error";
     }
     auto signature = *signatureRet;
     ASSERT_TRUE(validator->verify(signature, data.data(), data.size()) == 1) << ERR_error_string(ERR_get_error(), nullptr);
@@ -86,7 +88,7 @@ TEST_F(CryptoTest, TestED25519SaveAndLoadWithPasswd) {
     util::OpenSSLED25519::initCrypto();
     auto ret = util::OpenSSLED25519::generateKeyFiles(data+".pub", data+".pri", data);
     if(!ret) {
-        return;
+        ASSERT_TRUE(false) << "generateKeyFiles error";
     }
 
     auto signer = util::OpenSSLED25519::NewFromPemFile(data+".pri", data);
@@ -94,7 +96,7 @@ TEST_F(CryptoTest, TestED25519SaveAndLoadWithPasswd) {
 
     auto signatureRet = signer->sign(data.data(), data.size());
     if (!signatureRet) {
-        return;
+        ASSERT_TRUE(false) << "signer->sign error";
     }
     auto signature = *signatureRet;
     ASSERT_TRUE(validator->verify(signature, data.data(), data.size()) == 1) << ERR_error_string(ERR_get_error(), nullptr);
@@ -122,7 +124,7 @@ TEST_F(CryptoTest, TestED25519Verify) {
     // SIgn message
     auto signatureRet = signer->sign(msg.data(), msg.size());
     if (!signatureRet) {
-        return;
+        ASSERT_TRUE(false) << "signer->sign error";
     }
     auto signature = *signatureRet;
     std::copy(sig.begin(), sig.end(), signature.data());
@@ -135,4 +137,73 @@ TEST_F(CryptoTest, TestED25519Verify) {
     if(!validator->verify(md, msg.data(), msg.size())) {
         ASSERT_TRUE(false) << "Validator verify error";
     }
+}
+
+TEST_F(CryptoTest, TestED25519SignBenchmark) {
+    auto genTestDataBlocks = [](int num, int len) {
+        auto blocks = std::make_unique<std::vector<std::string>>(num);
+        for (auto i = 0; i < num; i++) {
+            auto& block = (*blocks)[i];
+            block.resize(len);
+            for (auto &b: block) {
+                b = (char)random();
+            }
+        }
+        return blocks;
+    };
+    auto threadCount = (int) sysconf(_SC_NPROCESSORS_ONLN) / 2;
+    auto round = 10;
+    auto dataPerRound = 10000;
+    // 1. prepare data blocks
+    auto dataBlockList = std::vector<decltype(genTestDataBlocks(0,0))>(threadCount);
+    for (auto& dataBlocks : dataBlockList) {
+        dataBlocks = genTestDataBlocks(dataPerRound, 32);
+    }
+    // 2. prepare cert
+    auto signerList = std::vector<std::unique_ptr<util::OpenSSLED25519>>(threadCount);
+    auto validatorList = std::vector<std::unique_ptr<util::OpenSSLED25519>>(threadCount);
+
+    util::OpenSSLED25519::initCrypto();
+    for (int i=0; i<threadCount; i++) {
+        auto ret = util::OpenSSLED25519::generateKeyFiles({}, {}, {});
+        if(!ret) {
+            ASSERT_TRUE(false) << "generateKeyFiles error";
+        }
+        auto [pub, pri] = std::move(*ret);
+
+        signerList[i] = util::OpenSSLED25519::NewFromPemString(pri, {});
+        validatorList[i] = util::OpenSSLED25519::NewFromPemString(pub, {});
+    }
+
+    auto wp = std::make_unique<util::thread_pool_light>(threadCount);
+    auto startSema = util::NewSema();
+    auto stopSema = util::NewSema();
+
+    auto workload = [&](int tid) {
+        // use the same signer object
+        auto* signer = signerList[0].get();
+        auto* validator = validatorList[tid].get();
+        auto* dataBlock = dataBlockList[tid].get();
+
+        util::wait_for_sema(startSema);
+        for(int i=0; i<round; i++) {
+            for (const auto& data:*dataBlock) {
+                auto signatureRet = signer->sign(data.data(), data.size());
+                if (!signatureRet) {
+                    ASSERT_TRUE(false) << "signer->sign error";
+                }
+            }
+        }
+        stopSema.signal();
+    };
+    for (int i=0; i<threadCount; i++) {
+        wp->push_task(workload, i);
+    }
+
+    util::Timer timer;
+    startSema.signal(threadCount);
+    util::wait_for_sema(stopSema, threadCount);
+    LOG(INFO) << "Concurrent Sign cost" << timer.end();
+    LOG(INFO) << "Sign Performance " << timer.end()*10e9 / (dataPerRound*round) << " ns";
+
 }

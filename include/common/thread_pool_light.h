@@ -18,6 +18,11 @@ namespace util {
         for (int i=cnt; i>0; i-=(int)sema.waitMany(i));
     }
 
+    template<class T>
+    inline void wait_for_sema(T& sema) {
+        while(!sema.wait());
+    }
+
     inline auto NewSema() {
         return moodycamel::LightweightSemaphore();
     }

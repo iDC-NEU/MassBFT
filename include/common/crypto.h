@@ -191,8 +191,8 @@ namespace util {
             EVP_PKEY_free(key);
 
             // print result
-            BIO_dump_fp(stdout, publicKey, (int)publicLen);
-            BIO_dump_fp(stdout, privateKey, (int)privateLen);
+            // BIO_dump_fp(stdout, publicKey, (int)publicLen);
+            // BIO_dump_fp(stdout, privateKey, (int)privateLen);
 
             // write to files
             if (!pubKeyfile.empty()) {

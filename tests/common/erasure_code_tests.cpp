@@ -10,6 +10,7 @@
 #include "common/timer.h"
 #include <vector>
 #include <thread>
+#include "common/crypto.h"
 
 class ESTest : public ::testing::Test {
 protected:
@@ -35,16 +36,17 @@ protected:
         sema_.signal(thread_cnt);
     }
 
-    static void encodeDecodeTest(util::ErasureCode& ec) {
+    static void encodeDecodeTest(util::ErasureCode& ec1, util::ErasureCode& ec2, bool success=true) {
         std::string dataEncode;
         for(int i=0; i<1000; i++) {
             dataEncode += std::to_string(i*3);
         }
         LOG(INFO) << "----construct and restore----";
         LOG(INFO) << "original data size: " << dataEncode.size();
-        auto encodeResult = ec.encode(dataEncode);
+        auto encodeResult = ec1.encode(dataEncode);
         std::vector<std::string_view> svList;
         size_t erasureDataSize = 0;
+        LOG(INFO) <<  util::OpenSSLSHA256::toString(*util::OpenSSLSHA256::generateDigest(encodeResult->get(2)->data(), encodeResult->get(2)->size()));
         for(int i=0; ; i++) {
             auto fragment = encodeResult->get(i);
             if(!fragment) {
@@ -56,22 +58,24 @@ protected:
             erasureDataSize += fragment->size();
         }
         LOG(INFO) << "Erasure data size(60 pieces): " << erasureDataSize;
-        auto decodeResult = ec.decode(svList);
-        auto dataDecode = decodeResult->getData().value_or("");
-        EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
 
         LOG(INFO) << "----Lost random 40 pieces----";
         std::vector<std::string_view> svListPartialView;
         for(int i=0; i<60; i++) {
-            if (i%3+1 != 0) {
+            if (i%3 != 1) {
                 svListPartialView.emplace_back("");
             } else {
                 svListPartialView.push_back(svList[i]);
             }
         }
-        decodeResult = ec.decode(svList);
-        dataDecode = decodeResult->getData().value_or("");
-        EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
+        auto decodeResult = ec2.decode(svListPartialView);
+        if (!success) {
+            EXPECT_TRUE(decodeResult == nullptr);
+        } else {
+            EXPECT_TRUE(decodeResult != nullptr);
+            auto dataDecode = decodeResult->getData().value_or("");
+            EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
+        }
     }
 
     static void encodeSizeTest(util::ErasureCode& ec, int m, int n) {
@@ -171,13 +175,26 @@ protected:
     std::vector<std::thread> t_list_;
 };
 
-TEST_F(ESTest, ReconstructData) {
-    util::GoErasureCode ec1(20, 40);
+TEST_F(ESTest, ReconstructDataSuccess) {
     LOG(INFO) << "GoErasureCode: ";
-    encodeDecodeTest(ec1);
-    util::LibErasureCode ec2(20, 40);
+    util::GoErasureCode ec_go_1(20, 40);
+    util::GoErasureCode ec_go_2(20, 40);
+    encodeDecodeTest(ec_go_1, ec_go_2);
     LOG(INFO) << "LibErasureCode: ";
-    encodeDecodeTest(ec2);
+    util::LibErasureCode ec_c_1(20, 40);
+    util::LibErasureCode ec_c_2(20, 40);
+    encodeDecodeTest(ec_c_1, ec_c_2);
+}
+
+TEST_F(ESTest, ReconstructDataFailure) {
+    util::LibErasureCode ec_go_1(21, 39);
+    util::LibErasureCode ec_go_2(21, 39);
+    LOG(INFO) << "LibErasureCode: ";
+    encodeDecodeTest(ec_go_1, ec_go_2, false);
+    util::GoErasureCode ec_c_1(21, 39);
+    util::GoErasureCode ec_c_2(21, 39);
+    LOG(INFO) << "GoErasureCode: ";
+    encodeDecodeTest(ec_c_1, ec_c_2, false);
 }
 
 TEST_F(ESTest, SizeTest) {

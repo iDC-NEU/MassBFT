@@ -4,7 +4,7 @@ CPMAddPackage(
         NAME liberasurecode
         GITHUB_REPOSITORY sydxsty/liberasurecode
         VERSION v1.6.3
-        GIT_TAG 755ddd9ce2a9c86e5ee7f122ce6bdeff66493a30
+        GIT_TAG d46c8ca507a3c25c4682033bdccad5bd71da02c7
 )
 
 if(NOT EXISTS "${PROJECT_BINARY_DIR}/lib/liberasurecode.a")

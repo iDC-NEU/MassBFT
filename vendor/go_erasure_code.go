@@ -119,32 +119,20 @@ func decode(id int, shards [][]byte, dataSize int, data *[]byte) int {
 		return -1
 	}
 	// Verify the shards
-	ok, err := enc.Verify(shards)
-	if err != nil {
-		log.Println("Error verify data")
-		return -1
-	}
-	if !ok {
-		log.Println("Verification failed. Reconstructing data")
-		err := enc.Reconstruct(shards)
-		if err != nil {
-			log.Println("Reconstruct failed -", err)
+	if ok, err := enc.Verify(shards); !ok || err != nil {
+		log.Println("Verification failed. Reconstructing data, ", err)
+		if err := enc.Reconstruct(shards); err != nil {
+			log.Println("Reconstruct failed, ", err)
 			return -1
 		}
-		ok, err := enc.Verify(shards)
-		if !ok {
-			log.Println("Verification failed after reconstruction, data likely corrupted.")
-			return -1
-		}
-		if err != nil {
-			log.Println("Error decode data")
+		if ok, err := enc.Verify(shards); !ok || err != nil {
+			log.Println("Verification failed after reconstruction, data likely corrupted, ", err)
 			return -1
 		}
 	}
 	buf := new(bytes.Buffer)
-	err = enc.Join(buf, shards, dataSize)
-	if err != nil {
-		log.Println("Error decode data", err)
+	if err := enc.Join(buf, shards, dataSize); err != nil {
+		log.Println("Error decode data, ", err)
 		return -1
 	}
 	dataReal := buf.Bytes()

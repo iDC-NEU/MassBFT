@@ -120,7 +120,7 @@ func decode(id int, shards [][]byte, dataSize int, data *[]byte) int {
 	}
 	// Verify the shards
 	if ok, err := enc.Verify(shards); !ok || err != nil {
-		log.Println("Verification failed. Reconstructing data, ", err)
+		// log.Println("Verification failed. Reconstructing data, ", err)
 		if err := enc.Reconstruct(shards); err != nil {
 			log.Println("Reconstruct failed, ", err)
 			return -1

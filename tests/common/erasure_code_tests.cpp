@@ -46,7 +46,6 @@ protected:
         auto encodeResult = ec1.encode(dataEncode);
         std::vector<std::string_view> svList;
         size_t erasureDataSize = 0;
-        LOG(INFO) <<  util::OpenSSLSHA256::toString(*util::OpenSSLSHA256::generateDigest(encodeResult->get(2)->data(), encodeResult->get(2)->size()));
         for(int i=0; ; i++) {
             auto fragment = encodeResult->get(i);
             if(!fragment) {
@@ -187,14 +186,14 @@ TEST_F(ESTest, ReconstructDataSuccess) {
 }
 
 TEST_F(ESTest, ReconstructDataFailure) {
-    util::LibErasureCode ec_go_1(21, 39);
-    util::LibErasureCode ec_go_2(21, 39);
-    LOG(INFO) << "LibErasureCode: ";
-    encodeDecodeTest(ec_go_1, ec_go_2, false);
+    LOG(INFO) << "GoErasureCode: ";
     util::GoErasureCode ec_c_1(21, 39);
     util::GoErasureCode ec_c_2(21, 39);
-    LOG(INFO) << "GoErasureCode: ";
     encodeDecodeTest(ec_c_1, ec_c_2, false);
+    LOG(INFO) << "LibErasureCode: ";
+    util::LibErasureCode ec_go_1(21, 39);
+    util::LibErasureCode ec_go_2(21, 39);
+    encodeDecodeTest(ec_go_1, ec_go_2, false);
 }
 
 TEST_F(ESTest, SizeTest) {

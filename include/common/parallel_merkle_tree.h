@@ -157,8 +157,13 @@ namespace pmt {
             }
             // task channel capacity is passed as 0, so use the default value: 2 * numWorkers
             if(wpPtr == nullptr) {
-                mt->wpGuard = std::make_unique<util::thread_pool_light>(mt->config.NumRoutines);
-                mt->wp = mt->wpGuard.get();
+                if(mt->config.RunInParallel) {
+                    mt->wpGuard = std::make_unique<util::thread_pool_light>(mt->config.NumRoutines);
+                    mt->wp = mt->wpGuard.get();
+                } else {
+                    mt->wpGuard = std::make_unique<util::thread_pool_light>(1);
+                    mt->wp = mt->wpGuard.get();
+                }
             } else {
                 mt->wp = wpPtr;
             }

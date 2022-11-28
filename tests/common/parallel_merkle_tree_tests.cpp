@@ -30,6 +30,8 @@ protected:
         }
     };
 
+    std::unique_ptr<util::thread_pool_light> wp = std::make_unique<util::thread_pool_light>((int) sysconf(_SC_NPROCESSORS_ONLN));
+
     using DataBlockPtr = std::unique_ptr<pmt::DataBlock>;
 
     template<class T>
@@ -851,7 +853,6 @@ TEST_F(PMTreeTest, TestVerify) {
 TEST_F(PMTreeTest, BenchmarkMerkleTreeNew) {
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
-    auto wp = std::make_unique<util::thread_pool_light>((int) sysconf(_SC_NPROCESSORS_ONLN));
     util::Timer timer;
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());
@@ -864,7 +865,6 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeNewParallel) {
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
     config.RunInParallel = true;
-    auto wp = std::make_unique<util::thread_pool_light>((int) sysconf(_SC_NPROCESSORS_ONLN));
     util::Timer timer;
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());
@@ -877,7 +877,6 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuild) {
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
     config.Mode = pmt::ModeType::ModeTreeBuild;
-    auto wp = std::make_unique<util::thread_pool_light>((int) sysconf(_SC_NPROCESSORS_ONLN));
     util::Timer timer;
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());
@@ -891,7 +890,6 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuildParallel) {
     pmt::Config config;
     config.Mode = pmt::ModeType::ModeTreeBuild;
     config.RunInParallel = true;
-    auto wp = std::make_unique<util::thread_pool_light>((int) sysconf(_SC_NPROCESSORS_ONLN));
     util::Timer timer;
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());
@@ -904,7 +902,6 @@ TEST_F(PMTreeTest, BenchmarkModeProofGenAndTreeBuild) {
     auto testCases = genTestDataBlocks(benchSize);
     pmt::Config config;
     config.Mode = pmt::ModeType::ModeProofGenAndTreeBuild;
-    auto wp = std::make_unique<util::thread_pool_light>((int) sysconf(_SC_NPROCESSORS_ONLN));
     util::Timer timer;
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());
@@ -918,7 +915,6 @@ TEST_F(PMTreeTest, BenchmarkModeProofGenAndTreeBuildParallel) {
     pmt::Config config;
     config.Mode = pmt::ModeType::ModeProofGenAndTreeBuild;
     config.RunInParallel = true;
-    auto wp = std::make_unique<util::thread_pool_light>((int) sysconf(_SC_NPROCESSORS_ONLN));
     util::Timer timer;
     for(int i=0; i<100; i++) {
         pmt::MerkleTree::New(config, *testCases, wp.get());
@@ -941,7 +937,6 @@ TEST_F(PMTreeTest, SimpleTest) {
     pmt::Config config;
     config.Mode = pmt::ModeType::ModeProofGenAndTreeBuild;
     config.RunInParallel = true;
-    auto wp = std::make_unique<util::thread_pool_light>((int) sysconf(_SC_NPROCESSORS_ONLN) / 2);
     auto mt = pmt::MerkleTree::New(config, *testCases, wp.get());
     for (auto i = 0; i < (int)testCases->size(); i++) {
         auto got = mt->Verify(*(*testCases)[i], mt->getProofs()[i]);

@@ -19,38 +19,46 @@ namespace util {
 
         template<zmq::socket_type socketType>
         static std::unique_ptr<ZMQInstance> NewClient(const std::string& ip, int port) {
-            zmq::context_t ctx;
-            zmq::socket_t socket(ctx, socketType);
+            auto ctx = std::make_unique<zmq::context_t>();
+            auto socket = std::make_unique<zmq::socket_t>(*ctx, socketType);
             if (socketType == zmq::socket_type::sub || socketType == zmq::socket_type::xsub){
-                socket.set(zmq::sockopt::subscribe, "");
-                socket.set(zmq::sockopt::rcvhwm, 0);
+                socket->set(zmq::sockopt::subscribe, "");
+                socket->set(zmq::sockopt::rcvhwm, 0);
+            }
+            if (socketType == zmq::socket_type::pub || socketType == zmq::socket_type::xpub){
+                socket->set(zmq::sockopt::sndhwm, 0);
             }
             try {
                 auto addr = "tcp://"+ ip +":" + std::to_string(port);
                 DLOG(INFO) << "Connect to address: " << addr;
-                socket.connect(addr);
+                socket->connect(addr);
             } catch (const zmq::error_t& error) {
                 LOG(INFO) << "Creating ZMQ instance failed, " << error.what();
                 return nullptr;
             }
+            return std::unique_ptr<ZMQInstance>(new ZMQInstance(std::move(ctx), std::move(socket)));
         }
 
         template<zmq::socket_type socketType>
         static std::unique_ptr<ZMQInstance> NewServer(int port) {
-            zmq::context_t ctx;
-            zmq::socket_t socket(ctx, socketType);
+            auto ctx = std::make_unique<zmq::context_t>();
+            auto socket = std::make_unique<zmq::socket_t>(*ctx, socketType);
             if (socketType == zmq::socket_type::sub || socketType == zmq::socket_type::xsub){
-                socket.set(zmq::sockopt::subscribe, "");
-                socket.set(zmq::sockopt::rcvhwm, 0);
+                socket->set(zmq::sockopt::subscribe, "");
+                socket->set(zmq::sockopt::rcvhwm, 0);
+            }
+            if (socketType == zmq::socket_type::pub || socketType == zmq::socket_type::xpub){
+                socket->set(zmq::sockopt::sndhwm, 0);
             }
             try {
                 auto addr = "tcp://0.0.0.0:" + std::to_string(port);
                 DLOG(INFO) << "Listening at address: " << addr;
-                socket.bind(addr);
+                socket->bind(addr);
             } catch (const zmq::error_t& error) {
                 LOG(INFO) << "Creating ZMQ instance failed, " << error.what();
                 return nullptr;
             }
+            return std::unique_ptr<ZMQInstance>(new ZMQInstance(std::move(ctx), std::move(socket)));
         }
 
         // deserialize the data
@@ -58,7 +66,7 @@ namespace util {
             zmq::message_t msg;
             try {
                 while (true) {
-                    auto res = _socket.recv(msg, zmq::recv_flags::none);
+                    auto res = _socket->recv(msg, zmq::recv_flags::none);
                     if (res != std::nullopt) {
                         return msg;
                     }
@@ -71,21 +79,21 @@ namespace util {
 
         // Zero copy is only available for sender
         template<class CT=std::string>
-        requires requires (CT x) { x.data(); x.size(); CT(std::forward<CT>(x)); }
+        requires requires (CT x) { static_cast<void *>(x.data()); x.size(); CT(std::forward<CT>(x)); }
         auto send(CT&& msg) {
             auto* container = new CT(std::forward<CT>(msg));
-            zmq::message_t zmqMsg(container->data(), container->size(), freeBufferCallback<CT>, nullptr);
+            zmq::message_t zmqMsg(static_cast<void *>(container->data()), container->size(), freeBufferCallback < CT >, nullptr);
             return sendInternal(zmqMsg);
         }
 
     protected:
-        ZMQInstance(zmq::context_t&& context, zmq::socket_t&& socket)
+        ZMQInstance(auto context, auto socket)
                 :_context(std::move(context)), _socket(std::move(socket)){ }
 
         bool sendInternal(zmq::message_t& msg) {
             try {
                 while (true) {
-                    auto res = _socket.send(msg, zmq::send_flags::none);
+                    auto res = _socket->send(msg, zmq::send_flags::none);
                     if (res != std::nullopt) {
                         return true;
                     }
@@ -102,7 +110,7 @@ namespace util {
             auto* container = static_cast<T*>(hint);
             delete container;
         }
-        zmq::context_t&& _context;
-        zmq::socket_t&& _socket;
+        std::unique_ptr<zmq::context_t> _context;
+        std::unique_ptr<zmq::socket_t> _socket;
     };
 }

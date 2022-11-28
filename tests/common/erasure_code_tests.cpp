@@ -5,7 +5,6 @@
 #include "common/erasure_code.h"
 
 #include "gtest/gtest.h"
-#include "concurrentqueue.h"
 #include "lightweightsemaphore.h"
 #include "common/timer.h"
 #include <vector>

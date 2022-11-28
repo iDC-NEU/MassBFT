@@ -6,7 +6,6 @@
 #define NEUCHAIN_PLUS_CLIENT_THREAD_H
 
 #include <thread>
-#include "concurrentqueue.h"
 #include "lightweightsemaphore.h"
 #include "db.h"
 #include "ycsb/core/workload/workload.h"

@@ -8,7 +8,6 @@
 #include <vector>
 #include <thread>
 #include <string>
-#include "concurrentqueue.h"
 #include "lightweightsemaphore.h"
 #include "yaml-cpp/yaml.h"
 #include "glog/logging.h"

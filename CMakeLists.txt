@@ -108,8 +108,8 @@ CPMAddPackage(
 ### Another MPMC queue header only (not linearizable)
 CPMAddPackage(
         NAME concurrentqueue  ## include the project name
-        GITHUB_REPOSITORY cameron314/concurrentqueue
-        GIT_TAG 65d6970912fc3f6bb62d80edf95ca30e0df85137
+        GITHUB_REPOSITORY sydxsty/concurrentqueue
+        GIT_TAG 590201524f6bb47dbbd00fe9dd2838c4adbef070
 )
 
 ### A thread pool

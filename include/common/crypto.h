@@ -311,7 +311,7 @@ namespace util {
         }
 
         template<decltype(EVP_PKEY_get_raw_public_key) Func>
-        inline auto getRawHexFromPKey() -> std::optional<std::string> {
+        [[nodiscard]] inline std::optional<std::string> getRawHexFromPKey() const {
             size_t len;
             // get the length
             auto ret = Func(pkey.get(), nullptr, &len);
@@ -327,6 +327,10 @@ namespace util {
 
     public:
         explicit OpenSSLPKCS(EVP_PKEY* pkey_) :pkey(pkey_) { }
+
+        OpenSSLPKCS(OpenSSLPKCS&& rhs) noexcept {
+            this->pkey = std::move(rhs.pkey);
+        }
 
         static std::unique_ptr<OpenSSLPKCS> NewFromPemString(std::string_view pemString, std::string_view password) {
             auto key = OpenSSLPKCS::decodePEM(pemString, password);
@@ -366,19 +370,19 @@ namespace util {
 
         ~OpenSSLPKCS() = default;
 
-        inline std::optional<OpenSSL::digestType<N>> sign(const void *d, size_t cnt) const {
+        [[nodiscard]] inline std::optional<OpenSSL::digestType<N>> sign(const void *d, size_t cnt) const {
             return OpenSSLPKCS::doSign(pkey.get(), d, cnt);
         }
 
-        inline bool verify(const OpenSSL::digestType<N>& md, const void *d, size_t cnt) const {
+        [[nodiscard]] inline bool verify(const OpenSSL::digestType<N>& md, const void *d, size_t cnt) const {
             return OpenSSLPKCS::doVerify(pkey.get(), md, d, cnt);
         }
 
-        inline auto getHexFromPublicKey() {
+        [[nodiscard]] inline auto getHexFromPublicKey() const {
             return getRawHexFromPKey<EVP_PKEY_get_raw_public_key>();
         }
 
-        inline auto getHexFromPrivateKey() {
+        [[nodiscard]] inline auto getHexFromPrivateKey() const {
             return getRawHexFromPKey<EVP_PKEY_get_raw_private_key>();
         }
 

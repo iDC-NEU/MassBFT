@@ -12,8 +12,8 @@
 namespace ycsb::utils {
     class Properties {
     private:
-        static std::unique_ptr<Properties> p;
-        static std::mutex mutex;
+        static inline std::unique_ptr<Properties> p;
+        static inline std::mutex mutex;
         constexpr static const auto YAML_CONFIG_FILE = "config.yaml";
         constexpr static const auto BK_YAML_CONFIG_FILE = "/tmp/config.yaml";
 

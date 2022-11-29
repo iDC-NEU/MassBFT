@@ -37,8 +37,8 @@ namespace ycsb::core {
         constexpr static const auto MEASUREMENT_TRACK_JVM_PROPERTY_DEFAULT = "false";
 
     private:
-        static Measurements *singleton;
-        static std::mutex mutex;
+        static inline Measurements *singleton;
+        static  inline std::mutex mutex;
 
     public:
         /**

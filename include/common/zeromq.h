@@ -8,7 +8,6 @@
 #include <optional>
 #include <zmq.hpp>
 #include "glog/logging.h"
-#include "riften/deque.hpp"
 
 namespace util {
     class ZMQInstance {

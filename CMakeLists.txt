@@ -83,7 +83,7 @@ CPMAddPackage(
         GIT_TAG c66fc6094b2a03439dea8469719e221e80e2e8e7
 )
 
-### concurrent map header only
+### fast hashmap header only
 CPMAddPackage(
         NAME unordered_dense  ## include the project name
         GITHUB_REPOSITORY martinus/unordered_dense
@@ -110,14 +110,6 @@ CPMAddPackage(
         NAME concurrentqueue  ## include the project name
         GITHUB_REPOSITORY sydxsty/concurrentqueue
         GIT_TAG 590201524f6bb47dbbd00fe9dd2838c4adbef070
-)
-
-### A thread pool
-CPMAddPackage(
-        NAME ThreadPool
-        GITHUB_REPOSITORY DeveloperPaul123/thread-pool
-        GIT_TAG 80b3c8b40e881a3b4f88599e873321a46d66f232
-        OPTIONS "TP_BUILD_TESTS OFF" "TP_BUILD_EXAMPLES OFF" "TP_BUILD_BENCHMARKS OFF"
 )
 
 ### Crypto support
@@ -148,7 +140,7 @@ find_package(erasurecode
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense MPMCQueue concurrentqueue RiftenDeque ThreadPool crypto protobuf erasurecode dl libgrc.so)
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl libgrc.so)
 
 ### compile protobuf
 include_directories(${CMAKE_BINARY_DIR}/include)

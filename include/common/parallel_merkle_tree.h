@@ -84,7 +84,7 @@ namespace pmt {
         uint32_t Path{};        // path variable indicating whether the neighbor is on the left or right
 
         bool operator==(const Proof& rhs) const {
-            return  Path==rhs.Path && rhs.Siblings.size()==Siblings.size() && [&]->auto {
+            return  Path==rhs.Path && rhs.Siblings.size()==Siblings.size() && [&]() ->auto {
                 for(auto i=0; i< (int)rhs.Siblings.size(); i++) {
                     if(*this->Siblings[i] != *rhs.Siblings[i])
                         return false;

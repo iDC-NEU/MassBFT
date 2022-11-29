@@ -91,6 +91,14 @@ CPMAddPackage(
         GIT_TAG bf7336568fce3993d0fdb136a9b8599f46d8fb40
 )
 
+### greg7mdp/gtl gel template repo
+CPMAddPackage(
+        NAME gtl  ## include the project name
+        GITHUB_REPOSITORY greg7mdp/gtl
+        VERSION v1.1.5
+        GIT_TAG 0f8cecf52c91bb8f265d6ff2fc32cd8144c987a6
+)
+
 ### SPMC queue header only
 CPMAddPackage(
         NAME RiftenDeque  ## include the project name

@@ -17,12 +17,18 @@ namespace util {
 
         ZMQInstance(const ZMQInstance&) = delete;
 
+        // The difference is that a PUB socket sends the same message to all subscribers,
+        // whereas PUSH does a round-robin amongst all its connected PULL sockets.
+        // USE ANOTHER SOCKET TO CONTROL THIS SOCKET CONNECTION
         template<zmq::socket_type socketType>
         static std::unique_ptr<ZMQInstance> NewClient(const std::string& ip, int port) {
             auto ctx = std::make_unique<zmq::context_t>();
             auto socket = std::make_unique<zmq::socket_t>(*ctx, socketType);
             if (socketType == zmq::socket_type::sub || socketType == zmq::socket_type::xsub){
                 socket->set(zmq::sockopt::subscribe, "");
+                socket->set(zmq::sockopt::rcvhwm, 0);
+            }
+            if (socketType == zmq::socket_type::pull) {
                 socket->set(zmq::sockopt::rcvhwm, 0);
             }
             if (socketType == zmq::socket_type::pub || socketType == zmq::socket_type::xpub){
@@ -46,6 +52,9 @@ namespace util {
             if (socketType == zmq::socket_type::sub || socketType == zmq::socket_type::xsub){
                 socket->set(zmq::sockopt::subscribe, "");
                 socket->set(zmq::sockopt::rcvhwm, 0);
+            }
+            if (socketType == zmq::socket_type::push) {
+                socket->set(zmq::sockopt::sndhwm, 0);
             }
             if (socketType == zmq::socket_type::pub || socketType == zmq::socket_type::xpub){
                 socket->set(zmq::sockopt::sndhwm, 0);

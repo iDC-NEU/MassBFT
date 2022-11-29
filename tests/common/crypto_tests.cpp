@@ -104,22 +104,43 @@ TEST_F(CryptoTest, TestED25519SaveAndLoadWithPasswd) {
 
 // Testcase from https://cryptobook.nakov.com/digital-signatures/eddsa-sign-verify-examples
 TEST_F(CryptoTest, TestED25519Verify) {
-    std::string pemPriKey =util::OpenSSLED25519::toHex("1498b5467a63dffa2dc9d9e069caf075d16fc33fdd4c3b01bfadae6433767d93");
-    std::string pemPubKey =util::OpenSSLED25519::toHex("b7a3c12dc0c8c748ab07525b701122b88bd78f600c76342d27f25e5f92444cde");
+    std::string hexPriKey =util::OpenSSLED25519::toHex("1498b5467a63dffa2dc9d9e069caf075d16fc33fdd4c3b01bfadae6433767d93");
+    std::string hexPubKey =util::OpenSSLED25519::toHex("b7a3c12dc0c8c748ab07525b701122b88bd78f600c76342d27f25e5f92444cde");
 
     auto msg = std::string("Message for Ed25519 signing");
     auto sig = util::OpenSSLED25519::toHex("6dd355667fae4eb43c6e0ab92e870edb2de0a88cae12dbd8591507f584fe4912babff497f1b8edf9567d2483d54ddc6459bea7855281b7a246a609e3001a4e08");
 
     util::OpenSSLED25519::initCrypto();
     // Init signer and validator
-    auto signer = util::OpenSSLED25519::NewPrivateKeyFromHex(pemPriKey);
+    auto signer = util::OpenSSLED25519::NewPrivateKeyFromHex(hexPriKey);
     if(!signer) {
         ASSERT_TRUE(false) << "signer init error";
     }
-    auto validator = util::OpenSSLED25519::NewPublicKeyFromHex(pemPubKey);
+    auto validator = util::OpenSSLED25519::NewPublicKeyFromHex(hexPubKey);
     if(!validator) {
         ASSERT_TRUE(false) << "validator init error";
     }
+
+    auto ret = signer->getHexFromPrivateKey();
+    if(!ret) {
+        ASSERT_TRUE(false) << "cannot load private key";
+    }
+    ASSERT_TRUE(hexPriKey == *ret);
+    ret = signer->getHexFromPublicKey();
+    if(!ret) {
+        ASSERT_TRUE(false) << "cannot load public key";
+    }
+    ASSERT_TRUE(hexPubKey == *ret);
+
+    ret = validator->getHexFromPrivateKey();
+    if(ret != std::nullopt) {
+        ASSERT_TRUE(false) << "unexpected load private key";
+    }
+    ret = validator->getHexFromPublicKey();
+    if(!ret) {
+        ASSERT_TRUE(false) << "cannot load public key";
+    }
+    ASSERT_TRUE(hexPubKey == *ret);
 
     // SIgn message
     auto signatureRet = signer->sign(msg.data(), msg.size());

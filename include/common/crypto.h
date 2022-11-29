@@ -310,6 +310,21 @@ namespace util {
             return buf;
         }
 
+        template<decltype(EVP_PKEY_get_raw_public_key) Func>
+        inline auto getRawHexFromPKey() -> std::optional<std::string> {
+            size_t len;
+            // get the length
+            auto ret = Func(pkey.get(), nullptr, &len);
+            if (ret != 1) { // operation not support
+                return std::nullopt;
+            }
+            std::string buffer;
+            buffer.resize(len);
+            // get the data
+            Func(pkey.get(), reinterpret_cast<unsigned char *>(buffer.data()), &len);
+            return buffer;
+        }
+
     public:
         explicit OpenSSLPKCS(EVP_PKEY* pkey_) :pkey(pkey_) { }
 
@@ -357,6 +372,14 @@ namespace util {
 
         inline bool verify(const OpenSSL::digestType<N>& md, const void *d, size_t cnt) const {
             return OpenSSLPKCS::doVerify(pkey.get(), md, d, cnt);
+        }
+
+        inline auto getHexFromPublicKey() {
+            return getRawHexFromPKey<EVP_PKEY_get_raw_public_key>();
+        }
+
+        inline auto getHexFromPrivateKey() {
+            return getRawHexFromPKey<EVP_PKEY_get_raw_private_key>();
         }
 
     private:

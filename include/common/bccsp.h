@@ -3,7 +3,6 @@
 //
 
 #pragma once
-// the blockchain cryptographic service provider
 
 #include "common/crypto.h"
 
@@ -14,7 +13,7 @@
 #include <utility>
 
 namespace util {
-// Key represents a cryptographic key
+    // Key represents a cryptographic key
     class Key {
     public:
         // private key version
@@ -90,7 +89,7 @@ namespace util {
         util::OpenSSLED25519 _privateKey;
     };
 
-// default key storage
+    // default key storage
     class KeyStorage {
     public:
         virtual ~KeyStorage() = default;
@@ -104,7 +103,8 @@ namespace util {
         virtual auto loadKey(std::string_view ski) -> std::optional<std::pair<std::string, bool>> = 0;
     };
 
-// BCCSP keep ALL the keys
+    // BCCSP: the blockchain cryptographic service provider
+    // BCCSP keep ALL the keys
     class BCCSP {
     public:
         explicit BCCSP(std::unique_ptr<KeyStorage> storage_) : storage(std::move(storage_)) {}
@@ -252,7 +252,7 @@ namespace util {
         }
 
     private:
-        mutable gtl::flat_hash_map<std::string_view, std::unique_ptr<Key>> cache;
+        mutable gtl::parallel_flat_hash_map<std::string_view, std::unique_ptr<Key>> cache;
         std::unique_ptr<KeyStorage> storage;
     };
 }

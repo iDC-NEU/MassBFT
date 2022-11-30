@@ -19,7 +19,8 @@ namespace util {
         // The difference is that a PUB socket sends the same message to all subscribers,
         // whereas PUSH does a round-robin amongst all its connected PULL sockets.
         // USE ANOTHER SOCKET TO CONTROL THIS SOCKET CONNECTION
-        template<zmq::socket_type socketType>
+        template<zmq::socket_type socketType, std::array addrType=std::to_array("tcp")>
+        requires std::same_as<typename decltype(addrType)::value_type, char>
         static std::unique_ptr<ZMQInstance> NewClient(const std::string& ip, int port) {
             auto ctx = std::make_unique<zmq::context_t>();
             auto socket = std::make_unique<zmq::socket_t>(*ctx, socketType);
@@ -34,7 +35,7 @@ namespace util {
                 socket->set(zmq::sockopt::sndhwm, 0);
             }
             try {
-                auto addr = "tcp://"+ ip +":" + std::to_string(port);
+                auto addr = std::string(std::begin(addrType), std::end(addrType)) + "://"+ ip +":" + std::to_string(port);
                 DLOG(INFO) << "Connect to address: " << addr;
                 socket->connect(addr);
             } catch (const zmq::error_t& error) {
@@ -44,7 +45,8 @@ namespace util {
             return std::unique_ptr<ZMQInstance>(new ZMQInstance(std::move(ctx), std::move(socket)));
         }
 
-        template<zmq::socket_type socketType>
+        template<zmq::socket_type socketType, std::array addrType=std::to_array("tcp")>
+        requires std::same_as<typename decltype(addrType)::value_type, char>
         static std::unique_ptr<ZMQInstance> NewServer(int port) {
             auto ctx = std::make_unique<zmq::context_t>();
             auto socket = std::make_unique<zmq::socket_t>(*ctx, socketType);
@@ -59,7 +61,7 @@ namespace util {
                 socket->set(zmq::sockopt::sndhwm, 0);
             }
             try {
-                auto addr = "tcp://0.0.0.0:" + std::to_string(port);
+                auto addr = std::string(std::begin(addrType), std::end(addrType)) + "://0.0.0.0:" + std::to_string(port);
                 DLOG(INFO) << "Listening at address: " << addr;
                 socket->bind(addr);
             } catch (const zmq::error_t& error) {

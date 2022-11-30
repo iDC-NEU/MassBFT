@@ -41,9 +41,9 @@ namespace OpenSSL {
     using OSSL_DECODER_CTX_ptr = std::unique_ptr<OSSL_DECODER_CTX, DeleteDecoderCtx>;
     using EVP_PKEY_ptr = std::unique_ptr<EVP_PKEY, DeletePkey>;
 
-    constexpr static inline const auto SHA256 = "SHA256";
-    constexpr static inline const auto SHA1 = "SHA1";
-    constexpr static inline const auto ED25519 =SN_ED25519;
+    inline constexpr char SHA256[] = "SHA256";
+    inline constexpr char SHA1[] = "SHA1";
+    inline constexpr char ED25519[] = SN_ED25519;
 
     template <int N>
     using digestType = std::array<uint8_t, N>;

@@ -22,15 +22,15 @@ namespace util {
         [[nodiscard]] virtual std::optional<std::string_view> get(int index) const = 0;
 
         [[nodiscard]] virtual std::optional<std::vector<std::string_view>> getAll() const = 0;
-        
+
         [[nodiscard]] inline int size() const { return _size; }
 
     protected:
-        virtual bool encode(const std::string& data) = 0;
-        
+        virtual bool encode(std::string_view data) = 0;
+
     private:
         const int _size;
-        
+
     };
 
     class DecodeResult {
@@ -56,7 +56,7 @@ namespace util {
 
         virtual ~ErasureCode() = default;
 
-        [[nodiscard]] virtual std::unique_ptr<EncodeResult> encode(const std::string& data) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<EncodeResult> encode(std::string_view data) const = 0;
 
         [[nodiscard]] virtual std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList) const = 0;
 
@@ -79,7 +79,7 @@ namespace util {
             }
         }
 
-        bool encode(const std::string& data) override {
+        bool encode(std::string_view data) override {
             CHECK(encodedData == nullptr || encodedParity == nullptr);  // only call encode once for each instance
             auto ret = liberasurecode_encode(_id, data.data(), data.size(), &encodedData, &encodedParity, &_fragmentLen);
             if (ret != 0) {
@@ -181,7 +181,7 @@ namespace util {
     public:
         using BackEndType = ec_backend_id_t;
         LibErasureCode(int dataNum, int parityNum, BackEndType bt=EC_BACKEND_ISA_L_RS_VAND)
-        : ErasureCode(dataNum, parityNum) {
+                : ErasureCode(dataNum, parityNum) {
             if(!liberasurecode_backend_available(bt)) {
                 LOG(WARNING) << "LibErasureCode backend " << bt <<" not available, switch to LIBERASURECODE_RS_VAND.";
                 bt = EC_BACKEND_LIBERASURECODE_RS_VAND;
@@ -205,7 +205,7 @@ namespace util {
 
         LibErasureCode(const LibErasureCode&) = delete;
 
-        [[nodiscard]] std::unique_ptr<EncodeResult> encode(const std::string& data) const override {
+        [[nodiscard]] std::unique_ptr<EncodeResult> encode(std::string_view data) const override {
             auto storage = std::make_unique<LibECEncodeResult>(id, _dataNum, _parityNum);
             if(storage->encode(data)) {
                 return storage;
@@ -237,15 +237,32 @@ namespace util {
         GoEncodeResult(const GoEncodeResult&) = delete;
 
         ~GoEncodeResult() override {
-            encodeCleanup(_id, &shards);
+            if (shardsRaw != nullptr) {
+                GoSlice shards{};
+                shards.data = shardsRaw;
+                shards.len = _shardLen;
+                shards.cap = _shardLen;
+                encodeCleanup(_id, &shards);
+                delete shardsRaw;
+            }
         }
 
-        bool encode(const std::string& data) override {
-            CHECK(_fragmentLen == 0);  // only call encode once for each instance
-            GoSlice dw = {(void *)data.data(), static_cast<GoInt>(data.size()), static_cast<GoInt>(data.capacity())};
-            auto ret = ::encode(_id, dw, &shards, &_fragmentLen);
+        bool encode(std::string_view data) override {
+            DCHECK(_fragmentLen == 0);  // only call encode once for each instance
+
+            auto ret = ::encodeFirst(_id, (void *)data.data(), static_cast<GoInt>(data.size()), &_fragmentLen, &_shardLen);
             if (ret != 0) {
                 return false;
+            }
+            delete shardsRaw;
+            shardsRaw = new char*[_shardLen];
+            GoSlice shards{};
+            shards.data = shardsRaw;
+            shards.len = _shardLen;
+            shards.cap = _shardLen;
+            ret = ::encodeNext(_id, &shards);
+            if (ret != 0) {
+                return false;   // TODO: use free insteadof malloc
             }
             return true;
         }
@@ -253,31 +270,27 @@ namespace util {
     protected:
         // WARNING: return a string_view, be careful
         [[nodiscard]] std::optional<std::string_view> get(int index) const override {
-            DCHECK(shards.len == this->size()) << "encode size does not meet, bug found!";
-            if (index < shards.len) {
-                auto& fragmentRef = static_cast<const GoSlice*>(shards.data)[index];
-                DCHECK(fragmentRef.len == _fragmentLen) << "fragment size does not meet, bug found!";
-                return std::string_view(static_cast<const char*>(fragmentRef.data), fragmentRef.len);
+            if (index < (int)_shardLen) {
+                return std::string_view(shardsRaw[index], _fragmentLen);
             }
             return std::nullopt;
         }
 
         [[nodiscard]] std::optional<std::vector<std::string_view>> getAll() const override {
-            if (shards.data == nullptr) {
+            if (shardsRaw == nullptr) {
                 return std::nullopt;
             }
             std::vector<std::string_view> fragmentList;
-            for (int i=0; i<shards.len; i++) {
-                auto& fragmentRef = static_cast<const GoSlice*>(shards.data)[i];
-                DCHECK(fragmentRef.len == _fragmentLen) << "fragment size does not meet, bug found!";
-                fragmentList.emplace_back(static_cast<const char*>(fragmentRef.data), fragmentRef.len);
+            for (int i=0; i<_shardLen; i++) {
+                fragmentList.emplace_back(std::string_view(shardsRaw[i], _fragmentLen));
             }
             return fragmentList;
         }
 
     private:
-        GoSlice shards{};
+        char **shardsRaw = nullptr;
         GoInt _fragmentLen{};            /* length, in bytes of the fragments */
+        GoInt _shardLen{};
         const int _id;
     };
 
@@ -302,18 +315,18 @@ namespace util {
                 }
             }
             // calculate dataLen
-            auto dataLen = fragmentLen*_dataNum;
+            _dataLen = (int)fragmentLen*_dataNum;
             // setup rawFL
-            std::vector<GoSlice> rawFL;
+            std::vector<const char*> rawFL;
             rawFL.reserve(fragmentList.size());
             for (const auto& fragment: fragmentList) {
                 if (!fragment.empty()) {
-                    rawFL.emplace_back(GoSlice{(void *)fragment.data(), static_cast<GoInt>(fragment.size()), static_cast<GoInt>(fragment.size())});
+                    rawFL.emplace_back(fragment.data());
                 } else {
-                    rawFL.emplace_back(GoSlice{nullptr, static_cast<GoInt>(0), static_cast<GoInt>(0)});
+                    rawFL.emplace_back(nullptr);
                 }
             }
-            auto ret = ::decode(_id, GoSlice{rawFL.data(), static_cast<GoInt>(rawFL.size()), static_cast<GoInt>(rawFL.capacity())}, static_cast<GoInt>(dataLen), &data);
+            auto ret = ::decode(_id, GoSlice{rawFL.data(), static_cast<GoInt>(rawFL.size()), static_cast<GoInt>(rawFL.capacity())}, static_cast<GoInt>(fragmentLen), static_cast<GoInt>(_dataLen), &data);
             if (ret != 0) {
                 return false;
             }
@@ -323,15 +336,16 @@ namespace util {
     protected:
         // WARNING: return a string_view, be careful
         [[nodiscard]] std::optional<std::string_view> getData() const override {
-            if (data.data == nullptr) {
+            if (data == nullptr) {
                 return std::nullopt;
             }
-            return std::string_view(static_cast<char*>(data.data), data.len);
+            return std::string_view(static_cast<char*>(data), _dataLen);
         }
 
     private:
         const int _id, _dataNum;    // data shard count
-        GoSlice data{};
+        int _dataLen{};
+        void* data{};
     };
 
     class GoErasureCode : public ErasureCode {
@@ -352,7 +366,7 @@ namespace util {
             }
         }
 
-        [[nodiscard]] std::unique_ptr<EncodeResult> encode(const std::string& data) const override {
+        [[nodiscard]] std::unique_ptr<EncodeResult> encode(std::string_view data) const override {
             auto storage = std::make_unique<GoEncodeResult>(id, _dataNum+_parityNum);
             if(storage->encode(data)) {
                 return storage;

@@ -23,7 +23,7 @@ protected:
 
     class mockDataBlock: public pmt::DataBlock {
     public:
-        byteString data;
+        std::string data;
 
         [[nodiscard]] std::optional<byteString> Serialize() const override {
             return data;
@@ -47,10 +47,10 @@ protected:
         return blocks;
     }
 
-    static void fillDummy(byteString& dummyBytes, int len) {
+    static void fillDummy(std::string& dummyBytes, int len) {
         dummyBytes.resize(len);
         for (auto &b: dummyBytes) {
-            b = random() % 256;
+            b = (char)(random() % 256);
         }
     }
 

@@ -28,7 +28,8 @@ namespace pmt {
     // Default hash result length using SHA256.
     constexpr int defaultHashLen = 32;
 
-    using byteString = std::vector<uint8_t>;
+    // eliminate additional copy, DataBlock need to store the actual string instead
+    using byteString = std::string_view;
 
     using hashString = std::array<uint8_t, defaultHashLen>;
 
@@ -331,7 +332,7 @@ namespace pmt {
                 if (!ret) {
                     return false;
                 }
-                auto data = std::move(*ret);
+                auto data = *ret;
                 auto hash = Config::HashFunc(data);
                 if (!hash) {
                     return false;
@@ -388,7 +389,7 @@ namespace pmt {
                 if (!ret) {
                     return false;
                 }
-                auto data = std::move(*ret);
+                auto data = *ret;
                 auto hash = Config::HashFunc(data);
                 if (!hash) {
                     return false;
@@ -582,7 +583,7 @@ namespace pmt {
                 LOG(ERROR) << "Serialize data block error";
                 return std::nullopt;
             }
-            auto data = std::move(*ret);
+            auto data = *ret;
 
             auto ret2 = Config::HashFunc(data);
             if (!ret2) {
@@ -618,7 +619,7 @@ namespace pmt {
             if (!ret) {
                 return std::nullopt;
             }
-            auto blockByte = std::move(*ret);
+            auto blockByte = *ret;
             auto ret2 = Config::HashFunc(blockByte);
             if (!ret2) {
                 return std::nullopt;

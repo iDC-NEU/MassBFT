@@ -165,7 +165,7 @@ namespace peer {
             }
 
             // Invoke for generation
-            // No concurrent support
+            // Concurrent support
             // serializeFragments is called after initWithMessage
             // not include end: [start, start+1, ..., end-1]
             [[nodiscard]] std::optional<std::string> serializeFragments(int start, int end) const {
@@ -326,6 +326,10 @@ namespace peer {
             ecMap[x][y]->push(std::move(context->ec));
             semaMap[x][y].signal();
             return true;
+        }
+
+        [[nodiscard]] auto* getThreadPoolPtr() const {
+            return wp.get();
         }
 
     private:

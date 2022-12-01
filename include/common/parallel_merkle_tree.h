@@ -74,6 +74,7 @@ namespace pmt {
         // If RunInParallel is true, the generation runs in parallel, otherwise runs without parallelization.
         // This increase the performance for the calculation of large number of data blocks, e.g. over 10,000 blocks.
         bool RunInParallel = false;
+        bool LeafGenParallel = false;
         // If true, generate a dummy node with random hash value.
         // Otherwise, then the odd node situation is handled by duplicating the previous node.
         bool NoDuplicates = false;
@@ -164,7 +165,7 @@ namespace pmt {
                 mt->wp = wpPtr;
             }
             mt->Depth = calTreeDepth((int) blocks.size());
-            if (mt->config.RunInParallel) {
+            if (mt->config.RunInParallel || mt->config.LeafGenParallel) {
                 if (!mt->leafGenParallel(blocks)) {
                     LOG(ERROR) << "generate merkle tree failed";
                     return nullptr;
@@ -356,65 +357,22 @@ namespace pmt {
             auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, lenLeaves);
             auto sema = util::NewSema();
             for (auto i = 0; i < numRoutines; i++) {
-                wp->push_task([&, i=i]{
-                    leafGenHandler(&this->Leaves, &blocks, i, lenLeaves, numRoutines);
+                wp->push_task([&, start=i]{
+                    for (int j = start; j < lenLeaves; j += numRoutines) {
+                        auto ret = blocks[j]->Serialize();
+                        if (!ret) {
+                            break;  // error
+                        }
+                        auto hash = Config::HashFunc(*ret);
+                        if (!hash) {
+                            break;  // error
+                        }
+                        this->Leaves[j] = *hash;
+                    }
                     sema.signal();
                 });
             }
             util::wait_for_sema(sema, numRoutines);
-            return true;
-        }
-
-        // leafGenHandler generates the leaves in parallel.
-        // arg fields:
-        //
-        //	mt: the Merkle Tree instance
-        //	byteField2: leaves
-        //	dataBlockField: blocks
-        //	intField1: start
-        //	intField2: lenLeaves
-        //	intField3: numRoutines
-        static bool leafGenHandler(std::vector<hashString>* leaves,
-                                   const std::vector<std::unique_ptr<DataBlock>>* blocks,
-                                   int start,
-                                   int lenLeaves,
-                                   int numRoutines) {
-            for (int i = start; i < lenLeaves; i += numRoutines) {
-                auto ret = (*blocks)[i]->Serialize();
-                if (!ret) {
-                    return false;
-                }
-                auto data = *ret;
-                auto hash = Config::HashFunc(data);
-                if (!hash) {
-                    return false;
-                }
-                (*leaves)[i] = *hash;
-            }
-            return true;
-        }
-
-        // proofGenHandler generates the proofs in parallel.
-        // arg fields:
-        //
-        //	mt: the Merkle Tree instance
-        //	byteField1: buf1
-        //	byteField2: buf2
-        //	intField1: start
-        //	intField2: prevLen
-        //	intField3: numRoutines
-        static bool proofGenHandler(const std::vector<hashString>* buf1,
-                                    std::vector<hashString>* buf2,
-                                    int start,
-                                    int prevLen,
-                                    int numRoutines) {
-            for (auto i = start; i < prevLen; i += (numRoutines << 1)) {
-                auto newHash = Config::HashFunc((*buf1)[i], (*buf1)[i + 1]);
-                if (!newHash) {
-                    return false;
-                }
-                (*buf2)[i >> 1] = *newHash;
-            }
             return true;
         }
 
@@ -433,11 +391,17 @@ namespace pmt {
             for (auto step = 1; step < int(Depth); step++) {
                 auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
                 for (auto i = 0; i < numRoutines; i++) {
-                    wp->push_task([&, i=i] {
-                        proofGenHandler(buf1, buf2, i << 1, prevLen, numRoutines);
+                    wp->push_task([&, start=i << 1] {
+                        for (auto j = start; j < prevLen; j += (numRoutines << 1)) {
+                            auto newHash = Config::HashFunc((*buf1)[j], (*buf1)[j + 1]);
+                            if (!newHash) {
+                                LOG(ERROR) << "Hash failure";
+                                break;
+                            }
+                            (*buf2)[j >> 1] = *newHash;
+                        }
                         sema.signal();
                     });
-
                 }
                 buf1 = buf2;
                 proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(prevLen >> 1));
@@ -456,38 +420,16 @@ namespace pmt {
             return true;
         }
 
-        // updateProofHandler updates the proofs in parallel.
-        // arg fields:
-        //
-        //	mt: the Merkle Tree instance
-        //	byteField1: buf
-        //	intField1: start
-        //	intField2: batch
-        //	intField3: step
-        //	intField4: bufLen
-        //	intField5: numRoutines
-        static bool updateProofHandler(MerkleTree *mt,
-                                       const std::vector<hashString>* buf,
-                                       int start,
-                                       int batch,
-                                       int step,
-                                       int bufLen,
-                                       int numRoutines) {
-            for (auto i = start; i < bufLen; i += (numRoutines << 1)) {
-                mt->updatePairProof(*buf, i, batch, step);
-            }
-            // return the nil error to be compatible with the handler type
-            return true;
-        }
-
         void updateProofsParallel(const std::vector<hashString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
 
             auto sema = util::NewSema();
             auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, bufLen);
             for (auto i = 0; i < numRoutines; i++) {
-                wp->push_task([&, i=i] {
-                    updateProofHandler(this, &buf, i << 1, batch, step, bufLen, numRoutines);
+                wp->push_task([&, start=i << 1] {
+                    for (auto j = start; j < bufLen; j += (numRoutines << 1)) {
+                        this->updatePairProof(buf, j, batch, step);
+                    }
                     sema.signal();
                 });
             }
@@ -514,8 +456,15 @@ namespace pmt {
                     auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
                     for (auto j = 0; j < numRoutines; j++) {
                         // ----in the original version, numRoutines==config::NumRoutines----
-                        wp->push_task([this, j=j, prevLen=prevLen, numRoutines=numRoutines, i=i, &sema]{
-                            treeBuildHandler(this, j << 1, prevLen, numRoutines, i);
+                        wp->push_task([this, start=j << 1, prevLen=prevLen, numRoutines=numRoutines, depth=i, &sema]{
+                            for (auto k = start; k < prevLen; k += (numRoutines << 1)) {
+                                auto ret = Config::HashFunc(this->tree[depth][k], this->tree[depth][k + 1]);
+                                if (!ret) {
+                                    LOG(ERROR) << "Hash func failed";
+                                    break;
+                                }
+                                this->tree[depth + 1][k >> 1] = *ret;
+                            }
                             sema.signal();
                         });
                         // -----------------------------------------------------------------
@@ -539,30 +488,6 @@ namespace pmt {
             }
             this->Root = *ret;
             return future.get();
-        }
-
-
-        // treeBuildHandler builds the tree in parallel.
-        // arg fields:
-        //
-        //	mt: the Merkle Tree instance
-        //	intField1: start
-        //	intField2: prevLen
-        //	intField3: numRoutines
-        //	uint32Field: depth
-        static bool treeBuildHandler(MerkleTree *mt,
-                                     int start,
-                                     int prevLen,
-                                     int numRoutines,
-                                     uint32_t depth) {
-            for (auto i = start; i < prevLen; i += (numRoutines << 1)) {
-                auto ret = Config::HashFunc(mt->tree[depth][i], mt->tree[depth][i + 1]);
-                if (!ret) {
-                    return false;
-                }
-                mt->tree[depth + 1][i >> 1] = *ret;
-            }
-            return true;
         }
 
     public:

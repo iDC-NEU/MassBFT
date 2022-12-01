@@ -143,7 +143,6 @@ namespace peer {
                 if (mt != nullptr) {
                     return false;   // already inited
                 }
-                pmtConfig.Mode=pmt::ModeType::ModeProofGenAndTreeBuild;
                 encodeResultHolder = ec->encode(message);
                 if (encodeResultHolder == nullptr) {
                     return false;
@@ -153,6 +152,10 @@ namespace peer {
                     return false;
                 }
                 std::vector<std::string_view> ecEncodeResult = std::move(*ret);
+                pmtConfig.Mode=pmt::ModeType::ModeProofGenAndTreeBuild;
+                if (ecEncodeResult[0].size() > 1024) {
+                    pmtConfig.LeafGenParallel=true;
+                }
                 std::vector<std::unique_ptr<pmt::DataBlock>> blocks;
                 blocks.reserve(ecEncodeResult.size());
                 // serialize perform an additional copy

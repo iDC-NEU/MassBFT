@@ -4,6 +4,7 @@
 
 
 #include "peer/block_fragment_generator.h"
+#include "common/timer.h"
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
@@ -84,8 +85,9 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
     // create new instance with 10 ec workers per config
     peer::BlockFragmentGenerator bfg(cfgList, 10);
     std::string message;
-    fillDummy(message, 1024*1024*5);
+    fillDummy(message, 1024*1024*2);
     moodycamel::LightweightSemaphore sema;
+    util::Timer timer;
 
     for(int i=0; i<100; i++) {
         // get an ec worker with config
@@ -152,5 +154,6 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
         bfg.freeContext(std::move(contextReconstruct));
         bfg.freeContext(std::move(context));
     }
+    LOG(INFO) << "Total time: " << timer.end();
 
 }

@@ -25,10 +25,12 @@ func (i Integer) String() string {
 var engines cmap.ConcurrentMap[Integer, reedsolomon.Encoder]
 var maxIndex int64
 var encodeBuffer cmap.ConcurrentMap[Integer, [][]byte]
+var decodeBuffer cmap.ConcurrentMap[Integer, []byte]
 
 func init() {
 	engines = cmap.NewStringer[Integer, reedsolomon.Encoder]()
 	encodeBuffer = cmap.NewStringer[Integer, [][]byte]()
+	decodeBuffer = cmap.NewStringer[Integer, []byte]()
 	maxIndex = 0
 }
 
@@ -51,6 +53,7 @@ func instanceCreate(dataNum, parityNum int) int {
 func instanceDestroy(id int) int {
 	engines.Remove(Integer(id))
 	encodeBuffer.Remove(Integer(id))
+	decodeBuffer.Remove(Integer(id))
 	return 0
 }
 
@@ -81,16 +84,17 @@ func encodeFirst(id int, data unsafe.Pointer, dataSize int, fragmentLen *int, da
 func encodeNext(id int, shards *[]unsafe.Pointer) int {
 	goShard, _ := encodeBuffer.Get(Integer(id))
 	for k, v := range goShard {
-		(*shards)[k] = C.CBytes(v)
+		// (*shards)[k] = C.CBytes(v)
+		(*shards)[k] = unsafe.Pointer(&v[0])
 	}
 	return 0
 }
 
 //export encodeCleanup
 func encodeCleanup(id int, shards *[]unsafe.Pointer) {
-	for i := 0; i < len(*shards); i++ {
-		C.free((*shards)[i])
-	}
+	// for i := 0; i < len(*shards); i++ {
+	//	 C.free((*shards)[i])
+	// }
 }
 
 // shards[i] = nil in order
@@ -104,8 +108,7 @@ func decode(id int, shards []unsafe.Pointer, fLength int, dataSize int, data *un
 	shardsRaw := make([][]byte, len(shards))
 	for i := 0; i < len(shards); i++ {
 		if shards[i] != nil {
-			dataRaw := unsafe.Slice((*byte)(shards[i]), fLength)
-			shardsRaw[i] = dataRaw
+			shardsRaw[i] = unsafe.Slice((*byte)(shards[i]), fLength)
 		}
 	}
 	// Verify the shards
@@ -125,13 +128,16 @@ func decode(id int, shards []unsafe.Pointer, fLength int, dataSize int, data *un
 		log.Println("Error decode data, ", err)
 		return -1
 	}
-	*data = C.CBytes(buf.Bytes())
+	// *data = C.CBytes(buf.Bytes())
+	dataGo := buf.Bytes()
+	*data = unsafe.Pointer(&dataGo[0])
+	decodeBuffer.Set(Integer(id), dataGo)
 	return 0
 }
 
 //export decodeCleanup
 func decodeCleanup(id int, data *unsafe.Pointer) {
-	C.free(*data)
+	// C.free(*data)
 }
 
 func main() {}

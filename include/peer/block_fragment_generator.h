@@ -32,7 +32,7 @@ namespace peer {
         public:
             explicit ContextDataBlock(pmt::byteString dataView) :_dataView(dataView) {}
 
-            [[nodiscard]] std::optional<pmt::byteString> Serialize() const override {
+            [[nodiscard]] pmt::byteString Serialize() const override {
                 return _dataView;
             }
         private:
@@ -49,18 +49,15 @@ namespace peer {
 
             // Invoke for validation
             // support concurrent validation
+            // This func will throw runtime error
             bool validateAndDeserializeFragments(const pmt::hashString& root, std::string_view raw, int start, int end) {
                 if (start<0 || start>=end || end>fragmentCnt) {
-                    return false;    // out of range
+                    throw std::out_of_range("index out of range");    // out of range
                 }
                 auto in = zpp::bits::in(raw);
                 // 1. read depth(compressed)
                 int64_t depth = 0;
-                auto ret = in(depth);
-                if (failure(ret)) {
-                    LOG(ERROR) << "Deserialize failed: " << (int)ret.code;
-                    return false;
-                }
+                in(depth).or_throw();
 
                 for (auto i=start; i<end; i++) {
                     bool falseFlag = false;
@@ -73,20 +70,12 @@ namespace peer {
                     currentProof.Siblings.reserve(depth);
                     // 2. write path, compressed proof size
                     int64_t currentProofSize = 0;
-                    ret = in(currentProof.Path, currentProofSize);
-                    if (failure(ret)) {
-                        LOG(ERROR) << "Deserialize failed: " << (int) ret.code;
-                        return false;
-                    }
+                    in(currentProof.Path, currentProofSize).or_throw();
                     // 3. read proofs
                     // resize to avoid invalid pointer
                     currentProofCache.resize(currentProofSize);
                     for (auto j = 0; j < currentProofSize; j++) {
-                        ret = in(currentProofCache[j]);
-                        if (failure(ret)) {
-                            LOG(ERROR) << "Serialize failed: " << (int) ret.code;
-                            return false;
-                        }
+                        in(currentProofCache[j]).or_throw();
                         currentProof.Siblings.push_back(&currentProofCache[j]);
                     }
                     if (i != start) {
@@ -96,17 +85,13 @@ namespace peer {
                         }
                     }
                     // 4. read actual data
-                    std::string fragment;
-                    ret = in(fragment);
-                    if (failure(ret)) {
-                        LOG(ERROR) << "Deserialize failed: " << (int) ret.code;
-                        return false;
-                    }
+                    std::string_view fragment;
+                    in(fragment).or_throw();
                     ContextDataBlock fragmentView(fragment);
                     // we have finished loading all proofs, verify them.
                     auto verifyResult = pmt::MerkleTree::Verify(fragmentView, currentProof, root);
                     if (verifyResult && *verifyResult) {
-                        ecDecodeResult[i] = std::move(fragment);
+                        ecDecodeResult[i] = fragment;
                     } else {
                         LOG(ERROR) << "Verification failed";
                         return false;
@@ -171,15 +156,16 @@ namespace peer {
             // Concurrent support
             // serializeFragments is called after initWithMessage
             // not include end: [start, start+1, ..., end-1]
-            [[nodiscard]] std::optional<std::string> serializeFragments(int start, int end) const {
+            // This func will throw runtime error
+            [[nodiscard]] std::string serializeFragments(int start, int end) const {
                 const auto& proofs = mt->getProofs();
                 if (start<0 || start>=end || end>fragmentCnt) {
-                    return std::nullopt;    // out of range
+                    throw std::out_of_range("index out of range");    // out of range
                 }
                 DCHECK(fragmentCnt == (int)proofs.size());
                 auto flRet = encodeResultHolder->getAll();
                 if (!flRet) {
-                    return std::nullopt;
+                    throw std::logic_error("encodeResultHolder have not encode yet");
                 }
                 auto actualFragmentList = std::move(*flRet);
                 // create and reserve data
@@ -194,11 +180,7 @@ namespace peer {
                 // create serializer
                 auto out = zpp::bits::out(data);
                 // 1. write depth(compressed)
-                auto ret = out((int64_t) depth);
-                if (failure(ret)) {
-                    LOG(ERROR) << "Serialize failed: " << (int)ret.code;
-                    return std::nullopt;
-                }
+                out((int64_t) depth).or_throw();
 
                 for (auto i=start; i<end; i++) {
                     const pmt::Proof& currentProof = proofs[i];
@@ -215,26 +197,14 @@ namespace peer {
                         }
                     }
                     // 2. write path
-                    ret = out((uint32_t) currentProof.Path, (int64_t) lastIndex+1);   // record the size, not the index
-                    if (failure(ret)) {
-                        LOG(ERROR) << "Serialize failed: " << (int)ret.code;
-                        return std::nullopt;
-                    }
+                    out((uint32_t) currentProof.Path, (int64_t) lastIndex+1).or_throw();   // record the size, not the index
                     // 3. write proof vector
                     for (auto j=0; j<lastIndex+1; j++) {
                         const pmt::hashString& sj = *currentProof.Siblings[j];
-                        ret = out(sj);
-                        if (failure(ret)) {
-                            LOG(ERROR) << "Serialize failed: " << (int)ret.code;
-                            return std::nullopt;
-                        }
+                        out(sj).or_throw();
                     }
                     // 4. write actual data
-                    ret = out(actualFragmentList[i]);
-                    if (failure(ret)) {
-                        LOG(ERROR) << "Serialize failed: " << (int)ret.code;
-                        return std::nullopt;
-                    }
+                    out(actualFragmentList[i]).or_throw();
                 }
                 DCHECK(data.size() <= reserveSize) << "please reserve data size, actual size: " << data.size() << " estimate size " << reserveSize;
                 return data;

@@ -41,34 +41,34 @@ TEST_F(BFGTest, IntrgrateTest) {
     std::string message;
     fillDummy(message, 1024*1024*5);
 
-    for(int i=0; i<100; i++) {
-        // get an ec worker with config
-        auto context = bfg.getEmptyContext(cfgList[0]);
-        context->initWithMessage(message);
-        auto seg1 = context->serializeFragments(0, 4);
-        ASSERT_TRUE(seg1 != std::nullopt);
-        auto seg2 = context->serializeFragments(4, 8);
-        ASSERT_TRUE(seg2 != std::nullopt);
-        auto seg3 = context->serializeFragments(8, 12);
-        ASSERT_TRUE(seg3 != std::nullopt);
-        auto seg4 = context->serializeFragments(12, 16);
-        ASSERT_TRUE(seg4 != std::nullopt);
-        auto seg5 = context->serializeFragments(16, 19);    // 3
-        ASSERT_TRUE(seg5 != std::nullopt);
-        auto root = context->getRoot(); // pmt::hashString
+    try {
+        for (int i = 0; i < 100; i++) {
+            // get an ec worker with config
+            auto context = bfg.getEmptyContext(cfgList[0]);
+            context->initWithMessage(message);
+            auto seg1 = context->serializeFragments(0, 4);
+            auto seg2 = context->serializeFragments(4, 8);
+            auto seg3 = context->serializeFragments(8, 12);
+            auto seg4 = context->serializeFragments(12, 16);
+            auto seg5 = context->serializeFragments(16, 19);    // 3
+            auto root = context->getRoot(); // pmt::hashString
 
-        // get another worker for re-construct
-        auto contextReconstruct = bfg.getEmptyContext(cfgList[0]);
-        // 3+4+4=11
-        ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, *seg4, 12, 16));
-        ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, *seg2, 4, 8));
-        ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, *seg5, 16, 19));
+            // get another worker for re-construct
+            auto contextReconstruct = bfg.getEmptyContext(cfgList[0]);
+            // 3+4+4=11
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg4, 12, 16));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg2, 4, 8));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg5, 16, 19));
 
-        auto msgRegenRet = contextReconstruct->regenerateMessage();
-        ASSERT_TRUE(msgRegenRet);
-        ASSERT_TRUE(msgRegenRet->substr(0, message.size()) == message) << msgRegenRet->substr(0, 100) << " vs " << message.substr(0, 100);
-        bfg.freeContext(std::move(contextReconstruct));
-        bfg.freeContext(std::move(context));
+            auto msgRegenRet = contextReconstruct->regenerateMessage();
+            ASSERT_TRUE(msgRegenRet);
+            ASSERT_TRUE(msgRegenRet->substr(0, message.size()) == message)
+                                        << msgRegenRet->substr(0, 100) << " vs " << message.substr(0, 100);
+            bfg.freeContext(std::move(contextReconstruct));
+            bfg.freeContext(std::move(context));
+        }
+    } catch (const std::exception& e) {
+        ASSERT_TRUE(false) << e.what();
     }
 
 }
@@ -96,33 +96,23 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
         std::vector<std::string> segList(10);
         auto* wpPtr = bfg.getThreadPoolPtr();
         wpPtr->push_task([&] {
-            auto ret = context->serializeFragments(0, 4);
-            ASSERT_TRUE(ret != std::nullopt);
-            segList[1] =std::move(*ret);
+            segList[1] = context->serializeFragments(0, 4);
             sema.signal();
         });
         wpPtr->push_task([&] {
-            auto ret = context->serializeFragments(4, 8);
-            ASSERT_TRUE(ret != std::nullopt);
-            segList[2] =std::move(*ret);
+            segList[2] = context->serializeFragments(4, 8);
             sema.signal();
         });
         wpPtr->push_task([&] {
-            auto ret = context->serializeFragments(8, 12);
-            ASSERT_TRUE(ret != std::nullopt);
-            segList[3] =std::move(*ret);
+            segList[3] = context->serializeFragments(8, 12);
             sema.signal();
         });
         wpPtr->push_task([&] {
-            auto ret = context->serializeFragments(12, 16);
-            ASSERT_TRUE(ret != std::nullopt);
-            segList[4] =std::move(*ret);
+            segList[4] = context->serializeFragments(12, 16);
             sema.signal();
         });
         wpPtr->push_task([&] {
-            auto ret = context->serializeFragments(16, 19);
-            ASSERT_TRUE(ret != std::nullopt);
-            segList[5] =std::move(*ret);
+            segList[5] = context->serializeFragments(16, 19);
             sema.signal();
         });
         auto root = context->getRoot(); // pmt::hashString
@@ -146,7 +136,11 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[5], 16, 19));
             sema.signal();
         });
-        util::wait_for_sema(sema, 3);
+        wpPtr->push_task([&] {
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[3], 8, 12));
+            sema.signal();
+        });
+        util::wait_for_sema(sema, 4);
 
         auto msgRegenRet = contextReconstruct->regenerateMessage();
         ASSERT_TRUE(msgRegenRet);

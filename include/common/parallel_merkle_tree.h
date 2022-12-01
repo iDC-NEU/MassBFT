@@ -38,7 +38,7 @@ namespace pmt {
     public:
         virtual ~DataBlock() = default;
 
-        [[nodiscard]] virtual std::optional<byteString> Serialize() const = 0;
+        [[nodiscard]] virtual byteString Serialize() const = 0;
     };
 
 
@@ -324,12 +324,7 @@ namespace pmt {
             this->Leaves.resize(lenLeaves);
 
             for (auto i = 0; i < (int) lenLeaves; i++) {
-                auto ret = blocks[i]->Serialize();
-                if (!ret) {
-                    return false;
-                }
-                auto data = *ret;
-                auto hash = Config::HashFunc(data);
+                auto hash = Config::HashFunc(blocks[i]->Serialize());
                 if (!hash) {
                     return false;
                 }
@@ -359,11 +354,7 @@ namespace pmt {
             for (auto i = 0; i < numRoutines; i++) {
                 wp->push_task([&, start=i]{
                     for (int j = start; j < lenLeaves; j += numRoutines) {
-                        auto ret = blocks[j]->Serialize();
-                        if (!ret) {
-                            break;  // error
-                        }
-                        auto hash = Config::HashFunc(*ret);
+                        auto hash = Config::HashFunc(blocks[j]->Serialize());
                         if (!hash) {
                             break;  // error
                         }
@@ -498,14 +489,7 @@ namespace pmt {
 
         // Verify verifies the data block with the Merkle Tree proof and Merkle root hash
         static std::optional<bool> Verify(const DataBlock &dataBlock, const Proof &proof, const hashString &root) {
-            auto ret = dataBlock.Serialize();
-            if (!ret) {
-                LOG(ERROR) << "Serialize data block error";
-                return std::nullopt;
-            }
-            auto data = *ret;
-
-            auto ret2 = Config::HashFunc(data);
+            auto ret2 = Config::HashFunc(dataBlock.Serialize());
             if (!ret2) {
                 LOG(ERROR) << "Call hash func error";
                 return std::nullopt;
@@ -535,12 +519,7 @@ namespace pmt {
                 LOG(WARNING) << "merkle Tree is not in built, could not generate proof by this method";
                 return std::nullopt;
             }
-            auto ret = dataBlock.Serialize();
-            if (!ret) {
-                return std::nullopt;
-            }
-            auto blockByte = *ret;
-            auto ret2 = Config::HashFunc(blockByte);
+            auto ret2 = Config::HashFunc(dataBlock.Serialize());
             if (!ret2) {
                 return std::nullopt;
             }

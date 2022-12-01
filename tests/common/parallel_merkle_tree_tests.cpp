@@ -25,7 +25,7 @@ protected:
     public:
         std::string data;
 
-        [[nodiscard]] std::optional<byteString> Serialize() const override {
+        [[nodiscard]] byteString Serialize() const override {
             return data;
         }
     };
@@ -949,17 +949,17 @@ TEST_F(PMTreeTest, SimpleTest) {
     }
     const auto& proofs = mt->getProofs();
     util::OpenSSLSHA256 sha256;
-    auto leaf00 = (*testCases)[0]->Serialize().value();
+    auto leaf00 = (*testCases)[0]->Serialize();
     sha256.update(leaf00.data(), leaf00.size());
     auto res00 = sha256.final().value();
-    auto leaf01 = (*testCases)[1]->Serialize().value();
+    auto leaf01 = (*testCases)[1]->Serialize();
     sha256.update(leaf01.data(), leaf01.size());
     auto res01 = sha256.final().value();
 
-    auto leaf10 = (*testCases)[2]->Serialize().value();
+    auto leaf10 = (*testCases)[2]->Serialize();
     sha256.update(leaf10.data(), leaf10.size());
     auto res10 = sha256.final().value();
-    auto leaf11 = (*testCases)[3]->Serialize().value();
+    auto leaf11 = (*testCases)[3]->Serialize();
     sha256.update(leaf11.data(), leaf11.size());
     auto res11 = sha256.final().value();
 

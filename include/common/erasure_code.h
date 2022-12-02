@@ -238,11 +238,7 @@ namespace util {
 
         ~GoEncodeResult() override {
             if (shardsRaw != nullptr) {
-                GoSlice shards{};
-                shards.data = shardsRaw;
-                shards.len = _shardLen;
-                shards.cap = _shardLen;
-                encodeCleanup(_id, &shards);
+                encodeCleanup(_id, shardsRaw, _shardLen);
                 delete shardsRaw;
             }
         }
@@ -298,7 +294,7 @@ namespace util {
         GoECDecodeResult(const GoECDecodeResult&) = delete;
 
         ~GoECDecodeResult() override {
-            decodeCleanup(_id, &data);
+            decodeCleanup(_id, data);
         }
 
         bool decode(const std::vector<std::string_view>& fragmentList) override {
@@ -314,15 +310,13 @@ namespace util {
             _dataLen = (int)fragmentLen*_dataNum;
             // setup rawFL
             std::vector<const char*> rawFL;
-            rawFL.reserve(fragmentList.size());
-            for (const auto& fragment: fragmentList) {
-                if (!fragment.empty()) {
-                    rawFL.emplace_back(fragment.data());
-                } else {
-                    rawFL.emplace_back(nullptr);
+            rawFL.resize(fragmentList.size());
+            for (auto i=0; i<(int)fragmentList.size(); i++) {
+                if (!fragmentList[i].empty()) {
+                    rawFL[i] = fragmentList[i].data();
                 }
             }
-            auto ret = ::decode(_id, GoSlice{rawFL.data(), static_cast<GoInt>(rawFL.size()), static_cast<GoInt>(rawFL.capacity())}, static_cast<GoInt>(fragmentLen), static_cast<GoInt>(_dataLen), &data);
+            auto ret = ::decode(_id, rawFL.data(), static_cast<GoInt>(rawFL.size()), static_cast<GoInt>(fragmentLen), static_cast<GoInt>(_dataLen), &data);
             if (ret != 0) {
                 return false;
             }

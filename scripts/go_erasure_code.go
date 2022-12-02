@@ -81,63 +81,66 @@ func encodeFirst(id int, data unsafe.Pointer, dataSize int, fragmentLen *int, da
 }
 
 //export encodeNext
-func encodeNext(id int, shards *[]unsafe.Pointer) int {
+func encodeNext(id int, shards unsafe.Pointer, len int) int {
 	goShard, _ := encodeBuffer.Get(Integer(id))
+	sharRef := unsafe.Slice((*unsafe.Pointer)(shards), len)
 	for k, v := range goShard {
-		// (*shards)[k] = C.CBytes(v)
-		(*shards)[k] = unsafe.Pointer(&v[0])
+		sharRef[k] = C.CBytes(v)
+		// sharRef[k] = unsafe.Pointer(&v[0])
 	}
 	return 0
 }
 
 //export encodeCleanup
-func encodeCleanup(id int, shards *[]unsafe.Pointer) {
-	// for i := 0; i < len(*shards); i++ {
-	//	 C.free((*shards)[i])
-	// }
+func encodeCleanup(id int, shards unsafe.Pointer, len int) {
+	sharRef := unsafe.Slice((*unsafe.Pointer)(shards), len)
+	for i := 0; i < len; i++ {
+		C.free(sharRef[i])
+	}
 }
 
 // shards[i] = nil in order
 //
 //export decode
-func decode(id int, shards []unsafe.Pointer, fLength int, dataSize int, data *unsafe.Pointer) int {
+func decode(id int, shards unsafe.Pointer, shardLen int, fLength int, dataSize int, data *unsafe.Pointer) int {
 	enc, suc := engines.Get(Integer(id))
 	if !suc {
 		return -1
 	}
-	shardsRaw := make([][]byte, len(shards))
-	for i := 0; i < len(shards); i++ {
-		if shards[i] != nil {
-			shardsRaw[i] = unsafe.Slice((*byte)(shards[i]), fLength)
+	shardsIn := unsafe.Slice((*unsafe.Pointer)(shards), shardLen)
+	shardsRaw := make([][]byte, shardLen)
+	for i := 0; i < shardLen; i++ {
+		if shardsIn[i] != nil {
+			shardsRaw[i] = unsafe.Slice((*byte)(shardsIn[i]), fLength)
 		}
 	}
 	// Verify the shards
-	if ok, err := enc.Verify(shardsRaw); !ok || err != nil {
-		// log.Println("Verification failed. Reconstructing data, ", err)
-		if err := enc.Reconstruct(shardsRaw); err != nil {
-			log.Println("Reconstruct failed, ", err)
-			return -1
-		}
-		if ok, err := enc.Verify(shardsRaw); !ok || err != nil {
-			log.Println("Verification failed after reconstruction, data likely corrupted, ", err)
-			return -1
-		}
+	//if ok, err := enc.Verify(shardsRaw); !ok || err != nil {
+	// log.Println("Verification failed. Reconstructing data, ", err)
+	if err := enc.Reconstruct(shardsRaw); err != nil {
+		log.Println("Reconstruct failed, ", err)
+		return -1
 	}
+	if ok, err := enc.Verify(shardsRaw); !ok || err != nil {
+		log.Println("Verification failed after reconstruction, data likely corrupted, ", err)
+		return -1
+	}
+	//}
 	buf := new(bytes.Buffer)
 	if err := enc.Join(buf, shardsRaw, dataSize); err != nil {
 		log.Println("Error decode data, ", err)
 		return -1
 	}
-	// *data = C.CBytes(buf.Bytes())
 	dataGo := buf.Bytes()
-	*data = unsafe.Pointer(&dataGo[0])
+	*data = C.CBytes(buf.Bytes())
+	// *data = unsafe.Pointer(&dataGo[0])
 	decodeBuffer.Set(Integer(id), dataGo)
 	return 0
 }
 
 //export decodeCleanup
-func decodeCleanup(id int, data *unsafe.Pointer) {
-	// C.free(*data)
+func decodeCleanup(id int, data unsafe.Pointer) {
+	C.free(data)
 }
 
 func main() {}

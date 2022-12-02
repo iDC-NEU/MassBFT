@@ -72,17 +72,36 @@ namespace peer {
                 in(depth).or_throw();
 
                 pmt::Proof* previousProofPtr = nullptr;
+                // When currentDS.cacheGuard is true, we need to get the omitted proof
+                std::vector<pmt::hashString> cacheWhenGuard(depth);
+                // must read cacheWhenGuard instead of previousProofPtr
+                bool cacheWhenGuardFlag = false;
+
                 for (auto i=start; i<end; i++) {
                     bool falseFlag = false;
                     auto& currentDS = decodeStorageList[i];
                     if (!currentDS.cacheGuard.compare_exchange_strong(falseFlag, true, std::memory_order_release, std::memory_order_relaxed)) {
-                        CHECK(false);
-                        in.position() += sizeof(int); // skip Path
-                        int64_t currentProofSize = 0;
-                        in(currentProofSize).or_throw();
-                        in.position() += currentProofSize*sizeof(pmt::hashString);
-                        std::string_view fragment;
-                        in(fragment).or_throw();
+                        if (previousProofPtr != nullptr) {
+                            // copy ALL proofs
+                            for (auto j = 0; j < (int)cacheWhenGuard.size(); j++) {
+                                cacheWhenGuard[j] = *previousProofPtr->Siblings[j];
+                            }
+                        }
+                        for (int offset=0; offset<_ecConfig.instanceCount; offset++) {
+                            in.position() += sizeof(int); // skip Path
+                            int64_t currentProofSize = 0;
+                            in(currentProofSize).or_throw();
+                            // in.position() += currentProofSize * sizeof(pmt::hashString);
+                            //---We have to read proofs but cache them locally
+                            // Update cacheWhenGuard when necessary
+                            for (auto j = 0; j < currentProofSize; j++) {
+                                in(cacheWhenGuard[j]).or_throw();
+                            }
+                            //---
+                            std::string_view fragment;
+                            in(fragment).or_throw();
+                        }
+                        cacheWhenGuardFlag = true;
                         continue;   // another thread is modifying this fragment
                     }
                     // resize to avoid invalid pointer
@@ -99,15 +118,32 @@ namespace peer {
                         int64_t currentProofSize = 0;
                         in(currentProof.Path, currentProofSize).or_throw();
                         // 3. read proofs
-                        auto originalSize = currentProofCache.size();
-                        currentProofCache.resize(originalSize+currentProofSize);
-                        for (auto j = originalSize; j < currentProofCache.size(); j++) {
-                            in(currentProofCache[j]).or_throw();
-                            currentProof.Siblings.push_back(&currentProofCache[j]);
-                        }
-                        if (previousProofPtr != nullptr) {
-                            for (auto j = currentProofSize; j < depth; j++) {
-                                currentProof.Siblings.push_back(previousProofPtr->Siblings[j]);
+                        if (cacheWhenGuardFlag) {
+                            DCHECK(currentProofCache.empty());
+                            currentProofCache.resize(depth);
+                            // first copy new data Siblings.push_back
+                            for (auto j = 0; j < currentProofSize; j++) {
+                                in(currentProofCache[j]).or_throw();
+                                currentProof.Siblings.push_back(&currentProofCache[j]);
+                            }
+                            // copy CacheWhenGuard into cache
+                            for (auto j=currentProofSize; j<depth; j++) {
+                                currentProofCache[j] = cacheWhenGuard[j];
+                                currentProof.Siblings.push_back(&currentProofCache[j]);
+                            }
+                            // cacheWhenGuard can be successfully deleted
+                            cacheWhenGuardFlag = false;
+                        } else {
+                            auto originalSize = currentProofCache.size();
+                            currentProofCache.resize(originalSize+currentProofSize);
+                            for (auto j = originalSize; j < currentProofCache.size(); j++) {
+                                in(currentProofCache[j]).or_throw();
+                                currentProof.Siblings.push_back(&currentProofCache[j]);
+                            }
+                            if (previousProofPtr != nullptr) {
+                                for (auto j = currentProofSize; j < depth; j++) {
+                                    currentProof.Siblings.push_back(previousProofPtr->Siblings[j]);
+                                }
                             }
                         }
                         previousProofPtr = &currentProof;
@@ -139,12 +175,10 @@ namespace peer {
                 std::vector<std::vector<std::string_view>> svListPartialView;
                 svListPartialView.resize(_ecConfig.instanceCount);
                 for(int i=0; i<(int)svListPartialView.size(); i++) {
-                    svListPartialView[i].reserve(decodeStorageList.size());
-                    for(const auto& sl:decodeStorageList) {
-                        if ((int)sl.encodeFragment.size() > i) {
-                            svListPartialView[i].push_back(sl.encodeFragment[i]);
-                        } else {
-                            svListPartialView[i].push_back(std::string_view());
+                    svListPartialView[i].resize(decodeStorageList.size());
+                    for(auto j=0; j<(int)decodeStorageList.size(); j++) {
+                        if ((int)decodeStorageList[j].encodeFragment.size() > i) {
+                            svListPartialView[i][j] = decodeStorageList[j].encodeFragment[i];
                         }
                     }
                 }
@@ -165,7 +199,7 @@ namespace peer {
                 for(const auto& drh: decodeResultHolder) {
                     ret.append(drh->getData()->substr(0, fragmentLen));
                 }
-                DCHECK(ret.size() < fragmentLen*decodeResultHolder.size()) << "want: " << fragmentLen*decodeResultHolder.size() << ", actual" << ret.size();
+                DCHECK(ret.size() <= fragmentLen*decodeResultHolder.size()) << "want: " << fragmentLen*decodeResultHolder.size() << ", actual" << ret.size();
                 ret.resize(actualMessageSize);
                 return ret;
             }
@@ -242,7 +276,7 @@ namespace peer {
                 // create and reserve data
                 std::string data;
                 const int depth = (int)proofs[start].Siblings.size();  // proofs[start] must exist
-                auto reserveSize = sizeof(int)+(end-start)*(depth*pmt::defaultHashLen+sizeof(uint32_t)) + additionalReserveSize;
+                auto reserveSize = sizeof(int)+(end-start)*_ecConfig.instanceCount*(depth*pmt::defaultHashLen+sizeof(uint32_t)) + additionalReserveSize;
                 // i: fragment id. if 3 instance, fragment#1[0, 1, 2] fragment#2[3, 4, 5]
                 for (auto i=start*_ecConfig.instanceCount; i<end*_ecConfig.instanceCount; i++) {
                     reserveSize += ecEncodeResult[i].size()+sizeof(int)*10;

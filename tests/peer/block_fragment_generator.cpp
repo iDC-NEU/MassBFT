@@ -54,7 +54,7 @@ TEST_F(BFGTest, IntrgrateTest) {
             auto seg3 = context->serializeFragments(8, 12);
             auto seg4 = context->serializeFragments(12, 16);
             auto seg5 = context->serializeFragments(16, 19);    // 3
-            // auto segERR = context->serializeFragments(6, 10);
+            auto segERR = context->serializeFragments(6, 10);
             auto root = context->getRoot(); // pmt::hashString
             auto messageSize = message.size();
 
@@ -63,7 +63,7 @@ TEST_F(BFGTest, IntrgrateTest) {
             // 3+4+4=11
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root,  seg4, 12, 16));
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg2, 4, 8));
-            // ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segERR, 6, 10));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segERR, 6, 10));
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg5, 16, 19));
 
             auto msgRegenRet = contextReconstruct->regenerateMessage(message.size());
@@ -87,7 +87,7 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
     cfgList.push_back({
                               .dataShardCnt=11,
                               .parityShardCnt=22,
-                              .instanceCount = 1,
+                              .instanceCount = 2,
                               .concurrency = 2,
                       });
     auto tp = std::make_unique<util::thread_pool_light>();

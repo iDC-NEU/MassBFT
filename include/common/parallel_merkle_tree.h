@@ -153,16 +153,16 @@ namespace pmt {
                 return nullptr;
             }
             auto mt = std::unique_ptr<MerkleTree>(new MerkleTree(c));
-            // If NumRoutines is unset, then set NumRoutines to the number of CPU.
-            if (mt->config.NumRoutines == 0) {
-                mt->config.NumRoutines = (int) sysconf(_SC_NPROCESSORS_ONLN);
-            }
             // task channel capacity is passed as 0, so use the default value: 2 * numWorkers
             if(wpPtr == nullptr) {
-                mt->wpGuard = std::make_unique<util::thread_pool_light>(mt->config.NumRoutines);
+                mt->wpGuard = std::make_unique<util::thread_pool_light>();
                 mt->wp = mt->wpGuard.get();
             } else {
                 mt->wp = wpPtr;
+            }
+            // If NumRoutines is unset, then set NumRoutines to the thread pool count.
+            if (mt->config.NumRoutines == 0) {
+                mt->config.NumRoutines = (int)mt->wp->get_thread_count();
             }
             mt->Depth = calTreeDepth((int) blocks.size());
             if (mt->config.RunInParallel || mt->config.LeafGenParallel) {

@@ -56,9 +56,14 @@ namespace util {
 
         virtual ~ErasureCode() = default;
 
+        // shardCount, fragmentLen, or nullptr
+        [[nodiscard]] virtual std::optional<std::pair<int, int>> encodeWithBuffer(std::string_view data, char* buffer, int size) const = 0;
+
+        virtual bool decodeWithBuffer(const std::vector<std::string_view>& fragmentList, int dataLen, char* buffer, int size) const = 0;
+
         [[nodiscard]] virtual std::unique_ptr<EncodeResult> encode(std::string_view data) const = 0;
 
-        [[nodiscard]] virtual std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList, int dataLen) const = 0;
 
     protected:
         const int _dataNum, _parityNum;
@@ -87,6 +92,7 @@ namespace util {
             }
             return true;
         }
+        friend class LibErasureCode;
 
     protected:
         // WARNING: return a string_view, be careful
@@ -160,6 +166,7 @@ namespace util {
             }
             return true;
         }
+        friend class LibErasureCode;
 
     protected:
         // WARNING: return a string_view, be careful
@@ -213,7 +220,7 @@ namespace util {
             return nullptr;
         }
 
-        [[nodiscard]] std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList) const override {
+        [[nodiscard]] std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList, int dataLen) const override {
             if (fragmentList.empty()) {
                 return nullptr;
             }
@@ -224,6 +231,39 @@ namespace util {
             return nullptr;
         }
 
+        std::optional<std::pair<int, int>> encodeWithBuffer(std::string_view data, char* buffer, int size) const override {
+            auto storage = LibECEncodeResult(id, _dataNum, _parityNum);
+            if(!storage.encode(data)) {
+                return std::nullopt;
+            }
+            auto ret = storage.getAll();
+            if (!ret) {
+                return std::nullopt;
+            }
+            if (size < (int)storage._fragmentLen*storage.size()) {
+                return std::nullopt;
+            }
+            for (int i=0; i<(int)ret->size(); i++) {
+                std::memcpy(buffer+i*storage._fragmentLen, (*ret)[i].data(), storage._fragmentLen);
+            }
+            return std::make_pair(storage.size(), storage._fragmentLen);
+        }
+
+        bool decodeWithBuffer(const std::vector<std::string_view>& fragmentList, int dataLen, char* buffer, int size) const override {
+            if (fragmentList.empty()) {
+                return false;
+            }
+            auto storage = std::make_unique<LibECDecodeResult>(id);
+            if(!storage->decode(fragmentList)) {
+                return false;
+            }
+            if ((int)storage->originDataSize > size) {
+                return false;
+            }
+            std::memcpy(buffer, storage->originPayload, dataLen);
+            return true;
+        }
+
     private:
         int id;
     };
@@ -231,7 +271,7 @@ namespace util {
     // Call by GoEC
     class GoEncodeResult : public EncodeResult {
     public:
-        GoEncodeResult(int id, int size)
+        GoEncodeResult(GoInt id, int size)
                 :EncodeResult(size), _id(id) { }
 
         GoEncodeResult(const GoEncodeResult&) = delete;
@@ -242,6 +282,27 @@ namespace util {
             }
         }
 
+        bool encode(std::string_view data, void* buffer, int size) {
+            DCHECK(_fragmentLen == 0);  // only call encode once for each instance
+
+            auto ret = ::encodeFirst(_id, (void *)data.data(), static_cast<GoInt>(data.size()), &_fragmentLen, &_shardLen);
+            if (ret != 0) {
+                return false;
+            }
+            if (size < _fragmentLen*_shardLen) {
+                return false;
+            }
+            shardsRaw.reset(new char*[_shardLen]);
+            for(int i=0; i<_shardLen; i++) {
+                shardsRaw.get()[i] = &(static_cast<char*>(buffer)[i*_fragmentLen]);
+            }
+            ret = ::encodeNext(_id, shardsRaw.get(), _shardLen);
+            if (ret != 0) {
+                return false;
+            }
+            return true;
+        }
+
         bool encode(std::string_view data) override {
             DCHECK(_fragmentLen == 0);  // only call encode once for each instance
 
@@ -250,12 +311,18 @@ namespace util {
                 return false;
             }
             shardsRaw.reset(new char*[_shardLen]);
+            shardsView.reset(new char[_shardLen*_fragmentLen]);
+            for(int i=0; i<_shardLen; i++) {
+                shardsRaw.get()[i] = &(shardsView.get()[i*_fragmentLen]);
+            }
             ret = ::encodeNext(_id, shardsRaw.get(), _shardLen);
             if (ret != 0) {
-                return false;   // TODO: use free insteadof malloc
+                return false;
             }
             return true;
         }
+
+        friend class GoErasureCode;
 
     protected:
         // WARNING: return a string_view, be careful
@@ -279,20 +346,48 @@ namespace util {
 
     private:
         std::unique_ptr<char *> shardsRaw = nullptr;
+        std::unique_ptr<char> shardsView = nullptr;
         GoInt _fragmentLen{};            /* length, in bytes of the fragments */
         GoInt _shardLen{};
-        const int _id;
+        const GoInt _id;
     };
 
     // Call by GoEC
     class GoECDecodeResult : public DecodeResult {
     public:
-        explicit GoECDecodeResult(int id, int dataNum) : _id(id), _dataNum(dataNum) { }
+        explicit GoECDecodeResult(GoInt id, int dataLen) : _id(id), _dataLen(dataLen) { }
 
         GoECDecodeResult(const GoECDecodeResult&) = delete;
 
         ~GoECDecodeResult() override {
-            decodeCleanup(_id, data);
+            decodeCleanup(_id, data.get());
+        }
+
+        bool decode(const std::vector<std::string_view>& fragmentList, void* buffer, int size) const {
+            // calculate fragmentLen
+            size_t fragmentLen = 0;
+            for (const auto& fragment: fragmentList) {
+                if (!fragment.empty()) {
+                    fragmentLen = fragment.size();
+                    break;
+                }
+            }
+            if (size < _dataLen) {
+                return false;
+            }
+            // setup rawFL
+            std::vector<const char*> rawFL;
+            rawFL.resize(fragmentList.size());
+            for (auto i=0; i<(int)fragmentList.size(); i++) {
+                if (!fragmentList[i].empty()) {
+                    rawFL[i] = fragmentList[i].data();
+                }
+            }
+            auto ret = ::decode(_id, rawFL.data(), static_cast<GoInt>(rawFL.size()), static_cast<GoInt>(fragmentLen), static_cast<GoInt>(_dataLen), static_cast<char*>(buffer));
+            if (ret != 0) {
+                return false;
+            }
+            return true;
         }
 
         bool decode(const std::vector<std::string_view>& fragmentList) override {
@@ -304,8 +399,6 @@ namespace util {
                     break;
                 }
             }
-            // calculate dataLen
-            _dataLen = (int)fragmentLen*_dataNum;
             // setup rawFL
             std::vector<const char*> rawFL;
             rawFL.resize(fragmentList.size());
@@ -314,7 +407,8 @@ namespace util {
                     rawFL[i] = fragmentList[i].data();
                 }
             }
-            auto ret = ::decode(_id, rawFL.data(), static_cast<GoInt>(rawFL.size()), static_cast<GoInt>(fragmentLen), static_cast<GoInt>(_dataLen), &data);
+            data.reset(new char[_dataLen]);
+            auto ret = ::decode(_id, rawFL.data(), static_cast<GoInt>(rawFL.size()), static_cast<GoInt>(fragmentLen), static_cast<GoInt>(_dataLen), data.get());
             if (ret != 0) {
                 return false;
             }
@@ -327,13 +421,13 @@ namespace util {
             if (data == nullptr) {
                 return std::nullopt;
             }
-            return std::string_view(static_cast<char*>(data), _dataLen);
+            return std::string_view(data.get(), _dataLen);
         }
 
     private:
-        const int _id, _dataNum;    // data shard count
-        int _dataLen{};
-        void* data{};
+        const GoInt _id{};    // data shard count
+        const int _dataLen{};
+        std::unique_ptr<char> data{};
     };
 
     class GoErasureCode : public ErasureCode {
@@ -362,15 +456,31 @@ namespace util {
             return nullptr;
         }
 
-        [[nodiscard]] std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList) const override {
+        [[nodiscard]] std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList, int dataLen) const override {
             if ((int)fragmentList.size() != this->_parityNum+this->_dataNum) {
                 return nullptr;
             }
-            auto storage = std::make_unique<GoECDecodeResult>(id, _dataNum);
+            auto storage = std::make_unique<GoECDecodeResult>(id, dataLen);
             if(storage->decode(fragmentList)) {
                 return storage;
             }
             return nullptr;
+        }
+
+        std::optional<std::pair<int, int>> encodeWithBuffer(std::string_view data, char* buffer, int size) const override {
+            auto storage = GoEncodeResult(id, _dataNum+_parityNum);
+            if (!storage.encode(data, buffer, size)) {
+                return std::nullopt;
+            }
+            return std::make_pair(storage._shardLen, storage._fragmentLen);
+        }
+
+        bool decodeWithBuffer(const std::vector<std::string_view>& fragmentList, int dataLen, char* buffer, int size) const override {
+            if ((int)fragmentList.size() != this->_parityNum+this->_dataNum) {
+                return false;
+            }
+            auto storage = GoECDecodeResult(id, dataLen);
+            return storage.decode(fragmentList, buffer, size);
         }
 
     private:

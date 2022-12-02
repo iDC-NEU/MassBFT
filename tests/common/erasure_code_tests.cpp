@@ -66,13 +66,13 @@ protected:
                 svListPartialView.push_back(svList[i]);
             }
         }
-        auto decodeResult = ec2.decode(svListPartialView);
+        auto decodeResult = ec2.decode(svListPartialView, (int)dataEncode.size());
         if (!success) {
             EXPECT_TRUE(decodeResult == nullptr);
         } else {
             EXPECT_TRUE(decodeResult != nullptr);
             auto dataDecode = decodeResult->getData().value_or("");
-            EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
+            EXPECT_TRUE(dataDecode == dataEncode);
         }
     }
 
@@ -107,11 +107,11 @@ protected:
             }
         }
         timer.start();
-        auto decodeResult = ec.decode(svList);
+        auto decodeResult = ec.decode(svList, (int)dataEncode.size());
         auto spanDecode = timer.end();
         LOG(INFO) << "Lost m-n pieces, decode time: " << spanDecode;
         auto dataDecode = decodeResult->getData().value_or("");
-        EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
+        EXPECT_TRUE(dataDecode == dataEncode);
         LOG(INFO) << "Percentage:" << double(m)/n << " vs " << double(erasureDataSize) / double(dataEncode.size());
     }
 
@@ -133,7 +133,7 @@ protected:
         EXPECT_TRUE((int)svList->size() == m);
         timer.start();
         for(int i=0; i<100; i++) {
-            EXPECT_TRUE(ec.decode(svList.value()) != nullptr);
+            EXPECT_TRUE(ec.decode(svList.value(), (int)dataEncode.size()) != nullptr);
         }
         spanEncode = timer.end();
         LOG(INFO) << "Decode time: " << spanEncode;
@@ -156,11 +156,11 @@ protected:
             auto svList = encodeResult->getAll();
             EXPECT_TRUE((int)svList->size() == m);
             for(int i=0; i<10; i++) {
-                EXPECT_TRUE(ec->decode(svList.value()) != nullptr);
+                EXPECT_TRUE(ec->decode(svList.value(), (int)dataEncode.size()) != nullptr);
             }
-            auto decodeResult = ec->decode(svList.value());
+            auto decodeResult = ec->decode(svList.value(), (int)dataEncode.size());
             auto dataDecode = decodeResult->getData().value_or("");
-            EXPECT_TRUE(dataDecode.substr(0, dataEncode.size()) == dataEncode);
+            EXPECT_TRUE(dataDecode == dataEncode);
         });
         sema_.signal((int)t_list_.size());
         stop();

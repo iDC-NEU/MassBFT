@@ -7,6 +7,7 @@
 #include "ycsb/core/property.h"
 #include "ycsb/core/workload/core_workload.h"
 #include "ycsb/core/status_thread.h"
+#include "common/thread_pool_light.h"
 
 int main(int argc, char *argv[]) {
     auto& n = *ycsb::utils::Properties::getProperties();
@@ -27,7 +28,7 @@ int main(int argc, char *argv[]) {
     workload.init(n);
 
     LOG(INFO) << "Starting test.";
-    moodycamel::LightweightSemaphore completeLatch;
+    auto completeLatch = util::NewSema();
     auto clients = ycsb::core::Client::initDB(dbName, n, threadCount, targetPerThreadPerms, &workload, completeLatch);
 
     // if measurement == time series, true

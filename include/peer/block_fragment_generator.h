@@ -152,7 +152,7 @@ namespace peer {
                         in(fragment).or_throw();
                         ContextDataBlock fragmentView(fragment);
                         // we have finished loading all proofs, verify them.
-                        // TODO: parallel verify
+                        // This function is Already Called by worker thread, no need to parallel verify
                         auto verifyResult = pmt::MerkleTree::Verify(fragmentView, currentProof, root);
                         if (verifyResult && *verifyResult) {
                             currentDS.encodeFragment[offset] = fragment;
@@ -169,39 +169,51 @@ namespace peer {
             // when enough pieces is found, we can regenerate message
             // No concurrent support, the caller must ensure ALL validateAndDeserializeFragments call is finished.
             // WARNING: EC hold the return value, it is not safe to use EC until you finished using the returned message
-            // NOTE: need to resize message to the actual size (if using the go erasure code)
-            std::optional<std::string> regenerateMessage(size_t actualMessageSize) {
-                auto fragmentLen = actualMessageSize % _ecConfig.instanceCount ? actualMessageSize / _ecConfig.instanceCount + 1: actualMessageSize / _ecConfig.instanceCount;
-                std::vector<std::vector<std::string_view>> svListPartialView;
-                svListPartialView.resize(_ecConfig.instanceCount);
-                for(int i=0; i<(int)svListPartialView.size(); i++) {
+            // NOTE: bufferOut size is AT LEAST larger than the actualMessageSize
+            bool regenerateMessage(int actualMessageSize, std::string& bufferOut) {
+                // Calculate thr fragment len deterministically, using the actualMessageSize and instanceCount
+                const auto fragmentLen = actualMessageSize % _ecConfig.instanceCount ? actualMessageSize / _ecConfig.instanceCount + 1: actualMessageSize / _ecConfig.instanceCount;
+                std::vector<std::vector<std::string_view>> svListPartialView(_ecConfig.instanceCount);
+                for(int i=0; i<_ecConfig.instanceCount; i++) {    // svListPartialView.size()
                     svListPartialView[i].resize(decodeStorageList.size());
-                    for(auto j=0; j<(int)decodeStorageList.size(); j++) {
+                    for(auto j=0; j<fragmentCnt; j++) {   // decodeStorageList.size()
                         if ((int)decodeStorageList[j].encodeFragment.size() > i) {
                             svListPartialView[i][j] = decodeStorageList[j].encodeFragment[i];
                         }
                     }
                 }
-                for(int i=0; i<(int)svListPartialView.size(); i++) {
-                    decodeResultHolder[i] = ec[i]->decode(svListPartialView[i]);
-                    if (!decodeResultHolder[i]) {
-                        util::OpenSSLSHA256 hash;
-                        for (const auto &pv: svListPartialView) {
-                            hash.update(pv.data(), pv.size());
+                // init a string container with a fixed size
+                if ((int)bufferOut.size() < actualMessageSize) {
+                    bufferOut.resize(actualMessageSize);
+                }
+                // the actual data size is different for the last fragment
+                auto dataSize=fragmentLen;
+                std::vector<std::future<bool>> futureList(_ecConfig.instanceCount);
+                for(auto i=0; i<_ecConfig.instanceCount; i++) {
+                    if (i == (int)svListPartialView.size() - 1) {
+                        dataSize=(int)bufferOut.size() - i*fragmentLen;
+                    }
+                    futureList[i] = _wp->submit([&, dataSize=dataSize, i=i]() {
+                        // Error handling
+                        if (!ec[i]->decodeWithBuffer(svListPartialView[i], dataSize, bufferOut.data()+i*fragmentLen, dataSize)) {
+                            util::OpenSSLSHA256 hash;
+                            for (const auto &pv: svListPartialView) {
+                                hash.update(pv.data(), pv.size());
+                            }
+                            LOG(ERROR) << "Regenerate message failed, hash: "
+                                       << util::OpenSSLSHA256::toString(*hash.final());
+                            return false;
                         }
-                        LOG(ERROR) << "Regenerate message failed, hash: "
-                                   << util::OpenSSLSHA256::toString(*hash.final());
-                        return std::nullopt;
+                        return true;
+                    });
+                }
+                for (auto& future: futureList) {
+                    if (!future.get()) {
+                        LOG(ERROR) << "Reconstruct message error!";
+                        return false;
                     }
                 }
-                std::string ret;
-                ret.reserve(fragmentLen*decodeResultHolder.size());
-                for(const auto& drh: decodeResultHolder) {
-                    ret.append(drh->getData()->substr(0, fragmentLen));
-                }
-                DCHECK(ret.size() <= fragmentLen*decodeResultHolder.size()) << "want: " << fragmentLen*decodeResultHolder.size() << ", actual" << ret.size();
-                ret.resize(actualMessageSize);
-                return ret;
+                return true;
             }
 
             // Invoke for generation
@@ -247,6 +259,8 @@ namespace peer {
                 if (ecEncodeResult[0].size() > 1024) {
                     pmtConfig.LeafGenParallel=true;
                 }
+                // _ecConfig.instanceCount indicate the number of parallel running instance
+                pmtConfig.NumRoutines = (int)_wp->get_thread_count() / _ecConfig.instanceCount;
                 std::vector<std::unique_ptr<pmt::DataBlock>> blocks;
                 blocks.reserve(ecEncodeResult.size());
                 // serialize perform an additional copy
@@ -263,7 +277,7 @@ namespace peer {
             // serializeFragments is called after initWithMessage
             // not include end: [start, start+1, ..., end-1]
             // This func will throw runtime error
-            [[nodiscard]] std::string serializeFragments(int start, int end, size_t additionalReserveSize = 0) const {
+            [[nodiscard]] bool serializeFragments(int start, int end, std::string& bufferOut) const {
                 const auto& proofs = mt->getProofs();
                 if (start<0 || start>=end || end>fragmentCnt) {
                     throw std::out_of_range("index out of range");    // out of range
@@ -272,19 +286,21 @@ namespace peer {
                 if (ecEncodeResult.empty()) {
                     throw std::logic_error("encodeResultHolder have not encode yet");
                 }
-                // _ecConfig.instanceCount*fragmentCnt
+
                 // create and reserve data
-                std::string data;
                 const int depth = (int)proofs[start].Siblings.size();  // proofs[start] must exist
-                auto reserveSize = sizeof(int)+(end-start)*_ecConfig.instanceCount*(depth*pmt::defaultHashLen+sizeof(uint32_t)) + additionalReserveSize;
+                auto reserveSize = sizeof(int)+(end-start)*_ecConfig.instanceCount*(depth*pmt::defaultHashLen+sizeof(uint32_t));
                 // i: fragment id. if 3 instance, fragment#1[0, 1, 2] fragment#2[3, 4, 5]
                 for (auto i=start*_ecConfig.instanceCount; i<end*_ecConfig.instanceCount; i++) {
                     reserveSize += ecEncodeResult[i].size()+sizeof(int)*10;
                 }
+                if (bufferOut.size() < reserveSize) {
+                    bufferOut.resize(reserveSize);
+                }
 
-                data.reserve(reserveSize);
                 // create serializer
-                auto out = zpp::bits::out(data);
+                auto out = zpp::bits::out(bufferOut);
+                out.reset(0);
                 // 1. write depth(compressed)
                 out((int64_t) depth).or_throw();
 
@@ -312,9 +328,11 @@ namespace peer {
                     // 4. write actual data
                     out(ecEncodeResult[i]).or_throw();
                 }
-                DCHECK(data.size() <= reserveSize) << "please reserve data size, actual size: " << data.size() << " estimate size " << reserveSize;
-                return data;
+                DCHECK(bufferOut.size() <= reserveSize) << "please reserve data size, actual size: " << bufferOut.size() << " estimate size " << reserveSize;
+                bufferOut.resize(out.position());
+                return true;
             }
+
             [[nodiscard]] inline const auto& getRoot() const { return mt->getRoot(); }
 
             friend class BlockFragmentGenerator;

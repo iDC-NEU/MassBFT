@@ -33,43 +33,42 @@ TEST_F(BFGTest, IntrgrateTest) {
 
     std::vector<peer::BlockFragmentGenerator::Config> cfgList;
     cfgList.push_back({
-        .dataShardCnt=11,
-        .parityShardCnt=22,
-        .instanceCount = 2,
-        .concurrency = 2,
-    });
+                              .dataShardCnt=11,
+                              .parityShardCnt=22,
+                              .instanceCount = 2,
+                              .concurrency = 2,
+                      });
     auto tp = std::make_unique<util::thread_pool_light>();
     // create new instance with 10 ec workers per config
     peer::BlockFragmentGenerator bfg(cfgList, tp.get());
-    std::string message;
+    std::string message, messageOut;
     fillDummy(message, 1024*1024*2);
+    std::vector<std::string> segList(6);
 
     try {
         for (int i = 0; i < 100; i++) {
             // get an ec worker with config
             auto context = bfg.getEmptyContext(cfgList[0]);
             context->initWithMessage(message);
-            auto seg1 = context->serializeFragments(0, 4);
-            auto seg2 = context->serializeFragments(4, 8);
-            auto seg3 = context->serializeFragments(8, 12);
-            auto seg4 = context->serializeFragments(12, 16);
-            auto seg5 = context->serializeFragments(16, 19);    // 3
-            auto segERR = context->serializeFragments(6, 10);
+            ASSERT_TRUE(context->serializeFragments(0, 4, segList[0]));
+            ASSERT_TRUE(context->serializeFragments(4, 8, segList[1]));
+            ASSERT_TRUE(context->serializeFragments(8, 12, segList[2]));
+            ASSERT_TRUE(context->serializeFragments(12, 16, segList[3]));
+            ASSERT_TRUE(context->serializeFragments(16, 19, segList[4]));    // 3
+            ASSERT_TRUE(context->serializeFragments(14, 18, segList[5]));    // special
             auto root = context->getRoot(); // pmt::hashString
             auto messageSize = message.size();
 
             // get another worker for re-construct
             auto contextReconstruct = bfg.getEmptyContext(cfgList[0]);
             // 3+4+4=11
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root,  seg4, 12, 16));
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg2, 4, 8));
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segERR, 6, 10));
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg5, 16, 19));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root,  segList[3], 12, 16));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[1], 4, 8));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[5], 14, 18));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[4], 16, 19));
 
-            auto msgRegenRet = contextReconstruct->regenerateMessage(message.size());
-            ASSERT_TRUE(msgRegenRet);
-            ASSERT_TRUE(msgRegenRet == message)
-                                        << msgRegenRet->substr(0, 100) << " vs " << message.substr(0, 100);
+            ASSERT_TRUE(contextReconstruct->regenerateMessage((int)message.size(), messageOut));
+            ASSERT_TRUE(messageOut == message) << messageOut.substr(0, 100) << " vs " << message.substr(0, 100);
             bfg.freeContext(std::move(contextReconstruct));
             bfg.freeContext(std::move(context));
         }
@@ -93,34 +92,34 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
     auto tp = std::make_unique<util::thread_pool_light>();
     // create new instance with 10 ec workers per config
     peer::BlockFragmentGenerator bfg(cfgList, tp.get());
-    std::string message;
+    std::string message, messageOut;
     fillDummy(message, 1024*1024*2);
-    moodycamel::LightweightSemaphore sema;
+    std::vector<std::string> segList(6);
+    auto sema = util::NewSema();
     util::Timer timer;
 
     for(int i=0; i<100; i++) {
         // get an ec worker with config
         auto context = bfg.getEmptyContext(cfgList[0]);
         context->initWithMessage(message);
-        std::vector<std::string> segList(10);
         tp->push_task([&] {
-            segList[1] = context->serializeFragments(0, 4);
+            ASSERT_TRUE(context->serializeFragments(0, 4, segList[0]));
             sema.signal();
         });
         tp->push_task([&] {
-            segList[2] = context->serializeFragments(4, 8);
+            ASSERT_TRUE(context->serializeFragments(4, 8, segList[1]));
             sema.signal();
         });
         tp->push_task([&] {
-            segList[3] = context->serializeFragments(8, 12);
+            ASSERT_TRUE(context->serializeFragments(8, 12, segList[2]));
             sema.signal();
         });
         tp->push_task([&] {
-            segList[4] = context->serializeFragments(12, 16);
+            ASSERT_TRUE(context->serializeFragments(12, 16, segList[3]));
             sema.signal();
         });
         tp->push_task([&] {
-            segList[5] = context->serializeFragments(16, 19);
+            ASSERT_TRUE(context->serializeFragments(16, 19, segList[4]));
             sema.signal();
         });
         auto root = context->getRoot(); // pmt::hashString
@@ -131,28 +130,28 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
 
         // 3+4+4=11
         tp->push_task([&] {
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[4], 12, 16));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[3], 12, 16));
             sema.signal();
         });
 
         tp->push_task([&] {
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[2], 4, 8));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[1], 4, 8));
             sema.signal();
         });
 
         tp->push_task([&] {
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[5], 16, 19));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[4], 16, 19));
             sema.signal();
         });
+
         tp->push_task([&] {
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[3], 8, 12));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[2], 8, 12));
             sema.signal();
         });
         util::wait_for_sema(sema, 4);
 
-        auto msgRegenRet = contextReconstruct->regenerateMessage(message.size());
-        ASSERT_TRUE(msgRegenRet);
-        ASSERT_TRUE(msgRegenRet == message) << msgRegenRet->substr(0, 100) << " vs " << message.substr(0, 100);
+        ASSERT_TRUE(contextReconstruct->regenerateMessage((int)message.size(), messageOut));
+        ASSERT_TRUE(messageOut == message) << messageOut.substr(0, 100) << " vs " << message.substr(0, 100);
         bfg.freeContext(std::move(contextReconstruct));
         bfg.freeContext(std::move(context));
     }

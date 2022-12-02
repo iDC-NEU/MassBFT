@@ -63,6 +63,12 @@ namespace peer {
                     bool falseFlag = false;
                     auto& currentDS = decodeStorageList[i];
                     if (!currentDS.cacheGuard.compare_exchange_strong(falseFlag, true, std::memory_order_release, std::memory_order_relaxed)) {
+                        in.position() += sizeof(int); // skip Path
+                        int64_t currentProofSize = 0;
+                        in(currentProofSize).or_throw();
+                        in.position() += currentProofSize*sizeof(pmt::hashString);
+                        std::string_view fragment;
+                        in(fragment).or_throw();
                         continue;   // another thread is modifying this fragment
                     }
                     auto &currentProof = currentDS.mtProofs;

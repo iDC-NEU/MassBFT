@@ -40,7 +40,7 @@ TEST_F(BFGTest, IntrgrateTest) {
     // create new instance with 10 ec workers per config
     peer::BlockFragmentGenerator bfg(cfgList, 10, tp.get());
     std::string message;
-    fillDummy(message, 1024*1024*5);
+    fillDummy(message, 1024*1024*2);
 
     try {
         for (int i = 0; i < 100; i++) {
@@ -52,6 +52,7 @@ TEST_F(BFGTest, IntrgrateTest) {
             auto seg3 = context->serializeFragments(8, 12);
             auto seg4 = context->serializeFragments(12, 16);
             auto seg5 = context->serializeFragments(16, 19);    // 3
+            auto segERR = context->serializeFragments(6, 10);
             auto root = context->getRoot(); // pmt::hashString
 
             // get another worker for re-construct
@@ -59,6 +60,7 @@ TEST_F(BFGTest, IntrgrateTest) {
             // 3+4+4=11
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg4, 12, 16));
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg2, 4, 8));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segERR, 6, 10));
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg5, 16, 19));
 
             auto msgRegenRet = contextReconstruct->regenerateMessage();

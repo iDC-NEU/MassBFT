@@ -35,10 +35,12 @@ TEST_F(BFGTest, IntrgrateTest) {
     cfgList.push_back({
         .dataShardCnt=11,
         .parityShardCnt=22,
+        .instanceCount = 2,
+        .concurrency = 2,
     });
     auto tp = std::make_unique<util::thread_pool_light>();
     // create new instance with 10 ec workers per config
-    peer::BlockFragmentGenerator bfg(cfgList, 10, tp.get());
+    peer::BlockFragmentGenerator bfg(cfgList, tp.get());
     std::string message;
     fillDummy(message, 1024*1024*2);
 
@@ -52,20 +54,21 @@ TEST_F(BFGTest, IntrgrateTest) {
             auto seg3 = context->serializeFragments(8, 12);
             auto seg4 = context->serializeFragments(12, 16);
             auto seg5 = context->serializeFragments(16, 19);    // 3
-            auto segERR = context->serializeFragments(6, 10);
+            // auto segERR = context->serializeFragments(6, 10);
             auto root = context->getRoot(); // pmt::hashString
+            auto messageSize = message.size();
 
             // get another worker for re-construct
             auto contextReconstruct = bfg.getEmptyContext(cfgList[0]);
             // 3+4+4=11
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg4, 12, 16));
+            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root,  seg4, 12, 16));
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg2, 4, 8));
-            ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segERR, 6, 10));
+            // ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segERR, 6, 10));
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, seg5, 16, 19));
 
-            auto msgRegenRet = contextReconstruct->regenerateMessage();
+            auto msgRegenRet = contextReconstruct->regenerateMessage(message.size());
             ASSERT_TRUE(msgRegenRet);
-            ASSERT_TRUE(msgRegenRet->substr(0, message.size()) == message)
+            ASSERT_TRUE(msgRegenRet == message)
                                         << msgRegenRet->substr(0, 100) << " vs " << message.substr(0, 100);
             bfg.freeContext(std::move(contextReconstruct));
             bfg.freeContext(std::move(context));
@@ -84,10 +87,12 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
     cfgList.push_back({
                               .dataShardCnt=11,
                               .parityShardCnt=22,
+                              .instanceCount = 1,
+                              .concurrency = 2,
                       });
     auto tp = std::make_unique<util::thread_pool_light>();
     // create new instance with 10 ec workers per config
-    peer::BlockFragmentGenerator bfg(cfgList, 10, tp.get());
+    peer::BlockFragmentGenerator bfg(cfgList, tp.get());
     std::string message;
     fillDummy(message, 1024*1024*2);
     moodycamel::LightweightSemaphore sema;
@@ -145,9 +150,9 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
         });
         util::wait_for_sema(sema, 4);
 
-        auto msgRegenRet = contextReconstruct->regenerateMessage();
+        auto msgRegenRet = contextReconstruct->regenerateMessage(message.size());
         ASSERT_TRUE(msgRegenRet);
-        ASSERT_TRUE(msgRegenRet->substr(0, message.size()) == message) << msgRegenRet->substr(0, 100) << " vs " << message.substr(0, 100);
+        ASSERT_TRUE(msgRegenRet == message) << msgRegenRet->substr(0, 100) << " vs " << message.substr(0, 100);
         bfg.freeContext(std::move(contextReconstruct));
         bfg.freeContext(std::move(context));
     }

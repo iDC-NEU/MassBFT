@@ -256,11 +256,7 @@ namespace util {
             }
             delete shardsRaw;
             shardsRaw = new char*[_shardLen];
-            GoSlice shards{};
-            shards.data = shardsRaw;
-            shards.len = _shardLen;
-            shards.cap = _shardLen;
-            ret = ::encodeNext(_id, &shards);
+            ret = ::encodeNext(_id, shardsRaw, _shardLen);
             if (ret != 0) {
                 return false;   // TODO: use free insteadof malloc
             }

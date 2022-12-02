@@ -11,6 +11,7 @@ import (
 	"github.com/klauspost/reedsolomon"
 	"github.com/orcaman/concurrent-map/v2"
 	"log"
+	"runtime"
 	"strconv"
 	"sync/atomic"
 	"unsafe"
@@ -32,6 +33,7 @@ func init() {
 	encodeBuffer = cmap.NewStringer[Integer, [][]byte]()
 	decodeBuffer = cmap.NewStringer[Integer, []byte]()
 	maxIndex = 0
+	runtime.GOMAXPROCS(runtime.NumCPU()/3 + 1)
 }
 
 //export instanceCreate

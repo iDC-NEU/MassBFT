@@ -238,8 +238,7 @@ namespace util {
 
         ~GoEncodeResult() override {
             if (shardsRaw != nullptr) {
-                encodeCleanup(_id, shardsRaw, _shardLen);
-                delete shardsRaw;
+                encodeCleanup(_id, shardsRaw.get(), _shardLen);
             }
         }
 
@@ -250,9 +249,8 @@ namespace util {
             if (ret != 0) {
                 return false;
             }
-            delete shardsRaw;
-            shardsRaw = new char*[_shardLen];
-            ret = ::encodeNext(_id, shardsRaw, _shardLen);
+            shardsRaw.reset(new char*[_shardLen]);
+            ret = ::encodeNext(_id, shardsRaw.get(), _shardLen);
             if (ret != 0) {
                 return false;   // TODO: use free insteadof malloc
             }
@@ -263,7 +261,7 @@ namespace util {
         // WARNING: return a string_view, be careful
         [[nodiscard]] std::optional<std::string_view> get(int index) const override {
             if (index < (int)_shardLen) {
-                return std::string_view(shardsRaw[index], _fragmentLen);
+                return std::string_view(shardsRaw.get()[index], _fragmentLen);
             }
             return std::nullopt;
         }
@@ -274,13 +272,13 @@ namespace util {
             }
             std::vector<std::string_view> fragmentList;
             for (int i=0; i<_shardLen; i++) {
-                fragmentList.emplace_back(std::string_view(shardsRaw[i], _fragmentLen));
+                fragmentList.emplace_back(std::string_view(shardsRaw.get()[i], _fragmentLen));
             }
             return fragmentList;
         }
 
     private:
-        char **shardsRaw = nullptr;
+        std::unique_ptr<char *> shardsRaw = nullptr;
         GoInt _fragmentLen{};            /* length, in bytes of the fragments */
         GoInt _shardLen{};
         const int _id;

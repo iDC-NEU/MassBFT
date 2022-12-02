@@ -61,11 +61,12 @@ namespace peer {
 
                 for (auto i=start; i<end; i++) {
                     bool falseFlag = false;
-                    if (!proofCacheGuard[i].compare_exchange_strong(falseFlag, true, std::memory_order_release, std::memory_order_relaxed)) {
+                    auto& currentDS = decodeStorageList[i];
+                    if (!currentDS.cacheGuard.compare_exchange_strong(falseFlag, true, std::memory_order_release, std::memory_order_relaxed)) {
                         continue;   // another thread is modifying this fragment
                     }
-                    auto &currentProof = regenerateProofs[i];
-                    auto &currentProofCache = proofCache[i];
+                    auto &currentProof = currentDS.mtProofs;
+                    auto &currentProofCache = currentDS.cache;
 
                     currentProof.Siblings.reserve(depth);
                     // 2. write path, compressed proof size
@@ -79,7 +80,7 @@ namespace peer {
                         currentProof.Siblings.push_back(&currentProofCache[j]);
                     }
                     if (i != start) {
-                        const auto &previousProof = regenerateProofs[i - 1];
+                        const auto &previousProof = decodeStorageList[i - 1].mtProofs;
                         for (auto j = currentProofSize; j < depth; j++) {
                             currentProof.Siblings.push_back(previousProof.Siblings[j]);
                         }
@@ -91,7 +92,7 @@ namespace peer {
                     // we have finished loading all proofs, verify them.
                     auto verifyResult = pmt::MerkleTree::Verify(fragmentView, currentProof, root);
                     if (verifyResult && *verifyResult) {
-                        ecDecodeResult[i] = fragment;
+                        currentDS.encodeFragment = fragment;
                     } else {
                         LOG(ERROR) << "Verification failed";
                         return false;
@@ -107,8 +108,8 @@ namespace peer {
             // NOTE: need to resize message to the actual size (if using the go erasure code)
             std::optional<std::string_view> regenerateMessage() {
                 std::vector<std::string_view> svListPartialView;
-                for(const auto& dr:ecDecodeResult) {
-                    svListPartialView.push_back(dr);
+                for(const auto& sl:decodeStorageList) {
+                    svListPartialView.push_back(sl.encodeFragment);
                 }
                 decodeResultHolder = ec->decode(svListPartialView);
                 if (!decodeResultHolder) {
@@ -137,6 +138,7 @@ namespace peer {
                     return false;
                 }
                 std::vector<std::string_view> ecEncodeResult = std::move(*ret);
+                pmt::Config pmtConfig;
                 pmtConfig.Mode=pmt::ModeType::ModeProofGenAndTreeBuild;
                 if (ecEncodeResult[0].size() > 1024) {
                     pmtConfig.LeafGenParallel=true;
@@ -216,30 +218,40 @@ namespace peer {
         protected:
             explicit Context(const Config& ecConfig, util::thread_pool_light* wp)
                 : _ecConfig(ecConfig), fragmentCnt(_ecConfig.dataShardCnt+_ecConfig.parityShardCnt), _wp(wp),
-                proofCacheGuard(fragmentCnt), proofCache(fragmentCnt), regenerateProofs(fragmentCnt), ecDecodeResult(fragmentCnt) { }
+                  decodeStorageList(fragmentCnt) { }
 
         private:
-            std::unique_ptr<util::ErasureCode> ec;
-            // store all encode result
-            std::unique_ptr<util::EncodeResult> encodeResultHolder;
-            Config _ecConfig;
+            // config for util::ErasureCode ec
+            const Config _ecConfig;
             const int fragmentCnt;
-            pmt::Config pmtConfig;
-            util::thread_pool_light* _wp;
-            std::unique_ptr<pmt::MerkleTree> mt = nullptr;
-            // for verification only
-            std::vector<std::atomic<bool>> proofCacheGuard;
-            std::vector<std::vector<pmt::hashString>> proofCache;
-            std::vector<pmt::Proof> regenerateProofs;
-            std::vector<std::string> ecDecodeResult;
-            // store all decode result
+            // ec is set by BlockFragmentGenerator
+            std::unique_ptr<util::ErasureCode> ec;
+            // Hold the most recent encode and decode result
+            // avoid invalid memory pointer for string_view
+            std::unique_ptr<util::EncodeResult> encodeResultHolder;
             std::unique_ptr<util::DecodeResult> decodeResultHolder;
+            // the thread pool pointer shared by all instance
+            util::thread_pool_light* _wp;
+            // when encoding, set the mt to keep all the proofs data
+            std::unique_ptr<pmt::MerkleTree> mt = nullptr;
+            // store all decode result
+            struct DecodeStorage {
+                std::atomic<bool> cacheGuard;
+                // cache the string to avoid nullptr error
+                // pmt::Proof regenerateProofs will use the string_view of it
+                std::vector<pmt::hashString> cache;
+                // the proofs load from cache
+                pmt::Proof mtProofs;
+                // the piece of fragment view load from cache
+                std::string_view encodeFragment;
+            };
+            std::vector<DecodeStorage> decodeStorageList;
         };
 
     public:
         template<class ErasureCodeType=util::GoErasureCode>
         requires std::is_base_of<util::ErasureCode, ErasureCodeType>::value
-        BlockFragmentGenerator(const std::vector<Config>& cfgList, int poolCnt, int threadCount=0) {
+        BlockFragmentGenerator(const std::vector<Config>& cfgList, int poolCnt, util::thread_pool_light* wp_) {
             size_t max_x = 0, max_y = 0;
             for (const auto& cfg: cfgList) {
                 if ((size_t)cfg.dataShardCnt > max_x) {
@@ -273,7 +285,7 @@ namespace peer {
                 }
                 ecMap[x][y] = std::move(queue);
             }
-            wp = std::make_unique<util::thread_pool_light>(threadCount);   // size: thread cnt
+            wp = wp_;
         }
         
         ~BlockFragmentGenerator() = default;
@@ -288,7 +300,7 @@ namespace peer {
                 return nullptr;
             }
             util::wait_for_sema(semaMap[x][y]); // acquire 1
-            std::unique_ptr<Context> context(new Context(cfg, wp.get()));
+            std::unique_ptr<Context> context(new Context(cfg, wp));
             ecMap[x][y]->pop(context->ec);
             return context;
         }
@@ -301,14 +313,10 @@ namespace peer {
             return true;
         }
 
-        [[nodiscard]] auto* getThreadPoolPtr() const {
-            return wp.get();
-        }
-
     private:
         using ECListType = rigtorp::MPMCQueue<std::unique_ptr<util::ErasureCode>>;
         std::vector<std::vector<std::unique_ptr<ECListType>>> ecMap;
         std::vector<std::vector<moodycamel::LightweightSemaphore>> semaMap;
-        std::unique_ptr<util::thread_pool_light> wp;
+        util::thread_pool_light* wp;
     };
 }

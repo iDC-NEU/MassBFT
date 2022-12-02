@@ -36,8 +36,9 @@ TEST_F(BFGTest, IntrgrateTest) {
         .dataShardCnt=11,
         .parityShardCnt=22,
     });
+    auto tp = std::make_unique<util::thread_pool_light>();
     // create new instance with 10 ec workers per config
-    peer::BlockFragmentGenerator bfg(cfgList, 10);
+    peer::BlockFragmentGenerator bfg(cfgList, 10, tp.get());
     std::string message;
     fillDummy(message, 1024*1024*5);
 
@@ -82,8 +83,9 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
                               .dataShardCnt=11,
                               .parityShardCnt=22,
                       });
+    auto tp = std::make_unique<util::thread_pool_light>();
     // create new instance with 10 ec workers per config
-    peer::BlockFragmentGenerator bfg(cfgList, 10);
+    peer::BlockFragmentGenerator bfg(cfgList, 10, tp.get());
     std::string message;
     fillDummy(message, 1024*1024*2);
     moodycamel::LightweightSemaphore sema;
@@ -94,24 +96,23 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
         auto context = bfg.getEmptyContext(cfgList[0]);
         context->initWithMessage(message);
         std::vector<std::string> segList(10);
-        auto* wpPtr = bfg.getThreadPoolPtr();
-        wpPtr->push_task([&] {
+        tp->push_task([&] {
             segList[1] = context->serializeFragments(0, 4);
             sema.signal();
         });
-        wpPtr->push_task([&] {
+        tp->push_task([&] {
             segList[2] = context->serializeFragments(4, 8);
             sema.signal();
         });
-        wpPtr->push_task([&] {
+        tp->push_task([&] {
             segList[3] = context->serializeFragments(8, 12);
             sema.signal();
         });
-        wpPtr->push_task([&] {
+        tp->push_task([&] {
             segList[4] = context->serializeFragments(12, 16);
             sema.signal();
         });
-        wpPtr->push_task([&] {
+        tp->push_task([&] {
             segList[5] = context->serializeFragments(16, 19);
             sema.signal();
         });
@@ -122,21 +123,21 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
         util::wait_for_sema(sema, 5);
 
         // 3+4+4=11
-        wpPtr->push_task([&] {
+        tp->push_task([&] {
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[4], 12, 16));
             sema.signal();
         });
 
-        wpPtr->push_task([&] {
+        tp->push_task([&] {
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[2], 4, 8));
             sema.signal();
         });
 
-        wpPtr->push_task([&] {
+        tp->push_task([&] {
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[5], 16, 19));
             sema.signal();
         });
-        wpPtr->push_task([&] {
+        tp->push_task([&] {
             ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[3], 8, 12));
             sema.signal();
         });
@@ -149,5 +150,4 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
         bfg.freeContext(std::move(context));
     }
     LOG(INFO) << "Total time: " << timer.end();
-
 }

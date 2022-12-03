@@ -11,7 +11,6 @@ import (
 	"github.com/klauspost/reedsolomon"
 	"github.com/orcaman/concurrent-map/v2"
 	"log"
-	"runtime"
 	"strconv"
 	"sync/atomic"
 	"unsafe"
@@ -33,7 +32,7 @@ func init() {
 	encodeBuffer = cmap.NewStringer[Integer, [][]byte]()
 	decodeBuffer = cmap.NewStringer[Integer, []byte]()
 	maxIndex = 0
-	runtime.GOMAXPROCS(runtime.NumCPU()/3 + 1)
+	//runtime.GOMAXPROCS(runtime.NumCPU()/3 + 1)
 }
 
 //export instanceCreate
@@ -83,28 +82,50 @@ func encodeFirst(id int, data unsafe.Pointer, dataSize int, fragmentLen *int, da
 }
 
 //export encodeNext
-func encodeNext(id int, shards unsafe.Pointer, len int) int {
+func encodeNext(id int, shards unsafe.Pointer, size int) int {
 	goShard, _ := encodeBuffer.Get(Integer(id))
-	sharRef := unsafe.Slice((*unsafe.Pointer)(shards), len)
+	sharRef := unsafe.Slice((*unsafe.Pointer)(shards), size)
+	// 1
 	for k, v := range goShard {
-		sharRef[k] = C.CBytes(v)
+		// sharRef[k] = C.CBytes(v)
 		// sharRef[k] = unsafe.Pointer(&v[0])
+		srk := unsafe.Slice((*byte)(sharRef[k]), len(v))
+		copy(srk, v)
 	}
+	// 2
+	/*	var wg sync.WaitGroup
+		wkCnt := runtime.NumGoroutine()
+		if wkCnt > len(goShard) {
+			wkCnt = len(goShard)
+		}
+		wg.Add(wkCnt)
+		for i := 0; i < wkCnt; i++ {
+			// sharRef[k] = C.CBytes(v)
+			// sharRef[k] = unsafe.Pointer(&v[0])
+			go func(idx int) {
+				for j := idx; j < len(goShard); j += wkCnt {
+					srk := unsafe.Slice((*byte)(sharRef[j]), len(goShard[j]))
+					copy(srk, goShard[j])
+				}
+				wg.Done()
+			}(i)
+		}
+		wg.Wait()*/
 	return 0
 }
 
 //export encodeCleanup
 func encodeCleanup(id int, shards unsafe.Pointer, len int) {
-	sharRef := unsafe.Slice((*unsafe.Pointer)(shards), len)
-	for i := 0; i < len; i++ {
-		C.free(sharRef[i])
-	}
+	// sharRef := unsafe.Slice((*unsafe.Pointer)(shards), len)
+	// for i := 0; i < len; i++ {
+	//	C.free(sharRef[i])
+	// }
 }
 
 // shards[i] = nil in order
 //
 //export decode
-func decode(id int, shards unsafe.Pointer, shardLen int, fLength int, dataSize int, data *unsafe.Pointer) int {
+func decode(id int, shards unsafe.Pointer, shardLen int, fLength int, dataSize int, data unsafe.Pointer) int {
 	enc, suc := engines.Get(Integer(id))
 	if !suc {
 		return -1
@@ -119,30 +140,31 @@ func decode(id int, shards unsafe.Pointer, shardLen int, fLength int, dataSize i
 	// Verify the shards
 	//if ok, err := enc.Verify(shardsRaw); !ok || err != nil {
 	// log.Println("Verification failed. Reconstructing data, ", err)
-	if err := enc.Reconstruct(shardsRaw); err != nil {
+	if err := enc.ReconstructData(shardsRaw); err != nil {
 		log.Println("Reconstruct failed, ", err)
 		return -1
 	}
-	if ok, err := enc.Verify(shardsRaw); !ok || err != nil {
+	/*	if ok, err := enc.Verify(shardsRaw); !ok || err != nil {
 		log.Println("Verification failed after reconstruction, data likely corrupted, ", err)
 		return -1
-	}
+	}*/
 	//}
 	buf := new(bytes.Buffer)
 	if err := enc.Join(buf, shardsRaw, dataSize); err != nil {
 		log.Println("Error decode data, ", err)
 		return -1
 	}
-	dataGo := buf.Bytes()
-	*data = C.CBytes(buf.Bytes())
+	dataRet := unsafe.Slice((*byte)(data), dataSize)
+	copy(dataRet, buf.Bytes())
+	// *data = C.CBytes(buf.Bytes())
 	// *data = unsafe.Pointer(&dataGo[0])
-	decodeBuffer.Set(Integer(id), dataGo)
+	// decodeBuffer.Set(Integer(id), dataGo)
 	return 0
 }
 
 //export decodeCleanup
 func decodeCleanup(id int, data unsafe.Pointer) {
-	C.free(data)
+	// C.free(data)
 }
 
 func main() {}

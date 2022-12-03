@@ -253,14 +253,14 @@ namespace util {
             if (fragmentList.empty()) {
                 return false;
             }
-            auto storage = std::make_unique<LibECDecodeResult>(id);
-            if(!storage->decode(fragmentList)) {
+            auto storage = LibECDecodeResult(id);
+            if(!storage.decode(fragmentList)) {
                 return false;
             }
-            if ((int)storage->originDataSize > size) {
-                return false;
+            if ((int)storage.originDataSize > size) {
+                DLOG(WARNING) << "Decode data-size is larger than original data size!" << storage.originDataSize << " vs. " << size;
             }
-            std::memcpy(buffer, storage->originPayload, dataLen);
+            std::memcpy(buffer, storage.originPayload, dataLen);
             return true;
         }
 

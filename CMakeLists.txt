@@ -148,7 +148,10 @@ find_package(erasurecode
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl libgrc.so)
+# for linking tcmalloc_minimal
+# apt-get install libgoogle-perftools-dev
+
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl libgrc.so tcmalloc_minimal)
 
 ### compile protobuf
 include_directories(${CMAKE_BINARY_DIR}/include)

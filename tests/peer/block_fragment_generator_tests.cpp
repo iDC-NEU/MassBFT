@@ -57,7 +57,6 @@ TEST_F(BFGTest, IntrgrateTest) {
             ASSERT_TRUE(context->serializeFragments(16, 19, segList[4]));    // 3
             ASSERT_TRUE(context->serializeFragments(14, 18, segList[5]));    // special
             auto root = context->getRoot(); // pmt::hashString
-            auto messageSize = message.size();
 
             // get another worker for re-construct
             auto contextReconstruct = bfg.getEmptyContext(cfgList[0]);
@@ -156,4 +155,5 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
         bfg.freeContext(std::move(context));
     }
     LOG(INFO) << "Total time: " << timer.end();
+    LOG(INFO) << "Ratio: " << (double)segList[0].size()/4*33/(int)message.size();
 }

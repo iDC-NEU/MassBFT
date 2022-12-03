@@ -26,37 +26,32 @@ namespace peer {
             int dataShardCnt = 1;
             int parityShardCnt = 0;
             // Instance for parallel processing
+            // must be equal for both validator and generator
             int instanceCount = 1;
+            // count of concurrent generator+validator
             int concurrency = 1;
         };
 
         class Context {
-        protected:
-        class ContextDataBlock: public pmt::DataBlock {
-        public:
-            explicit ContextDataBlock(pmt::byteString dataView) :_dataView(dataView) {}
+            class ContextDataBlock: public pmt::DataBlock {
+            public:
+                explicit ContextDataBlock(pmt::byteString dataView) :_dataView(dataView) {}
 
-            [[nodiscard]] pmt::byteString Serialize() const override {
-                return _dataView;
-            }
-        private:
-            // this is not the actual data!
-            pmt::byteString _dataView;
-        };
+                [[nodiscard]] pmt::byteString Serialize() const override {
+                    return _dataView;
+                }
+            private:
+                // this is not the actual data!
+                pmt::byteString _dataView;
+            };
+
         public:
             ~Context() = default;
             Context(const Context&) = delete;
 
-            [[nodiscard]] int getFragmentCnt() const {
-                return fragmentCnt;
-            }
-
-            bool overrideECInstanceCount(int instanceCountOverride) {
-                if (instanceCountOverride == 0 || instanceCountOverride > _ecConfig.instanceCount) {
-                    return false;
-                }
-                _ecConfig.instanceCount = instanceCountOverride;
-                return true;
+            // check the config of the current instance
+            [[nodiscard]] const Config& getConfig() const {
+                return _ecConfig;
             }
 
             // Invoke for validation
@@ -64,7 +59,8 @@ namespace peer {
             // This func will throw runtime error
             bool validateAndDeserializeFragments(const pmt::hashString& root, std::string_view raw, int start, int end) {
                 if (start<0 || start>=end || end>fragmentCnt) {
-                    throw std::out_of_range("index out of range");    // out of range
+                    LOG(ERROR) << "index out of range!";
+                    return false;
                 }
                 auto in = zpp::bits::in(raw);
                 // 1. read depth(compressed)
@@ -78,8 +74,9 @@ namespace peer {
                 bool cacheWhenGuardFlag = false;
 
                 for (auto i=start; i<end; i++) {
-                    bool falseFlag = false;
                     auto& currentDS = decodeStorageList[i];
+                    // Prevent concurrent modify of the same fragment
+                    bool falseFlag = false;
                     if (!currentDS.cacheGuard.compare_exchange_strong(falseFlag, true, std::memory_order_release, std::memory_order_relaxed)) {
                         if (previousProofPtr != nullptr) {
                             // copy ALL proofs
@@ -189,13 +186,13 @@ namespace peer {
                 // the actual data size is different for the last fragment
                 auto dataSize=fragmentLen;
                 std::vector<std::future<bool>> futureList(_ecConfig.instanceCount);
-                for(auto i=0; i<_ecConfig.instanceCount; i++) {
-                    if (i == (int)svListPartialView.size() - 1) {
+                for(auto i=0; i<_ecConfig.instanceCount; i++) {     // (int)svListPartialView.size()
+                    if (i == _ecConfig.instanceCount - 1) {
                         dataSize=(int)bufferOut.size() - i*fragmentLen;
                     }
-                    futureList[i] = _wp->submit([&, dataSize=dataSize, i=i]() {
+                    futureList[i] = _wp->submit([&, dataSize=dataSize, idx=i]() {
                         // Error handling
-                        if (!ec[i]->decodeWithBuffer(svListPartialView[i], dataSize, bufferOut.data()+i*fragmentLen, dataSize)) {
+                        if (!ec[idx]->decodeWithBuffer(svListPartialView[idx], dataSize, bufferOut.data()+idx*fragmentLen, dataSize)) {
                             util::OpenSSLSHA256 hash;
                             for (const auto &pv: svListPartialView) {
                                 hash.update(pv.data(), pv.size());
@@ -256,8 +253,13 @@ namespace peer {
                 }
                 pmt::Config pmtConfig;
                 pmtConfig.Mode=pmt::ModeType::ModeProofGenAndTreeBuild;
+                // leaf size is too big (all leaves have the equal size)
                 if (ecEncodeResult[0].size() > 1024) {
-                    pmtConfig.LeafGenParallel=true;
+                    pmtConfig.LeafGenParallel = true;
+                }
+                // too many leaves
+                if (ecEncodeResult.size() > 1024) {
+                    pmtConfig.RunInParallel = true;
                 }
                 // _ecConfig.instanceCount indicate the number of parallel running instance
                 pmtConfig.NumRoutines = (int)_wp->get_thread_count() / _ecConfig.instanceCount;
@@ -280,11 +282,13 @@ namespace peer {
             [[nodiscard]] bool serializeFragments(int start, int end, std::string& bufferOut) const {
                 const auto& proofs = mt->getProofs();
                 if (start<0 || start>=end || end>fragmentCnt) {
-                    throw std::out_of_range("index out of range");    // out of range
+                    LOG(ERROR) << "index out of range!";
+                    return false;
                 }
                 DCHECK(fragmentCnt*_ecConfig.instanceCount == (int)proofs.size());
                 if (ecEncodeResult.empty()) {
-                    throw std::logic_error("encodeResultHolder have not encode yet");
+                    LOG(ERROR) << "encodeResultHolder have not encode yet";
+                    return false;
                 }
 
                 // create and reserve data
@@ -413,7 +417,7 @@ namespace peer {
             }
             wp = wp_;
         }
-        
+
         ~BlockFragmentGenerator() = default;
 
         BlockFragmentGenerator(const BlockFragmentGenerator&) = delete;

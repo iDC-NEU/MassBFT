@@ -39,8 +39,9 @@ TEST_F(BFGTest, IntrgrateTest) {
                               .concurrency = 2,
                       });
     auto tp = std::make_unique<util::thread_pool_light>();
+    auto tpForGenerator = std::make_unique<util::thread_pool_light>();
     // create new instance with 10 ec workers per config
-    peer::BlockFragmentGenerator bfg(cfgList, tp.get());
+    peer::BlockFragmentGenerator bfg(cfgList, tpForGenerator.get());
     std::string message, messageOut;
     fillDummy(message, 1024*1024*2);
     std::vector<std::string> segList(6);
@@ -156,4 +157,95 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
     }
     LOG(INFO) << "Total time: " << timer.end();
     LOG(INFO) << "Ratio: " << (double)segList[0].size()/4*33/(int)message.size();
+}
+
+
+TEST_F(BFGTest, IntrgrateTestMultiInstanceParallel) {
+    // crypto and message pre-allocate
+    util::OpenSSLSHA256::initCrypto();
+
+    std::vector<peer::BlockFragmentGenerator::Config> cfgList;
+    cfgList.push_back({
+                              .dataShardCnt=11,
+                              .parityShardCnt=22,
+                              .instanceCount = 1,
+                              .concurrency =60,
+                      });
+    auto tp = std::make_unique<util::thread_pool_light>();
+    auto tp2 = std::make_unique<util::thread_pool_light>(10);
+    auto tpForGenerator = std::make_unique<util::thread_pool_light>();
+    // create new instance with 10 ec workers per config
+    peer::BlockFragmentGenerator bfg(cfgList, tpForGenerator.get());
+    std::string message, messageOut;
+    fillDummy(message, 1024*1024*2);
+    util::Timer timer;
+
+    auto loopCnt = 4000;
+    std::vector<std::future<void>> futureList(loopCnt);
+    for(int i=0; i<loopCnt; i++) {
+        futureList[i] = tp2->submit([&] {
+            std::vector<std::string> segList(6);
+            auto sema = util::NewSema();
+            // get an ec worker with config
+            auto context = bfg.getEmptyContext(cfgList[0]);
+            context->initWithMessage(message);
+            tp->push_task([&] {
+                ASSERT_TRUE(context->serializeFragments(0, 4, segList[0]));
+                sema.signal();
+            });
+            tp->push_task([&] {
+                ASSERT_TRUE(context->serializeFragments(4, 8, segList[1]));
+                sema.signal();
+            });
+            tp->push_task([&] {
+                ASSERT_TRUE(context->serializeFragments(8, 12, segList[2]));
+                sema.signal();
+            });
+            tp->push_task([&] {
+                ASSERT_TRUE(context->serializeFragments(12, 16, segList[3]));
+                sema.signal();
+            });
+            tp->push_task([&] {
+                ASSERT_TRUE(context->serializeFragments(16, 19, segList[4]));
+                sema.signal();
+            });
+            auto root = context->getRoot(); // pmt::hashString
+
+            // get another worker for re-construct
+            auto contextReconstruct = bfg.getEmptyContext(cfgList[0]);
+            util::wait_for_sema(sema, 5);
+
+            // 3+4+4=11
+            tp->push_task([&] {
+                ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[3], 12, 16));
+                sema.signal();
+            });
+
+            tp->push_task([&] {
+                ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[1], 4, 8));
+                sema.signal();
+            });
+
+            tp->push_task([&] {
+                ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[4], 16, 19));
+                sema.signal();
+            });
+
+            tp->push_task([&] {
+                ASSERT_TRUE(contextReconstruct->validateAndDeserializeFragments(root, segList[2], 8, 12));
+                sema.signal();
+            });
+            util::wait_for_sema(sema, 4);
+
+            ASSERT_TRUE(contextReconstruct->regenerateMessage((int)message.size(), messageOut));
+            ASSERT_TRUE(messageOut == message) << messageOut.substr(0, 100) << " vs " << message.substr(0, 100);
+            bfg.freeContext(std::move(contextReconstruct));
+            bfg.freeContext(std::move(context));
+        });
+    }
+    for(auto&f:futureList) {
+        f.get();
+    }
+    LOG(INFO) << "Total time: " << timer.end();
+    // LOG(INFO) << "Ratio: " << (double)segList[0].size()/4*33/(int)message.size();
 }

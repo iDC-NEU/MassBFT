@@ -190,7 +190,7 @@ namespace peer {
                     if (i == _ecConfig.instanceCount - 1) {
                         dataSize=(int)bufferOut.size() - i*fragmentLen;
                     }
-                    futureList[i] = _wp->submit([&, dataSize=dataSize, idx=i]() {
+                    futureList[i] = wpForMTAndEC->submit([&, dataSize=dataSize, idx=i]() {
                         // Error handling
                         if (!ec[idx]->decodeWithBuffer(svListPartialView[idx], dataSize, bufferOut.data()+idx*fragmentLen, dataSize)) {
                             util::OpenSSLSHA256 hash;
@@ -225,7 +225,7 @@ namespace peer {
                 auto len = actualMessageSize % _ecConfig.instanceCount ? actualMessageSize / _ecConfig.instanceCount + 1: actualMessageSize / _ecConfig.instanceCount;
                 ecEncodeResult.resize(_ecConfig.instanceCount*fragmentCnt);
                 for (int i=0; i<_ecConfig.instanceCount; i++) {
-                    futureList[i] = _wp->submit([this, idx=i, &message, &len]()->bool {
+                    futureList[i] = wpForMTAndEC->submit([this, idx=i, &message, &len]()->bool {
                         // auto solve overflow
                         std::string_view msgView = message.substr(idx*len, (idx+1)*len);
                         auto encodeResult = ec[idx]->encode(msgView);
@@ -262,14 +262,14 @@ namespace peer {
                     pmtConfig.RunInParallel = true;
                 }
                 // _ecConfig.instanceCount indicate the number of parallel running instance
-                pmtConfig.NumRoutines = (int)_wp->get_thread_count() / _ecConfig.instanceCount;
+                pmtConfig.NumRoutines = (int)wpForMTAndEC->get_thread_count() / _ecConfig.instanceCount;
                 std::vector<std::unique_ptr<pmt::DataBlock>> blocks;
                 blocks.reserve(ecEncodeResult.size());
                 // serialize perform an additional copy
                 for (const auto& blockView: ecEncodeResult) {
                     blocks.push_back(std::make_unique<ContextDataBlock>(blockView));
                 }
-                mt = pmt::MerkleTree::New(pmtConfig, blocks, _wp);
+                mt = pmt::MerkleTree::New(pmtConfig, blocks, wpForMTAndEC);
                 // we no longer need the block view after tree generation.
                 return true;
             }
@@ -342,10 +342,10 @@ namespace peer {
             friend class BlockFragmentGenerator;
 
         protected:
-            explicit Context(const Config& ecConfig, util::thread_pool_light* wp)
+            explicit Context(const Config& ecConfig, util::thread_pool_light* wpForMTAndEC_)
                     : _ecConfig(ecConfig), fragmentCnt(_ecConfig.dataShardCnt+_ecConfig.parityShardCnt),
                       encodeResultHolder(_ecConfig.instanceCount), decodeResultHolder(_ecConfig.instanceCount),
-                      _wp(wp), decodeStorageList(fragmentCnt) { }
+                      wpForMTAndEC(wpForMTAndEC_), decodeStorageList(fragmentCnt) { }
 
         private:
             // config for util::ErasureCode ec
@@ -359,7 +359,7 @@ namespace peer {
             std::vector<std::string_view> ecEncodeResult;   // hold all encode result
             std::vector<std::unique_ptr<util::DecodeResult>> decodeResultHolder;
             // the thread pool pointer shared by all instance
-            util::thread_pool_light* _wp;
+            util::thread_pool_light* wpForMTAndEC;
             // when encoding, set the mt to keep all the proofs data
             std::unique_ptr<pmt::MerkleTree> mt = nullptr;
             // store all decode result
@@ -377,9 +377,11 @@ namespace peer {
         };
 
     public:
+        // wpForMTAndEC_ is shared within ALL BlockFragmentGenerator (if not singleton)
         template<class ErasureCodeType=util::GoErasureCode>
         requires std::is_base_of<util::ErasureCode, ErasureCodeType>::value
-        BlockFragmentGenerator(const std::vector<Config>& cfgList, util::thread_pool_light* wp_) {
+        BlockFragmentGenerator(const std::vector<Config>& cfgList, util::thread_pool_light* wpForMTAndEC_)
+            :wpForMTAndEC(wpForMTAndEC_) {
             size_t max_x = 0, max_y = 0;
             for (const auto& cfg: cfgList) {
                 if ((size_t)cfg.dataShardCnt > max_x) {
@@ -415,7 +417,6 @@ namespace peer {
                 ecMap[x][y] = std::move(queue);
                 sema.signal(totalInstanceCount);
             }
-            wp = wp_;
         }
 
         ~BlockFragmentGenerator() = default;
@@ -432,7 +433,7 @@ namespace peer {
                 return nullptr;
             }
             util::wait_for_sema(semaMap[x][y], cfg.instanceCount);
-            std::unique_ptr<Context> context(new Context(cfg, wp));
+            std::unique_ptr<Context> context(new Context(cfg, wpForMTAndEC));
             context->ec.resize(cfg.instanceCount);
             for(int i=0; i<cfg.instanceCount; i++) {
                 ecMap[x][y]->pop(context->ec[i]);
@@ -455,6 +456,6 @@ namespace peer {
         using ECListType = rigtorp::MPMCQueue<std::unique_ptr<util::ErasureCode>>;
         std::vector<std::vector<std::unique_ptr<ECListType>>> ecMap;
         std::vector<std::vector<moodycamel::LightweightSemaphore>> semaMap;
-        util::thread_pool_light* wp;
+        util::thread_pool_light* wpForMTAndEC;
     };
 }

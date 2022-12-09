@@ -35,14 +35,14 @@ namespace peer {
         class Context {
             class ContextDataBlock: public pmt::DataBlock {
             public:
-                explicit ContextDataBlock(pmt::byteString dataView) :_dataView(dataView) {}
+                explicit ContextDataBlock(pmt::ByteString dataView) : _dataView(dataView) {}
 
-                [[nodiscard]] pmt::byteString Serialize() const override {
+                [[nodiscard]] pmt::ByteString Serialize() const override {
                     return _dataView;
                 }
             private:
                 // this is not the actual data!
-                pmt::byteString _dataView;
+                pmt::ByteString _dataView;
             };
 
         public:
@@ -57,7 +57,7 @@ namespace peer {
             // Invoke for validation
             // support concurrent validation
             // This func will throw runtime error
-            bool validateAndDeserializeFragments(const pmt::hashString& root, std::string_view raw, int start, int end) {
+            bool validateAndDeserializeFragments(const pmt::HashString& root, std::string_view raw, int start, int end) {
                 if (start<0 || start>=end || end>fragmentCnt) {
                     LOG(ERROR) << "index out of range!";
                     return false;
@@ -69,7 +69,7 @@ namespace peer {
 
                 pmt::Proof* previousProofPtr = nullptr;
                 // When currentDS.cacheGuard is true, we need to get the omitted proof
-                std::vector<pmt::hashString> cacheWhenGuard(depth);
+                std::vector<pmt::HashString> cacheWhenGuard(depth);
                 // must read cacheWhenGuard instead of previousProofPtr
                 bool cacheWhenGuardFlag = false;
 
@@ -326,7 +326,7 @@ namespace peer {
                     out((uint32_t) currentProof.Path, (int64_t) lastIndex+1).or_throw();   // record the size, not the index
                     // 3. write proof vector
                     for (auto j=0; j<lastIndex+1; j++) {
-                        const pmt::hashString& sj = *currentProof.Siblings[j];
+                        const pmt::HashString& sj = *currentProof.Siblings[j];
                         out(sj).or_throw();
                     }
                     // 4. write actual data
@@ -338,6 +338,8 @@ namespace peer {
             }
 
             [[nodiscard]] inline const auto& getRoot() const { return mt->getRoot(); }
+
+            [[nodiscard]] inline auto getDataShardCnt() const { return _ecConfig.dataShardCnt; }
 
             friend class BlockFragmentGenerator;
 
@@ -367,7 +369,7 @@ namespace peer {
                 std::atomic<bool> cacheGuard;
                 // cache the string to avoid nullptr error
                 // pmt::Proof regenerateProofs will use the string_view of it
-                std::vector<pmt::hashString> cache;
+                std::vector<pmt::HashString> cache;
                 // the proofs load from cache
                 std::vector<pmt::Proof> mtProofs;
                 // the piece of fragment view load from cache
@@ -378,6 +380,9 @@ namespace peer {
 
     public:
         // wpForMTAndEC_ is shared within ALL BlockFragmentGenerator (if not singleton)
+        // wpForMTAndEC_ is used to:
+        // 1. generate merkle tree parallel in serialize phase.
+        // 2. encode and decode parallel in both phase.
         template<class ErasureCodeType=util::GoErasureCode>
         requires std::is_base_of<util::ErasureCode, ErasureCodeType>::value
         BlockFragmentGenerator(const std::vector<Config>& cfgList, util::thread_pool_light* wpForMTAndEC_)

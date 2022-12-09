@@ -65,7 +65,7 @@ namespace util {
         // Note that when a signature of a hash of a larger message is needed,
         // the caller is responsible for hashing the larger message and passing
         // the hash (as digest).
-        inline auto Sign(const void *d, size_t cnt) -> std::optional<util::OpenSSLED25519::digestType> {
+        inline auto Sign(const void *d, size_t cnt) const -> std::optional<util::OpenSSLED25519::digestType> {
             if (!isPrivate) {
                 return std::nullopt;
             }
@@ -75,7 +75,7 @@ namespace util {
         // Verify verifies signature against key k and digest
         // The opts argument should be appropriate for the algorithm used.
         // md is the signature, and d is the digest
-        inline bool Verify(const util::OpenSSLED25519::digestType &md, const void *d, size_t cnt) {
+        inline bool Verify(const util::OpenSSLED25519::digestType &md, const void *d, size_t cnt) const {
             return _publicKey.verify(md, d, cnt);
         }
 

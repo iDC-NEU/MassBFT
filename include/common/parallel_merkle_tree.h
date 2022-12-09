@@ -29,16 +29,16 @@ namespace pmt {
     constexpr int defaultHashLen = 32;
 
     // eliminate additional copy, DataBlock need to store the actual string instead
-    using byteString = std::string_view;
+    using ByteString = std::string_view;
 
-    using hashString = std::array<uint8_t, defaultHashLen>;
+    using HashString = util::OpenSSLSHA256::digestType;
 
     // DataBlock is the interface of input data blocks to generate the Merkle Tree.
     class DataBlock {
     public:
         virtual ~DataBlock() = default;
 
-        [[nodiscard]] virtual byteString Serialize() const = 0;
+        [[nodiscard]] virtual ByteString Serialize() const = 0;
     };
 
 
@@ -46,7 +46,7 @@ namespace pmt {
     struct Config {
         // HashFuncType is the signature of the hash functions used for Merkle Tree generation.
         // Customizable hash function used for tree generation.
-        static std::optional<hashString> HashFunc(const hashString& h1, const hashString& h2) {
+        static std::optional<HashString> HashFunc(const HashString& h1, const HashString& h2) {
             util::OpenSSLSHA256 hash;
 
             if (!hash.update(h1.data(), h1.size()) ||
@@ -58,7 +58,7 @@ namespace pmt {
 
         // HashFuncType is the signature of the hash functions used for Merkle Tree generation.
         // Customizable hash function used for tree generation.
-        static std::optional<hashString> HashFunc(const byteString& str) {
+        static std::optional<HashString> HashFunc(const ByteString& str) {
             util::OpenSSLSHA256 hash;
             if (!hash.update(str.data(), str.size())) {
                 return std::nullopt;
@@ -82,7 +82,7 @@ namespace pmt {
 
     // Proof implements the Merkle Tree proof.
     struct Proof {
-        std::vector<const hashString*> Siblings{}; // sibling nodes to the Merkle Tree path of the data block
+        std::vector<const HashString*> Siblings{}; // sibling nodes to the Merkle Tree path of the data block
         uint32_t Path{};        // path variable indicating whether the neighbor is on the left or right
 
         bool operator==(const Proof& rhs) const {
@@ -117,11 +117,11 @@ namespace pmt {
         // only available when config mode is ModeTreeBuild or ModeProofGenAndTreeBuild
         ankerl::unordered_dense::map<std::string, int> leafMap;
         // tree is the Merkle Tree structure, only available when config mode is ModeTreeBuild or ModeProofGenAndTreeBuild
-        std::vector<std::vector<hashString>> tree;
+        std::vector<std::vector<HashString>> tree;
         // Root is the Merkle root hash
-        hashString Root{};
+        HashString Root{};
         // Leaves are Merkle Tree leaves, i.e. the hashes of the data blocks for tree generation
-        std::vector<hashString> Leaves;
+        std::vector<HashString> Leaves;
         // Proofs are proofs to the data blocks generated during the tree building process
         std::vector<Proof> Proofs;
         // Depth is the Merkle Tree depth
@@ -132,7 +132,7 @@ namespace pmt {
         std::unique_ptr<util::thread_pool_light> wpGuard = nullptr;
 
         // copy-on-write, save time
-        std::vector<std::unique_ptr<std::vector<hashString>>> proofGenBufList;
+        std::vector<std::unique_ptr<std::vector<HashString>>> proofGenBufList;
     public:
         [[nodiscard]] inline const auto& getRoot() const { return Root; }
 
@@ -238,14 +238,14 @@ namespace pmt {
         bool proofGen() {
             const int numLeaves = (int) Leaves.size();
             initProofs();
-            proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(Leaves));
-            std::vector<hashString>* buf = proofGenBufList.back().get();
+            proofGenBufList.push_back(std::make_unique<std::vector<HashString>>(Leaves));
+            std::vector<HashString>* buf = proofGenBufList.back().get();
             int prevLen = numLeaves;
             this->fixOdd(*buf, prevLen);
             this->updateProofs(*buf, numLeaves, 0);
 
             for (auto step = 1; step < int(Depth); step++) {
-                proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(*buf));
+                proofGenBufList.push_back(std::make_unique<std::vector<HashString>>(*buf));
                 buf = proofGenBufList.back().get();  // must re-create buf, copy-on-write
                 for (auto idx = 0; idx < prevLen; idx += 2) {
                     auto res = Config::HashFunc((*buf)[idx], (*buf)[idx + 1]);
@@ -267,8 +267,8 @@ namespace pmt {
         }
 
         // generate a dummy hash to make odd-length buffer even
-        static hashString getDummyHash() {
-            hashString dummyBytes;
+        static HashString getDummyHash() {
+            HashString dummyBytes;
             for (auto &b: dummyBytes) {
                 b = random() % 256;
             }
@@ -278,11 +278,11 @@ namespace pmt {
         // if the length of the buffer calculating the Merkle Tree is odd, then append a node to the buffer
         // if AllowDuplicates is true, append a node by duplicating the previous node
         // otherwise, append a node by random
-        void fixOdd(std::vector<hashString> &buf, int &prevLen) const {
+        void fixOdd(std::vector<HashString> &buf, int &prevLen) const {
             if ((prevLen & 1) == 0) {
                 return;
             }
-            hashString appendNode;
+            HashString appendNode;
             if (config.NoDuplicates) {
                 appendNode = getDummyHash();
             } else {
@@ -297,7 +297,7 @@ namespace pmt {
         }
 
 
-        void updateProofs(const std::vector<hashString> &buf, int bufLen, int step) {
+        void updateProofs(const std::vector<HashString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
             for (auto i = 0; i < bufLen; i += 2) {
                 this->updatePairProof(buf, i, batch, step);
@@ -305,7 +305,7 @@ namespace pmt {
         }
 
 
-        void updatePairProof(const std::vector<hashString> &buf, int idx, int batch, int step) {
+        void updatePairProof(const std::vector<HashString> &buf, int idx, int batch, int step) {
             auto start = idx * batch;
             int end = start + batch < (int) Proofs.size() ? start + batch : (int) Proofs.size();
             for (auto i = start; i < end; i++) {
@@ -370,14 +370,14 @@ namespace pmt {
         bool proofGenParallel() {
             this->initProofs();
             const int numLeaves = (int) Leaves.size();
-            proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(Leaves));
-            std::vector<hashString>* buf1 = proofGenBufList.back().get();  // have to perform deep copy
+            proofGenBufList.push_back(std::make_unique<std::vector<HashString>>(Leaves));
+            std::vector<HashString>* buf1 = proofGenBufList.back().get();  // have to perform deep copy
             int prevLen = numLeaves;
             this->fixOdd(*buf1, prevLen);
             this->updateProofsParallel(*buf1, numLeaves, 0);
 
-            proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(prevLen >> 1));
-            std::vector<hashString>* buf2 = proofGenBufList.back().get();
+            proofGenBufList.push_back(std::make_unique<std::vector<HashString>>(prevLen >> 1));
+            std::vector<HashString>* buf2 = proofGenBufList.back().get();
             auto sema = util::NewSema();
             for (auto step = 1; step < int(Depth); step++) {
                 auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
@@ -395,7 +395,7 @@ namespace pmt {
                     });
                 }
                 buf1 = buf2;
-                proofGenBufList.push_back(std::make_unique<std::vector<hashString>>(prevLen >> 1));
+                proofGenBufList.push_back(std::make_unique<std::vector<HashString>>(prevLen >> 1));
                 buf2 = proofGenBufList.back().get();
                 prevLen >>= 1;
                 util::wait_for_sema(sema, numRoutines);
@@ -411,7 +411,7 @@ namespace pmt {
             return true;
         }
 
-        void updateProofsParallel(const std::vector<hashString> &buf, int bufLen, int step) {
+        void updateProofsParallel(const std::vector<HashString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
 
             auto sema = util::NewSema();
@@ -435,14 +435,14 @@ namespace pmt {
                 }
                 return true;
             });
-            this->tree = std::vector<std::vector<hashString>>(Depth);
+            this->tree = std::vector<std::vector<HashString>>(Depth);
             this->tree[0] = Leaves;
             int prevLen = (int) numLeaves;
             this->fixOdd(tree[0], prevLen);
 
             auto sema = util::NewSema();
             for (uint32_t i = 0; i < Depth - 1; i++) {
-                this->tree[i + 1] = std::vector<hashString>(prevLen >> 1);
+                this->tree[i + 1] = std::vector<HashString>(prevLen >> 1);
                 if (config.RunInParallel) {
                     auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
                     for (auto j = 0; j < numRoutines; j++) {
@@ -488,7 +488,7 @@ namespace pmt {
         }
 
         // Verify verifies the data block with the Merkle Tree proof and Merkle root hash
-        static std::optional<bool> Verify(const DataBlock &dataBlock, const Proof &proof, const hashString &root) {
+        static std::optional<bool> Verify(const DataBlock &dataBlock, const Proof &proof, const HashString &root) {
             auto ret2 = Config::HashFunc(dataBlock.Serialize());
             if (!ret2) {
                 LOG(ERROR) << "Call hash func error";
@@ -531,7 +531,7 @@ namespace pmt {
             }
             auto idx = leafMap.at(swBlockHash);
             uint32_t path = 0;
-            std::vector<const hashString*> siblings(Depth);
+            std::vector<const HashString*> siblings(Depth);
             for (uint32_t i = 0; i < Depth; i++) {
                 if ((idx & 1) == 1) {
                     siblings[i] = &tree[i][idx - 1];

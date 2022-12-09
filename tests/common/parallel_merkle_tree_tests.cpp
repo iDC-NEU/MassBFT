@@ -17,7 +17,7 @@ protected:
     void TearDown() override {
     };
 
-    using byteString = pmt::byteString;
+    using byteString = pmt::ByteString;
 
     const int benchSize = 10000;
 
@@ -813,7 +813,7 @@ TEST_F(PMTreeTest, TestVerify) {
         std::string name;
         pmt::DataBlock* dataBlock;
         pmt::Proof proof;
-        pmt::hashString root;
+        pmt::HashString root;
         bool want;
     };
     std::vector<shared_test_case> tests;

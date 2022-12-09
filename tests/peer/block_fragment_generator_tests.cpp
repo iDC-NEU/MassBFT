@@ -169,13 +169,12 @@ TEST_F(BFGTest, IntrgrateTestMultiInstanceParallel) {
                               .dataShardCnt=11,
                               .parityShardCnt=22,
                               .instanceCount = 1,
-                              .concurrency =60,
+                              .concurrency =40,
                       });
     auto tp = std::make_unique<util::thread_pool_light>();
     auto tp2 = std::make_unique<util::thread_pool_light>(10);
-    auto tpForGenerator = std::make_unique<util::thread_pool_light>();
     // create new instance with 10 ec workers per config
-    peer::BlockFragmentGenerator bfg(cfgList, tpForGenerator.get());
+    peer::BlockFragmentGenerator bfg(cfgList, tp.get());
     std::string message, messageOut;
     fillDummy(message, 1024*1024*2);
     util::Timer timer;

@@ -8,6 +8,7 @@
 #include <vector>
 #include <thread>
 #include <string>
+#include <cassert>
 #include "lightweightsemaphore.h"
 #include "yaml-cpp/yaml.h"
 #include "glog/logging.h"

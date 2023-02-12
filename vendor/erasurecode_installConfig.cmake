@@ -3,8 +3,10 @@ cmake_minimum_required(VERSION 3.14...3.22)
 CPMAddPackage(
         NAME liberasurecode
         GITHUB_REPOSITORY sydxsty/liberasurecode
-        VERSION v1.6.3
-        GIT_TAG 031569e00f61dc151de4aa07c88d1740951b730e
+        GIT_TAG "origin/master"
+        # GIT_TAG 031569e00f61dc151de4aa07c88d1740951b730e just # download the newest
+        DOWNLOAD_ONLY True
+        GIT_SHALLOW TRUE
 )
 
 if(NOT EXISTS "${PROJECT_BINARY_DIR}/lib/liberasurecode.a")

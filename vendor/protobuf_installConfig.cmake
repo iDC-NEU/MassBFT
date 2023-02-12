@@ -3,9 +3,10 @@ cmake_minimum_required(VERSION 3.14...3.22)
 CPMAddPackage(
         NAME protobuf
         GITHUB_REPOSITORY protocolbuffers/protobuf
-        GIT_TAG 847ace296ca55574e22c7c458b1cbee6bf7e4789
-        VERSION v3.21.4.0
-        OPTIONS "protobuf_BUILD_TESTS OFF"
+        GIT_TAG v3.16.2
+        VERSION v3.16.2
+        DOWNLOAD_ONLY True
+        GIT_SHALLOW TRUE
 )
 
 set(PROTOBUF_PROTOC_EXECUTABLE "${PROJECT_BINARY_DIR}/bin/protoc")
@@ -15,7 +16,13 @@ if(NOT EXISTS "${PROTOBUF_PROTOC_EXECUTABLE}")
     include(ProcessorCount)
     ProcessorCount(N)
     # Call CMake to generate makefile
-    execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" -B build -Dprotobuf_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}
+    execute_process(COMMAND ${protobuf_SOURCE_DIR}/autogen.sh
+            RESULT_VARIABLE result
+            WORKING_DIRECTORY ${protobuf_SOURCE_DIR})
+    if(result)
+        message(FATAL_ERROR "CMake step for protobuf failed: ${result}")
+    endif()
+    execute_process(COMMAND ${protobuf_SOURCE_DIR}/configure --prefix=${PROJECT_BINARY_DIR}
             RESULT_VARIABLE result
             WORKING_DIRECTORY ${protobuf_SOURCE_DIR})
     if(result)
@@ -23,14 +30,14 @@ if(NOT EXISTS "${PROTOBUF_PROTOC_EXECUTABLE}")
     endif()
 
     # build and install module
-    execute_process(COMMAND ${CMAKE_COMMAND} --build build --config Release -- -j ${N}
+    execute_process(COMMAND make -j ${N}
             RESULT_VARIABLE result
             WORKING_DIRECTORY ${protobuf_SOURCE_DIR})
     if(result)
         message(FATAL_ERROR "Build step for protobuf failed: ${result}")
     endif()
 
-    execute_process(COMMAND ${CMAKE_COMMAND} --install build
+    execute_process(COMMAND make install
             RESULT_VARIABLE result
             WORKING_DIRECTORY ${protobuf_SOURCE_DIR})
     if(result)

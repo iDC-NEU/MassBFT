@@ -49,6 +49,7 @@ CPMAddPackage(
         GITHUB_REPOSITORY fmtlib/fmt
         GIT_TAG 8.1.1
         OPTIONS "FMT_INSTALL YES" # create an installable target
+        GIT_SHALLOW TRUE
 )
 
 CPMAddPackage(
@@ -57,15 +58,22 @@ CPMAddPackage(
         VERSION 0.7.0
         GIT_TAG yaml-cpp-0.7.0
         OPTIONS "YAML_CPP_FORMAT_SOURCE OFF"
+        GIT_SHALLOW TRUE
 )
 
-CPMAddPackage(
-        NAME glog
-        GITHUB_REPOSITORY google/glog
-        VERSION 0.6.0
-        GIT_TAG v0.6.0
-        OPTIONS "WITH_GFLAGS OFF" "WITH_GTEST OFF"
-)
+### Gflags support
+find_package(gflags_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+### Glog support
+find_package(glog_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
 
 ### Add zmq support (only link cppzmq is enough)
 CPMAddPackage(
@@ -121,28 +129,57 @@ CPMAddPackage(
 )
 
 ### Crypto support
-find_package(openssl
+find_package(openssl_install
         CONFIG
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
 ### Protobuf support
-find_package(pbwrapper
+find_package(protobuf_install
         CONFIG
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
+### Leveldb support
+find_package(leveldb_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+### BRPC support
+find_package(brpc_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+### BRAFT support
+find_package(braft_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+
 ### zpp-bits support
-find_package(zppbits
+find_package(zppbits_install
         CONFIG
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
 ### Erasure code support, must link erasurecode dl
-find_package(erasurecode
+find_package(erasurecode_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+### Gtest support
+find_package(gtest_install
         CONFIG
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor
@@ -150,11 +187,12 @@ find_package(erasurecode
 
 # for linking tcmalloc_minimal
 # apt-get install libgoogle-perftools-dev
-
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl libgrc.so tcmalloc_minimal)
+find_library(gflags gflags PATHS ${PROJECT_BINARY_DIR}/lib)
+# NOTE: DO NOT LINK BRPC.SO AND BRAFT.SO TOGETHER
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq braft unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ssl leveldb)
 
 ### compile protobuf
-include_directories(${CMAKE_BINARY_DIR}/include)
+include_directories(SYSTEM ${CMAKE_BINARY_DIR}/include)
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib)
 
 # ---- Add source files ----

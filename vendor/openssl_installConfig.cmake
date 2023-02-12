@@ -5,6 +5,8 @@ CPMAddPackage(
         GITHUB_REPOSITORY openssl/openssl
         VERSION v3.0.7
         GIT_TAG openssl-3.0.7
+        DOWNLOAD_ONLY True
+        GIT_SHALLOW TRUE
 )
 
 if(NOT EXISTS "${PROJECT_BINARY_DIR}/bin/openssl")

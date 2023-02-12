@@ -6,14 +6,6 @@ project(NBPTests LANGUAGES CXX)
 
 option(ENABLE_TEST_COVERAGE "Enable test coverage" OFF)
 
-CPMAddPackage(
-        NAME googletest
-        GITHUB_REPOSITORY google/googletest
-        GIT_TAG release-1.12.1
-        VERSION 1.12.1
-        OPTIONS "INSTALL_GTEST OFF" "gtest_force_shared_crt"
-)
-
 # ---- Create binary ----
 
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")

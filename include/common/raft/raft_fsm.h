@@ -2,8 +2,8 @@
 // Created by peng on 2/10/23.
 //
 
-#ifndef NBP_FSM_H
-#define NBP_FSM_H
+#ifndef NBP_RAFT_FSM_H
+#define NBP_RAFT_FSM_H
 
 #include "braft/node.h"
 #include "braft/enum.pb.h"
@@ -43,6 +43,7 @@ namespace util::raft {
                 LOG(INFO) << "addr " << address << " after leader start closure";
                 _on_leader_start_closure = nullptr;
             }
+            LOG(INFO) << "addr " << address << " becomes leader";
         }
 
         void on_leader_stop(const butil::Status&) override {
@@ -155,4 +156,4 @@ namespace util::raft {
     };
 
 }
-#endif //NBP_FSM_H
+#endif //NBP_RAFT_FSM_H

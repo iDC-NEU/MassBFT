@@ -5,7 +5,7 @@
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
-#include "common/raft/fsm.h"
+#include "common/raft/raft_fsm.h"
 #include "common/raft/node_closure.h"
 
 

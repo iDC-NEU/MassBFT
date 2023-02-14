@@ -9,6 +9,7 @@ CPMAddPackage(
         GIT_SHALLOW TRUE
 )
 
+# We only need the header, the other parts are not useful
 set(GTEST_LIB "${PROJECT_BINARY_DIR}/lib/libgmock_main.a")
 
 if(NOT EXISTS "${GTEST_LIB}")

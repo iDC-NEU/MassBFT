@@ -11,7 +11,7 @@ project(
 # Set debug and release flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable")
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${CMAKE_CXX_FLAGS_COMMON}  -g -O0 -fprofile-arcs -ftest-coverage")
-SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${CMAKE_CXX_FLAGS_COMMON} -O3")
+SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${CMAKE_CXX_FLAGS_COMMON} -O2")
 
 ### CHECK g++ version
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -75,21 +75,11 @@ find_package(glog_install
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
-### Add zmq support (only link cppzmq is enough)
-CPMAddPackage(
-        NAME zmq
-        GITHUB_REPOSITORY zeromq/libzmq
-        VERSION 22.11.20
-        GIT_TAG 8d4f4efef0b45a242c0b0f927d715ac79d863729
-        OPTIONS "ZMQ_BUILD_TESTS OFF" "ENABLE_CURVE OFF" "WITH_TLS OFF"
-)
-
-CPMAddPackage(
-        NAME cppzmq
-        GITHUB_REPOSITORY zeromq/cppzmq
-        VERSION v4.9.0
-        GIT_TAG c66fc6094b2a03439dea8469719e221e80e2e8e7
-)
+### Add zmq support
+find_package(zeromq_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor)
 
 ### fast hashmap header only
 CPMAddPackage(
@@ -190,7 +180,7 @@ find_package(gtest_install
 find_library(gflags gflags PATHS ${PROJECT_BINARY_DIR}/lib)
 find_library(leveldb leveldb PATHS ${PROJECT_BINARY_DIR}/lib)
 # NOTE: DO NOT LINK BRPC.SO AND BRAFT.SO TOGETHER
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread cppzmq braft unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc)
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc)
 
 ### compile protobuf
 include_directories(SYSTEM ${CMAKE_BINARY_DIR}/include)

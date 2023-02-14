@@ -41,7 +41,9 @@ if(NOT EXISTS "${PROJECT_BINARY_DIR}/lib/liberasurecode.a")
     if(result)
         message(FATAL_ERROR "Install step for libErasureCode failed: ${result}")
     endif()
+endif()
 
+if(NOT EXISTS "${PROJECT_BINARY_DIR}/lib/libgrc.so")
     message("Start copy libgrc file")
     execute_process(COMMAND cp -f libgrc.so ${PROJECT_BINARY_DIR}/lib
             RESULT_VARIABLE result

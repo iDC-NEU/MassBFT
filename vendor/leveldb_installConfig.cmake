@@ -15,7 +15,7 @@ if(NOT EXISTS "${LEVELDB_LIB}")
     include(ProcessorCount)
     ProcessorCount(N)
     # Call CMake to generate makefile
-    execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" -B build -DBUILD_SHARED_LIBS=ON -DBUILD_STATIC_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR} -DBUILD_STATIC_LIBS=ON
+    execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" -B build -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PROJECT_BINARY_DIR}
             RESULT_VARIABLE result
             WORKING_DIRECTORY ${leveldb_SOURCE_DIR})
     if(result)

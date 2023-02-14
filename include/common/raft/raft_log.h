@@ -9,6 +9,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <butil/iobuf.h>
+#include "blockingconcurrentqueue.h"
 
 namespace util::raft {
     template<class T=butil::IOBuf>
@@ -46,8 +47,17 @@ namespace util::raft {
             mutex.unlock();
         }
 
+        bool enqueue_request(T&& item) {
+            return queue.enqueue(std::forward<T>(item));
+        }
+
+        void dequeue_request_blocked(T* item) {
+            queue.wait_dequeue(*item);
+        }
+
     private:
         mutable std::shared_mutex mutex;
+        moodycamel::BlockingConcurrentQueue<T> queue;
         std::vector<T> logs;
     };
 }

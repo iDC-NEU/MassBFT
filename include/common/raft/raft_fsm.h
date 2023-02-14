@@ -66,6 +66,8 @@ namespace util::raft {
                 logs.write([&](auto* raw){
                     raw->push_back(iter.data());
                 });
+                // IOBUF increase by reference, no need to produce additional copy
+                logs.enqueue_request(butil::IOBuf(iter.data()));
                 applied_index = iter.index();
             }
         }

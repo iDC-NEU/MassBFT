@@ -8,7 +8,7 @@
 #include "common/raft/multi_raft_fsm.h"
 
 namespace util::raft {
-    // a single raft cluster
+    // Multi-raft cluster run in local demo, do not use this class in distributed settings.
     class Cluster {
     public:
         // name: the cluster name

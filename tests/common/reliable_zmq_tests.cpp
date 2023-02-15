@@ -34,8 +34,6 @@ TEST_F(ReliableZMQTest, TestPubSub) {
     auto signal = util::NewSema();
 
     auto f1 = tp.submit([&sender, &signal]{
-        // Give the subscribers a chance to connect, so they don't lose any messages
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
         util::wait_for_sema(signal);
         return sender->send(std::string("hello, world!"));
     });
@@ -56,6 +54,42 @@ TEST_F(ReliableZMQTest, TestPubSub) {
     ASSERT_TRUE(f2.get()) << "Receive invalid string!";
 
 }
+
+TEST_F(ReliableZMQTest, TestClientExit) {
+    auto ret = util::ReliableZmqServer::NewSubscribeServer(51200);
+    ASSERT_TRUE(ret) << "Create instance failed";
+    auto receiver = util::ReliableZmqServer::GetSubscribeServer(51200);
+    auto sender = util::ReliableZmqClient::NewPublishClient("127.0.0.1", 51200);
+    ASSERT_TRUE(sender != nullptr) << "Create instance failed";
+
+    auto signal = util::NewSema();
+
+    auto f1 = tp.submit([&sender, &signal]{
+        util::wait_for_sema(signal);
+        return sender->send(std::string("hello, world!"));
+    });
+
+    auto f2 = tp.submit([&receiver, &signal]{
+        util::wait_for_sema(signal);
+        while(true) {
+            auto ret = receiver->receive();
+            if (!ret || ret->to_string() != "hello, world!") {
+                return false;
+            }
+        }
+    });
+
+    signal.signal(2);
+    ASSERT_TRUE(f1.get()) << "Can not send msg!";
+    // Wait for receiver instance block
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    // delete the receiver
+    receiver->close();
+    ASSERT_TRUE(!f2.get()) << "Unexpected return!";
+    receiver.reset();
+    util::ReliableZmqServer::DestroySubscribeServer(51200);
+}
+
 
 TEST_F(ReliableZMQTest, MultiGetStore) {
     int64_t strLen = 256;  // bytes
@@ -85,8 +119,6 @@ TEST_F(ReliableZMQTest, MultiGetStore) {
 
     auto f1 = tp.submit([&]{
         util::wait_for_sema(signal);
-        // Give the subscribers a chance to connect, so they don't lose any messages
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
         timer.start();
         for (auto& msg: messageList) {
             auto ret = sender->send(std::move(msg));

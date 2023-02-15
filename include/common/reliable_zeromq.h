@@ -28,6 +28,8 @@ namespace util {
             return receiver->receive();
         }
 
+        void close() { receiver->close(); }
+
         // When receive garbage, try this one
         inline std::optional<zmq::message_t> waitReady() {
             util::wait_for_sema(readySema);
@@ -87,6 +89,13 @@ namespace util {
                 return nullptr;
             }
             return {globalControlService->getReliableZmqServer(port), deleter};
+        }
+
+        static bool DestroySubscribeServer(int port) {
+            if (globalControlService == nullptr) {
+                return false;
+            }
+            return globalControlService->dropConnection(port);
         }
 
     protected:

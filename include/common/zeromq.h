@@ -87,6 +87,8 @@ namespace util {
             }
         }
 
+        void close() { _context->close(); _socket->close(); }
+
         // Zero copy is only available for sender
         template<class CT=std::string>
         requires requires (CT x) { static_cast<void *>(x.data()); x.size(); CT(std::forward<CT>(x)); }

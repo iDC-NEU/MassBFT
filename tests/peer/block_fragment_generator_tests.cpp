@@ -69,8 +69,6 @@ TEST_F(BFGTest, IntrgrateTest) {
 
             ASSERT_TRUE(contextReconstruct->regenerateMessage((int)message.size(), messageOut));
             ASSERT_TRUE(messageOut == message) << messageOut.substr(0, 100) << " vs " << message.substr(0, 100);
-            bfg.freeContext(std::move(contextReconstruct));
-            bfg.freeContext(std::move(context));
         }
     } catch (const std::exception& e) {
         ASSERT_TRUE(false) << e.what();
@@ -152,8 +150,6 @@ TEST_F(BFGTest, IntrgrateTestParallel) {
 
         ASSERT_TRUE(contextReconstruct->regenerateMessage((int)message.size(), messageOut));
         ASSERT_TRUE(messageOut == message) << messageOut.substr(0, 100) << " vs " << message.substr(0, 100);
-        bfg.freeContext(std::move(contextReconstruct));
-        bfg.freeContext(std::move(context));
     }
     LOG(INFO) << "Total time: " << timer.end();
     LOG(INFO) << "Ratio: " << (double)segList[0].size()/4*33/(int)message.size();
@@ -238,8 +234,6 @@ TEST_F(BFGTest, IntrgrateTestMultiInstanceParallel) {
 
             ASSERT_TRUE(contextReconstruct->regenerateMessage((int)message.size(), messageOut));
             ASSERT_TRUE(messageOut == message) << messageOut.substr(0, 100) << " vs " << message.substr(0, 100);
-            bfg.freeContext(std::move(contextReconstruct));
-            bfg.freeContext(std::move(context));
         });
     }
     for(auto&f:futureList) {

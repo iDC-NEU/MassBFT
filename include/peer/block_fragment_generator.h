@@ -7,6 +7,7 @@
 #include "common/erasure_code.h"
 #include "common/parallel_merkle_tree.h"
 #include "common/thread_pool_light.h"
+#include "common/matrix_2d.h"
 #include "rigtorp/MPMCQueue.h"
 #include "gtl/phmap.hpp"
 #include "glog/logging.h"
@@ -386,40 +387,36 @@ namespace peer {
         template<class ErasureCodeType=util::GoErasureCode>
         requires std::is_base_of<util::ErasureCode, ErasureCodeType>::value
         BlockFragmentGenerator(const std::vector<Config>& cfgList, util::thread_pool_light* wpForMTAndEC_)
-            :wpForMTAndEC(wpForMTAndEC_) {
-            size_t max_x = 0, max_y = 0;
+                : wpForMTAndEC(wpForMTAndEC_) {
+            int max_x = 0, max_y = 0;
             for (const auto& cfg: cfgList) {
-                if ((size_t)cfg.dataShardCnt > max_x) {
-                    max_x = (size_t)cfg.dataShardCnt;
+                if (cfg.dataShardCnt > max_x) {
+                    max_x = cfg.dataShardCnt;
                 }
-                if ((size_t)cfg.parityShardCnt > max_y) {
-                    max_y = (size_t)cfg.parityShardCnt;
+                if (cfg.parityShardCnt > max_y) {
+                    max_y = cfg.parityShardCnt;
                 }
             }
-            ecMap.resize(max_x);
-            semaMap.resize(max_x);
-            for (auto i=0; i<(int)max_x; i++) {
-                ecMap[i].resize(max_y);
-                semaMap[i] = std::vector<moodycamel::LightweightSemaphore>(max_y);
-            }
+            ecMap.reset(max_x, max_y);
+            semaMap.reset(max_x, max_y);
 
             for (const auto& cfg: cfgList) {
                 // index=actual-1
-                auto x = (size_t)cfg.dataShardCnt - 1;
-                auto y = (size_t)cfg.parityShardCnt - 1;
+                auto x = cfg.dataShardCnt - 1;
+                auto y = cfg.parityShardCnt - 1;
                 // check if we have already allocate
-                if (ecMap[x][y] != nullptr) {
+                if (ecMap(x, y) != nullptr) {
                     continue;
                 }
                 auto totalInstanceCount = cfg.instanceCount*cfg.concurrency;
                 // allocate new queue
                 auto queue = std::make_unique<ECListType>(totalInstanceCount);
-                auto& sema = semaMap[x][y];
+                auto& sema = semaMap(x, y);
                 // fill in ec instance
                 for (int i=0; i<totalInstanceCount; i++) {
                     queue->push(std::make_unique<ErasureCodeType>(cfg.dataShardCnt, cfg.parityShardCnt));
                 }
-                ecMap[x][y] = std::move(queue);
+                ecMap(x, y) = std::move(queue);
                 sema.signal(totalInstanceCount);
             }
         }
@@ -430,37 +427,40 @@ namespace peer {
 
         // The caller must ensure the total acquire instance is smaller than the remain instance!
         // Or there may be a deadlock!
-        std::unique_ptr<Context> getEmptyContext(const Config& cfg) {
-            auto x = (size_t)cfg.dataShardCnt - 1;
-            auto y = (size_t)cfg.parityShardCnt - 1;
-            if (ecMap.size() < x+1 ||ecMap[x].size() < y+1) {
+        std::shared_ptr<Context> getEmptyContext(const Config& cfg) {
+            auto x = cfg.dataShardCnt - 1;
+            auto y = cfg.parityShardCnt - 1;
+            if (ecMap.x() < x+1 ||ecMap.y() < y+1) {
                 LOG(ERROR) << "ecMap index out of range.";
                 return nullptr;
             }
-            util::wait_for_sema(semaMap[x][y], cfg.instanceCount);
-            std::unique_ptr<Context> context(new Context(cfg, wpForMTAndEC));
+            util::wait_for_sema(semaMap(x, y), cfg.instanceCount);
+            std::shared_ptr<Context> context(new Context(cfg, wpForMTAndEC), [this](Context* ret){
+                this->freeContext(std::unique_ptr<Context>(ret));
+            });
             context->ec.resize(cfg.instanceCount);
             for(int i=0; i<cfg.instanceCount; i++) {
-                ecMap[x][y]->pop(context->ec[i]);
+                ecMap(x, y)->pop(context->ec[i]);
             }
             return context;
         }
 
+    protected:
         bool freeContext(std::unique_ptr<Context> context) {
-            auto x = (size_t)context->_ecConfig.dataShardCnt - 1;
-            auto y = (size_t)context->_ecConfig.parityShardCnt - 1;
+            auto x = context->_ecConfig.dataShardCnt - 1;
+            auto y = context->_ecConfig.parityShardCnt - 1;
             // restore all ec
             for(int i=0; i<context->_ecConfig.instanceCount; i++) {
-                ecMap[x][y]->push(std::move(context->ec[i]));
+                ecMap(x, y)->push(std::move(context->ec[i]));
             }
-            semaMap[x][y].signal(context->_ecConfig.instanceCount);
+            semaMap(x, y).signal(context->_ecConfig.instanceCount);
             return true;
         }
 
     private:
         using ECListType = rigtorp::MPMCQueue<std::unique_ptr<util::ErasureCode>>;
-        std::vector<std::vector<std::unique_ptr<ECListType>>> ecMap;
-        std::vector<std::vector<moodycamel::LightweightSemaphore>> semaMap;
+        util::Matrix2D<std::unique_ptr<ECListType>> ecMap;
+        util::Matrix2D<moodycamel::LightweightSemaphore> semaMap;
         util::thread_pool_light* wpForMTAndEC;
     };
 }

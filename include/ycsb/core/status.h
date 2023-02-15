@@ -17,16 +17,16 @@ namespace ycsb::core {
         Status(const Status& rhs) = default;
 
         virtual ~Status() = default;
-        bool isOk () {
+        [[nodiscard]] bool isOk () const {
             return this->name == "OK" || this->name == "BATCHED_OK";
         }
-        const auto& getName() {
+        [[nodiscard]] const auto& getName() const {
             return name;
         }
-        const auto& getDescription() {
+        [[nodiscard]] const auto& getDescription() const {
             return description;
         }
-        bool operator==(const Status& rhs) {
+        [[nodiscard]] bool operator==(const Status& rhs) const {
             return this->name == rhs.name;
         }
     private:

@@ -35,7 +35,7 @@ namespace util {
                 socket->set(zmq::sockopt::sndhwm, 0);
             }
             try {
-                auto addr = std::string(std::begin(addrType), std::end(addrType)) + "://"+ ip +":" + std::to_string(port);
+                auto addr = std::string(addrType.data()) + "://"+ ip +":" + std::to_string(port);
                 DLOG(INFO) << "Connect to address: " << addr;
                 socket->connect(addr);
             } catch (const zmq::error_t& error) {
@@ -61,7 +61,7 @@ namespace util {
                 socket->set(zmq::sockopt::sndhwm, 0);
             }
             try {
-                auto addr = std::string(std::begin(addrType), std::end(addrType)) + "://0.0.0.0:" + std::to_string(port);
+                auto addr = std::string(addrType.data()) + "://0.0.0.0:" + std::to_string(port);
                 DLOG(INFO) << "Listening at address: " << addr;
                 socket->bind(addr);
             } catch (const zmq::error_t& error) {
@@ -92,7 +92,7 @@ namespace util {
         requires requires (CT x) { static_cast<void *>(x.data()); x.size(); CT(std::forward<CT>(x)); }
         auto send(CT&& msg) {
             auto* container = new CT(std::forward<CT>(msg));
-            zmq::message_t zmqMsg(static_cast<void *>(container->data()), container->size(), freeBufferCallback < CT >, nullptr);
+            zmq::message_t zmqMsg(static_cast<void *>(container->data()), container->size(), freeBufferCallback<CT>, nullptr);
             return sendInternal(zmqMsg);
         }
 

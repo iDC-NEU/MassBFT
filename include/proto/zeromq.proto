@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+package util;
+option cc_generic_services = true;
+
+message ZmqControlRequest {
+  optional bytes remote_id = 1;     // client id
+  optional int64 port = 2;          // server port to control
+  optional bytes payload = 3;       // for init p2p connection
+};
+
+message ZmqControlResponse {
+  required bool success = 1;        // receive something from server port
+  optional int64 port = 2;          // the actual server port
+  optional bytes payload = 3;       // for init p2p connection
+};
+
+service ZmqControlService {
+  // Client request server to open a new port
+  rpc newConnection(ZmqControlRequest) returns (ZmqControlResponse);
+  // Client test if the port is connectable
+  rpc hello(ZmqControlRequest) returns (ZmqControlResponse);
+  // Client request server to close a port
+  rpc dropConnection(ZmqControlRequest) returns (ZmqControlResponse);
+};

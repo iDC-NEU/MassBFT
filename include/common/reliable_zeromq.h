@@ -5,10 +5,11 @@
 #pragma once
 
 #include "common/zeromq.h"
+#include "common/thread_pool_light.h"
+#include "common/meta_rpc_server.h"
 #include "brpc/server.h"
 #include "brpc/channel.h"
 #include "proto/zeromq.pb.h"
-#include "common/thread_pool_light.h"
 #include <memory>
 #include <shared_mutex>
 
@@ -27,6 +28,7 @@ namespace util {
             return receiver->receive();
         }
 
+        // When receive garbage, try this one
         inline std::optional<zmq::message_t> waitReady() {
             util::wait_for_sema(readySema);
             while(true) {
@@ -56,31 +58,17 @@ namespace util {
         }
 
     public:
-        // not thread safe
-        static int StartRPCServer(int port = 9500) {
-            // Generally you only need one Server.
-            auto server = std::make_unique<brpc::Server>();
+        // not thread safe, invoke BEFORE all operations
+        static int AddRPCService() {
             auto* service = new ZmqControlServiceImpl();
             // Add services into server. Notice the second parameter, because the
             // service is put on stack, we don't want server to delete it, otherwise use brpc::SERVER_OWNS_SERVICE.
-            if (server->AddService(service, brpc::SERVER_OWNS_SERVICE) != 0) {
-                LOG(ERROR) << "Fail to add globalControlService";
+            if (MetaRpcServer::AddService(service, []{ globalControlService = nullptr; }) != 0) {
+                LOG(ERROR) << "Fail to add globalControlService!";
                 return -1;
             }
-            if (server->Start(port, nullptr) != 0) {
-                LOG(ERROR) << "Fail to start HttpServer";
-                return -1;
-            }
-            globalControlServer = std::move(server);
             globalControlService = service;
             return 0;
-        }
-
-        // not thread safe
-        static void StopRPCServer() {
-            globalControlService = nullptr;
-            globalControlServer->Stop(0);
-            globalControlServer.reset();
         }
 
         // just create a sub server
@@ -242,7 +230,6 @@ namespace util {
             std::array<std::unique_ptr<ReliableZmqServer>, 65536> zmqServerList;
         };
 
-        inline static std::unique_ptr<brpc::Server> globalControlServer = nullptr;
         // globalControlServer own globalControlService
         inline static ZmqControlServiceImpl* globalControlService = nullptr;
     };

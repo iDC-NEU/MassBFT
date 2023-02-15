@@ -13,11 +13,12 @@
 class ReliableZMQTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        util::ReliableZmqServer::StartRPCServer();
+        util::ReliableZmqServer::AddRPCService();
+        util::MetaRpcServer::Start();
     };
 
     void TearDown() override {
-        util::ReliableZmqServer::StopRPCServer();
+        util::MetaRpcServer::Stop();
     };
 
     util::thread_pool_light tp{2};
@@ -112,6 +113,8 @@ TEST_F(ReliableZMQTest, MultiGetStore) {
 
     ASSERT_TRUE(f1.get()) << "Can not send msg!";
     ASSERT_TRUE(f2.get()) << "Receive invalid string!";
+
+    ASSERT_TRUE(messageList.size() == receiveList.size());
 
     LOG(INFO) << "Speed (KB/s): " << double(strLen*cnt)/timer.end()/1024;
     LOG(INFO) << "OpLen: " << strLen << ", Speed (KOp/s): " << double(cnt)/timer.end()/1000;

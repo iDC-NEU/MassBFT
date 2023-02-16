@@ -28,7 +28,7 @@ namespace util {
             return receiver->receive();
         }
 
-        void close() { receiver->close(); }
+        void shutdown() { receiver->shutdown(); }
 
         // When receive garbage, try this one
         inline std::optional<zmq::message_t> waitReady() {
@@ -111,6 +111,7 @@ namespace util {
                 if (helloMsg->to_string_view() == HELLO_MESSAGE) {
                     serverPtr->isReady = true;                  // to alert the rpc service
                     serverPtr->readySema.signal(INT32_MAX);     // to alert the local server
+                    // TODO: readySema is only used once, consider refactor
                 }
             }
             return nullptr;

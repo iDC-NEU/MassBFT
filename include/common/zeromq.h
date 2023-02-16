@@ -87,7 +87,7 @@ namespace util {
             }
         }
 
-        void close() { _context->close(); _socket->close(); }
+        void shutdown() { _context->shutdown(); }
 
         // Zero copy is only available for sender
         template<class CT=std::string>

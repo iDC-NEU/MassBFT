@@ -84,7 +84,7 @@ TEST_F(ReliableZMQTest, TestClientExit) {
     // Wait for receiver instance block
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     // delete the receiver
-    receiver->close();
+    receiver->shutdown();
     ASSERT_TRUE(!f2.get()) << "Unexpected return!";
     receiver.reset();
     util::ReliableZmqServer::DestroySubscribeServer(51200);

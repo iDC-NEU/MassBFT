@@ -13,6 +13,8 @@ namespace proto {
     // publicKeyHex, signature
     using SignatureString = std::pair<std::string, util::OpenSSLED25519::digestType>;
 
+    using BlockNumber = uint64_t;
+
     struct KV {
         std::string key;
         std::string value;
@@ -45,7 +47,7 @@ namespace proto {
 
     struct Block {
         struct Header {
-            uint64_t number{};
+            BlockNumber number{};
             // previous hash of ALL the user request
             HashString previousHash{};
             // current user request hash
@@ -79,13 +81,14 @@ namespace proto {
 
     // EncodeMessage has type sv, so encoder / decoder must keep the actual message
     struct EncodeBlockFragment {
-        constexpr static auto serialize(auto & archive, auto & self) {
-            return archive(self.encodeMessage, self.root, self.start, self.end);
+        constexpr static auto serialize(auto& archive, auto& self) {
+            return archive(self.blockNumber, self.root, self.start, self.end, self.encodeMessage);
         }
-        std::string_view encodeMessage;
+        BlockNumber blockNumber;
         pmt::HashString root;
         // the start and end fragment id
         uint32_t start;
         uint32_t end;
+        std::string_view encodeMessage;
     };
 }

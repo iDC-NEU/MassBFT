@@ -5,10 +5,10 @@
 #pragma once
 
 #include "common/zeromq.h"
-#include "common/thread_pool_light.h"
 #include "common/meta_rpc_server.h"
 #include "brpc/server.h"
 #include "brpc/channel.h"
+#include "bthread/countdown_event.h"
 #include "proto/zeromq.pb.h"
 #include <memory>
 #include <shared_mutex>
@@ -32,7 +32,7 @@ namespace util {
 
         // When receive garbage, try this one
         inline std::optional<zmq::message_t> waitReady() {
-            util::wait_for_sema(readySema);
+            while(receivedHello.wait() != 0);
             while(true) {
                 auto data=receiver->receive();
                 if (data != std::nullopt && data->to_string_view() != HELLO_MESSAGE) {
@@ -109,9 +109,8 @@ namespace util {
             auto* serverPtr = static_cast<ReliableZmqServer*>(ptr);
             if (auto helloMsg = serverPtr->receiver->receive(); helloMsg != std::nullopt) {
                 if (helloMsg->to_string_view() == HELLO_MESSAGE) {
-                    serverPtr->isReady = true;                  // to alert the rpc service
-                    serverPtr->readySema.signal(INT32_MAX);     // to alert the local server
-                    // TODO: readySema is only used once, consider refactor
+                    serverPtr->isReady = true;          // to alert the rpc service
+                    serverPtr->receivedHello.signal();  // to alert the local server
                 }
             }
             return nullptr;
@@ -121,12 +120,12 @@ namespace util {
         // if receive hello from remote client, isReady=true
         bthread_t hello_tid;
         std::atomic<bool> isReady;
-        moodycamel::LightweightSemaphore readySema;
+        bthread::CountdownEvent receivedHello;
         std::unique_ptr<ZMQInstance> receiver;
 
         class ZmqControlServiceImpl : public util::ZmqControlService {
         public:
-            void newConnection(google::protobuf::RpcController* controller,
+            void newConnection(google::protobuf::RpcController*,
                                const ::util::ZmqControlRequest* request,
                                ::util::ZmqControlResponse* response,
                                ::google::protobuf::Closure* done) override {
@@ -153,7 +152,7 @@ namespace util {
                 response->set_success(false);
             }
 
-            void hello(google::protobuf::RpcController* controller,
+            void hello(google::protobuf::RpcController*,
                        const ::util::ZmqControlRequest* request,
                        ::util::ZmqControlResponse* response,
                        ::google::protobuf::Closure* done) override {
@@ -173,7 +172,7 @@ namespace util {
                 response->set_success(false); // lock failure
             }
 
-            void dropConnection(google::protobuf::RpcController* controller,
+            void dropConnection(google::protobuf::RpcController*,
                                 const ::util::ZmqControlRequest* request,
                                 ::util::ZmqControlResponse* response,
                                 ::google::protobuf::Closure* done) override {
@@ -291,9 +290,9 @@ namespace util {
                 stub.hello(&ctl, &request, &response, nullptr);
                 if (!ctl.Failed()) {
                     DLOG(INFO) << "Received response from " << ctl.remote_side()
-                              << " to " << ctl.local_side()
-                              << ": " << response.success()
-                              << " latency=" << ctl.latency_us() << "us";
+                               << " to " << ctl.local_side()
+                               << ": " << response.success()
+                               << " latency=" << ctl.latency_us() << "us";
                     if (response.success()) {
                         return rClient;
                     }

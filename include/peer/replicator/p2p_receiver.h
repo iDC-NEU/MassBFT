@@ -41,7 +41,7 @@ namespace peer {
 
     public:
         explicit P2PReceiver(std::unique_ptr<util::ZMQInstance> clientSubscriber)
-        : _clientSubscriber(std::move(clientSubscriber)) {
+                : nextReceiveBlockNumber(0), _clientSubscriber(std::move(clientSubscriber)) {
             bthread_start_background(&tid, &BTHREAD_ATTR_NORMAL, run, this);
         }
 
@@ -52,10 +52,9 @@ namespace peer {
             bthread_join(tid, nullptr);
         }
 
-        void setOnMapUpdate(const std::function<void(BlockNumber)>& handle) {
-            onMapUpdate = handle;
-        }
+        void setOnMapUpdate(const auto& handle) { onMapUpdate = handle; }
 
+        // The block number must increase only!
         bool addMessageToCache(zmq::message_t&& raw) {
             std::unique_ptr<FragmentBlock> fragmentBlock(new FragmentBlock{{}, std::move(raw)});
             std::string_view message(reinterpret_cast<const char*>(fragmentBlock->data.data()), fragmentBlock->data.size());
@@ -66,41 +65,43 @@ namespace peer {
                 return false;
             }
             auto blockNumber = fragmentBlock->ebf.blockNumber;
-            if (blockNumber<nextRequiredBlockNumber.load(std::memory_order_acquire)) {
-                // TODO: Race condition, can not drop all stale requests!
+            if (blockNumber < nextReceiveBlockNumber) {
                 LOG(ERROR) << "Stale block fragment, drop it, " << blockNumber;
                 return false;
+            } else if (blockNumber > nextReceiveBlockNumber) {
+                LOG(WARNING) << "Block number leapfrog from: " << nextReceiveBlockNumber << " to: "<< blockNumber;
             }
-            // store the fragment and the raw data
-            map[blockNumber] = std::move(fragmentBlock);
+
             if (onMapUpdate) {
-                onMapUpdate(blockNumber);
+                onMapUpdate(blockNumber, std::move(fragmentBlock));
+            } else {
+                // store the fragment and the raw data
+                map[blockNumber] = std::move(fragmentBlock);
             }
+            nextReceiveBlockNumber = blockNumber;
             return true;
         }
 
+        // if onMapUpdate is set, do not call this func, use the callback instead.
         std::unique_ptr<FragmentBlock> tryGet(BlockNumber blockNumber) {
+            DCHECK(onMapUpdate == nullptr);
             std::unique_ptr<FragmentBlock> value = nullptr;
-            auto ret = map.erase_if(blockNumber, [&](auto& v) {
+            map.erase_if(blockNumber, [&](auto& v) {
                 if (v.second) {
                     value=std::move(v.second);
                     return true;
                 }
                 return false;
             });
-            if (ret) {
-                nextRequiredBlockNumber.store(blockNumber, std::memory_order_release);
-                return value;
-            }
-            return nullptr;
+            return value;
         }
 
     private:
         // the block number that consumer WILL get from map
-        std::atomic<BlockNumber> nextRequiredBlockNumber;
+        BlockNumber nextReceiveBlockNumber;
         bthread_t tid{};
         std::unique_ptr<util::ZMQInstance> _clientSubscriber;
         gtl::parallel_flat_hash_map<BlockNumber, std::unique_ptr<FragmentBlock>> map;
-        std::function<void(BlockNumber)> onMapUpdate;
+        std::function<void(BlockNumber, std::unique_ptr<FragmentBlock>)> onMapUpdate;
     };
 }

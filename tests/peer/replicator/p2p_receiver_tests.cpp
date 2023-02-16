@@ -8,6 +8,7 @@
 #include "peer/block_fragment_generator.h"
 
 #include "common/cv_wrapper.h"
+#include "bthread/countdown_event.h"
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
@@ -83,19 +84,17 @@ TEST_F(P2PReceiverTest, IntrgrateTest) {
     // Give the subscribers a chance to connect, so they don't lose any messages
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
+    std::unique_ptr<peer::FragmentBlock> block;
+    bthread::CountdownEvent event(1);
+
     peer::P2PReceiver p2PReceiver(std::move(receiver));
-    std::unordered_map<proto::BlockNumber, bool> bits;
-    util::CVWrapper cv;
-    p2PReceiver.setOnMapUpdate([&](auto n){
-        cv.notify_all([&]{
-            bits[n] = true;
-        });
+    p2PReceiver.setOnMapUpdate([&](auto, auto b){
+        // performance issues, set the actual data outside the cv.
+        block = std::move(b);
+        event.signal();
     });
     sender->send(std::move(msg));
-    cv.wait([&] {
-        return bits[bkNum];
-    });
-    auto ret = p2PReceiver.tryGet(bkNum);
-    ASSERT_TRUE(ret != nullptr) << "Can not get block fragments";
+    event.wait();
+    ASSERT_TRUE(block != nullptr) << "Can not get block fragments";
     // TODO: validate fragment
 }

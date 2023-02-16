@@ -3,14 +3,14 @@
 //
 
 #include "ycsb/core/client.h"
-#include <yaml-cpp/yaml.h>
-#include "ycsb/core/property.h"
 #include "ycsb/core/workload/core_workload.h"
 #include "ycsb/core/status_thread.h"
 #include "common/thread_pool_light.h"
+#include "common/property.h"
+#include <yaml-cpp/yaml.h>
 
 int main(int argc, char *argv[]) {
-    auto& n = *ycsb::utils::Properties::getProperties();
+    auto n = util::Properties::GetProperties()->getYCSBProperties();
 
     //get number of threads, target and db
     auto threadCount = n[ycsb::core::Client::THREAD_COUNT_PROPERTY].as<int>(1);

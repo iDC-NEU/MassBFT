@@ -11,12 +11,6 @@
 #include <string>
 
 namespace peer {
-    struct FragmentBlock {
-        proto::EncodeBlockFragment ebf;
-        zmq::message_t data;
-    };
-    using BlockNumber = proto::BlockNumber;
-
     // receive from a peer at another region
     // act as a zmq client
     // locate: int targetGroupId, int targetNodeId
@@ -40,16 +34,22 @@ namespace peer {
         }
 
     public:
-        explicit P2PReceiver(std::unique_ptr<util::ZMQInstance> clientSubscriber)
-                : nextReceiveBlockNumber(0), _clientSubscriber(std::move(clientSubscriber)) {
-            bthread_start_background(&tid, &BTHREAD_ATTR_NORMAL, run, this);
-        }
+        struct FragmentBlock {
+            proto::EncodeBlockFragment ebf;
+            zmq::message_t data;
+        };
+        using BlockNumber = proto::BlockNumber;
 
-        ~P2PReceiver() {
+        virtual ~P2PReceiver() {
             // close the zmq instance to unblock local receiver thread.
             _clientSubscriber->shutdown();
             // join the event loop
             bthread_join(tid, nullptr);
+        }
+
+        void start(std::unique_ptr<util::ZMQInstance> clientSubscriber) {
+            _clientSubscriber = std::move(clientSubscriber);
+            bthread_start_background(&tid, &BTHREAD_ATTR_NORMAL, run, this);
         }
 
         void setOnMapUpdate(const auto& handle) { onMapUpdate = handle; }
@@ -98,7 +98,7 @@ namespace peer {
 
     private:
         // the block number that consumer WILL get from map
-        BlockNumber nextReceiveBlockNumber;
+        BlockNumber nextReceiveBlockNumber = 0;
         bthread_t tid{};
         std::unique_ptr<util::ZMQInstance> _clientSubscriber;
         gtl::parallel_flat_hash_map<BlockNumber, std::unique_ptr<FragmentBlock>> map;

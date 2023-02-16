@@ -84,15 +84,16 @@ TEST_F(P2PReceiverTest, IntrgrateTest) {
     // Give the subscribers a chance to connect, so they don't lose any messages
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
-    std::unique_ptr<peer::FragmentBlock> block;
+    std::unique_ptr<peer::P2PReceiver::FragmentBlock> block;
     bthread::CountdownEvent event(1);
 
-    peer::P2PReceiver p2PReceiver(std::move(receiver));
-    p2PReceiver.setOnMapUpdate([&](auto, auto b){
+    peer::P2PReceiver p2pReceiver;
+    p2pReceiver.setOnMapUpdate([&](auto, auto b){
         // performance issues, set the actual data outside the cv.
         block = std::move(b);
         event.signal();
     });
+    p2pReceiver.start(std::move(receiver));
     sender->send(std::move(msg));
     event.wait();
     ASSERT_TRUE(block != nullptr) << "Can not get block fragments";

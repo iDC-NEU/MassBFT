@@ -16,6 +16,7 @@ namespace util {
         std::string ski;
         std::string ip;
     };
+    using NodeConfigPtr = std::shared_ptr<NodeConfig>;
 
     class Properties {
     private:
@@ -58,14 +59,14 @@ namespace util {
             return n[YCSB_PROPERTY_KEY];
         }
 
-        std::vector<NodeConfig> getNodesInfo() const {
-            std::vector<NodeConfig> ret;
+        auto getNodesInfo() const {
+            std::vector<NodeConfigPtr> ret;
             for (const auto& it: n[NODES_INFO]) {
-                NodeConfig cfg;
-                cfg.nodeId = it["node_id"].as<int>();
-                cfg.groupId = it["group_id"].as<int>();
-                cfg.ski = it["ski"].as<std::string>();
-                cfg.ip = it["ski"].as<std::string>();
+                NodeConfigPtr cfg(new NodeConfig);
+                cfg->nodeId = it["node_id"].as<int>();
+                cfg->groupId = it["group_id"].as<int>();
+                cfg->ski = it["ski"].as<std::string>();
+                cfg->ip = it["ski"].as<std::string>();
                 ret.push_back(cfg);
             }
             return ret;

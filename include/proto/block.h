@@ -82,10 +82,12 @@ namespace proto {
     // EncodeMessage has type sv, so encoder / decoder must keep the actual message
     struct EncodeBlockFragment {
         constexpr static auto serialize(auto& archive, auto& self) {
-            return archive(self.blockNumber, self.root, self.start, self.end, self.encodeMessage);
+            return archive(self.blockNumber, self.root, self.size, self.start, self.end, self.encodeMessage);
         }
         BlockNumber blockNumber;
+        // the size hint of the actual data, and root
         pmt::HashString root;
+        size_t size;
         // the start and end fragment id
         uint32_t start;
         uint32_t end;

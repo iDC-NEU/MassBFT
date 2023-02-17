@@ -133,7 +133,7 @@ TEST_F(CryptoTest, TestED25519Verify) {
     ASSERT_TRUE(hexPubKey == *ret);
 
     ret = validator->getHexFromPrivateKey();
-    if(ret != std::nullopt) {
+    if(ret != nullptr) {
         ASSERT_TRUE(false) << "unexpected load private key";
     }
     ret = validator->getHexFromPublicKey();

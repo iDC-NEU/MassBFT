@@ -6,7 +6,6 @@
 #include "glog/logging.h"
 
 #include "common/bccsp.h"
-#include "common/timer.h"
 #include "common/thread_pool_light.h"
 
 #include <vector>
@@ -22,7 +21,7 @@ protected:
 
 class MockKeyStorage : public util::KeyStorage {
 public:
-    bool saveKey(std::string_view ski, std::string_view raw, bool isPrivate, bool overwrite) override {
+    bool saveKey(std::string_view ski, std::string_view raw, bool isPrivate, bool) override {
         _ski = std::string(ski);
         _raw = std::string(raw);
         _isPrivate = isPrivate;
@@ -47,8 +46,8 @@ TEST_F(BCCSPTest, IntrgrateTest) {
     auto ski_1 = "test_ski_1";
     auto ski_2 = "test_ski_2";
     auto ski_3 = "test_ski_3";
-    auto* key_1 = bccsp.generateED25519Key(ski_1, false);
-    auto* key_2 = bccsp.generateED25519Key(ski_2, true);
+    auto key_1 = bccsp.generateED25519Key(ski_1, false);
+    auto key_2 = bccsp.generateED25519Key(ski_2, true);
     ASSERT_TRUE(key_1 != nullptr && key_2 != nullptr);
     ASSERT_TRUE(msPtr->_ski == ski_1);
 
@@ -99,12 +98,12 @@ TEST_F(BCCSPTest, TestGetKeyPublic) {
     msPtr->_ski = ski_3;
     msPtr->_raw = pubHex;
     msPtr->_isPrivate = false;
-    auto* key_3 = bccsp.GetKey(ski_3);
+    auto key_3 = bccsp.GetKey(ski_3);
     ASSERT_TRUE(key_3->SKI() == ski_3);
     ASSERT_TRUE(key_3->Ephemeral() == false);
     ASSERT_TRUE(key_3->Private() == false);
-    ASSERT_TRUE(key_3->PrivateBytes() == std::nullopt);
-    ASSERT_TRUE(key_3->PublicBytes() != std::nullopt);
+    ASSERT_TRUE(key_3->PrivateBytes() == nullptr);
+    ASSERT_TRUE(key_3->PublicBytes() != nullptr);
     ASSERT_TRUE(*key_3->PublicBytes() == pubHex);
 
     key_3 = bccsp.KeyImportPEM(ski_3, pubPem, true, false);
@@ -119,7 +118,7 @@ TEST_F(BCCSPTest, TestGetKeyPublic) {
     ASSERT_TRUE(key_3 != nullptr);
     ASSERT_TRUE(key_3->SKI() == ski_3);
     ASSERT_TRUE(key_3->Private() == true);
-    ASSERT_TRUE(key_3->PrivateBytes() != std::nullopt);
+    ASSERT_TRUE(key_3->PrivateBytes() != nullptr);
     ASSERT_TRUE(*key_3->PrivateBytes() == priHex);
     ASSERT_TRUE(msPtr->_raw == priHex);
     ASSERT_TRUE(msPtr->_isPrivate == true);
@@ -149,12 +148,12 @@ TEST_F(BCCSPTest, TestGetKeyPrivate) {
     msPtr->_ski = ski_3;
     msPtr->_raw = priHex;
     msPtr->_isPrivate = true;
-    auto* key_3 = bccsp.GetKey(ski_3);
+    auto key_3 = bccsp.GetKey(ski_3);
     ASSERT_TRUE(key_3->SKI() == ski_3);
     ASSERT_TRUE(key_3->Ephemeral() == false);
     ASSERT_TRUE(key_3->Private() == true);
-    ASSERT_TRUE(key_3->PrivateBytes() != std::nullopt);
-    ASSERT_TRUE(key_3->PublicBytes() != std::nullopt);
-    ASSERT_TRUE(key_3->PrivateBytes() == priHex);
+    ASSERT_TRUE(key_3->PrivateBytes() != nullptr);
+    ASSERT_TRUE(key_3->PublicBytes() != nullptr);
+    ASSERT_TRUE(*key_3->PrivateBytes() == priHex);
     ASSERT_TRUE(*key_3->PublicBytes() == pubHex);
 }

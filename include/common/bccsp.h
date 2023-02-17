@@ -33,14 +33,14 @@ namespace util {
 
         // Bytes converts this key to its byte representation,
         // if this operation is allowed.
-        [[nodiscard]] std::optional<std::string> PrivateBytes() const {
+        [[nodiscard]] std::shared_ptr<std::string> PrivateBytes() const {
             if (!isPrivate) {
-                return std::nullopt;
+                return nullptr;
             }
             return _privateKey.getHexFromPrivateKey();
         }
 
-        [[nodiscard]] std::optional<std::string> PublicBytes() const {
+        [[nodiscard]] std::shared_ptr<std::string> PublicBytes() const {
             return _publicKey.getHexFromPublicKey();
         }
 
@@ -89,6 +89,9 @@ namespace util {
         util::OpenSSLED25519 _privateKey;
     };
 
+    using CstKeyPtr = std::shared_ptr<const Key>;
+    using KeyPtr = std::shared_ptr<Key>;
+
     // default key storage
     class KeyStorage {
     public:
@@ -115,7 +118,7 @@ namespace util {
 
         // KeyGen generates a key using opts.
         // Ephemeral returns true if the key to generate has to be ephemeral,
-        const Key *generateED25519Key(std::string_view ski, bool ephemeral) {
+        CstKeyPtr generateED25519Key(std::string_view ski, bool ephemeral) {
             auto ret = util::OpenSSLED25519::generateKeyFiles({}, {}, {});
             if (!ret) {
                 return nullptr;
@@ -136,16 +139,16 @@ namespace util {
                 }
             }
             // generate a key object
-            auto key = std::make_unique<Key>(std::string(ski), std::move(pub), std::move(pri), ephemeral);
-            cache[key->SKI()] = std::move(key);
-            return cache[ski].get();
+            auto key = std::make_shared<Key>(std::string(ski), std::move(pub), std::move(pri), ephemeral);
+            cache[key->SKI()] = key;
+            return key;
         }
 
         // KeyImport imports a key from its raw representation using opts.
         // The opts argument should be appropriate for the primitive used.
-        const Key *KeyImportPEM(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) {
+        CstKeyPtr KeyImportPEM(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) {
             std::unique_ptr<util::OpenSSLED25519> pri, pub;
-            std::unique_ptr<Key> key;
+            KeyPtr key;
             if (isPrivate) {
                 // load from private key
                 pri = util::OpenSSLED25519::NewFromPemString(raw, "");
@@ -163,7 +166,7 @@ namespace util {
                     return nullptr;
                 }
                 // new key
-                key = std::make_unique<Key>(std::string(ski), std::move(pub), std::move(pri), ephemeral);
+                key = std::make_shared<Key>(std::string(ski), std::move(pub), std::move(pri), ephemeral);
                 if (!ephemeral) {
                     auto ret2 = key->PrivateBytes();
                     if (!ret2) {
@@ -178,7 +181,7 @@ namespace util {
                     return nullptr;
                 }
                 // new key
-                key = std::make_unique<Key>(std::string(ski), std::move(pub), ephemeral);
+                key = std::make_shared<Key>(std::string(ski), std::move(pub), ephemeral);
                 if (!ephemeral) {
                     auto ret = key->PublicBytes();
                     if (!ret) {
@@ -187,20 +190,20 @@ namespace util {
                     storage->saveKey(ski, *ret, false, true);
                 }
             }
-            cache[key->SKI()] = std::move(key);
-            return cache[ski].get();
+            cache[key->SKI()] = key;
+            return key;
         }
 
-        const Key *KeyImportRAW(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) {
+        CstKeyPtr KeyImportRAW(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) {
             return KeyImportRAWInner<true>(ski, raw, isPrivate, ephemeral);
         }
 
         // GetKey returns the key this CSP associates to
         // the Subject Key Identifier ski.
-        [[nodiscard]] const Key *GetKey(std::string_view ski) const {
+        [[nodiscard]] CstKeyPtr GetKey(std::string_view ski) const {
             // load from cache
             if (cache.contains(ski)) {
-                return cache.at(ski).get();
+                return cache.at(ski);
             }
             // load from disk
             auto ret = storage->loadKey(ski);
@@ -213,10 +216,9 @@ namespace util {
 
     protected:
         template<bool saveToStorage>
-        [[nodiscard]] const Key *
-        KeyImportRAWInner(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) const {
+        [[nodiscard]] CstKeyPtr KeyImportRAWInner(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) const {
             std::unique_ptr<util::OpenSSLED25519> pri, pub;
-            std::unique_ptr<Key> key;
+            KeyPtr key;
             if (isPrivate) {
                 // load from private key
                 pri = util::OpenSSLED25519::NewPrivateKeyFromHex(raw);
@@ -234,7 +236,7 @@ namespace util {
                     return nullptr;
                 }
                 // new key
-                key = std::make_unique<Key>(std::string(ski), std::move(pub), std::move(pri), ephemeral);
+                key = std::make_shared<Key>(std::string(ski), std::move(pub), std::move(pri), ephemeral);
             } else {
                 // load from public key
                 pub = util::OpenSSLED25519::NewPublicKeyFromHex(raw);
@@ -242,17 +244,17 @@ namespace util {
                     return nullptr;
                 }
                 // new key
-                key = std::make_unique<Key>(std::string(ski), std::move(pub), ephemeral);
+                key = std::make_shared<Key>(std::string(ski), std::move(pub), ephemeral);
             }
             if (!ephemeral && saveToStorage) {
                 storage->saveKey(ski, raw, isPrivate, true);
             }
-            cache[key->SKI()] = std::move(key);
-            return cache[ski].get();
+            cache[key->SKI()] = key;
+            return key;
         }
 
     private:
-        mutable gtl::parallel_flat_hash_map<std::string_view, std::unique_ptr<Key>> cache;
+        mutable gtl::parallel_flat_hash_map<std::string_view, KeyPtr> cache;
         std::unique_ptr<KeyStorage> storage;
     };
 }

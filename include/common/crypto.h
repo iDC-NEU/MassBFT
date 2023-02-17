@@ -311,17 +311,16 @@ namespace util {
         }
 
         template<decltype(EVP_PKEY_get_raw_public_key) Func>
-        [[nodiscard]] inline std::optional<std::string> getRawHexFromPKey() const {
+        [[nodiscard]] inline std::shared_ptr<std::string> getRawHexFromPKey() const {
             size_t len;
             // get the length
             auto ret = Func(pkey.get(), nullptr, &len);
             if (ret != 1) { // operation not support
-                return std::nullopt;
+                return nullptr;
             }
-            std::string buffer;
-            buffer.resize(len);
+            auto buffer = std::make_shared<std::string>(len, '\0');
             // get the data
-            Func(pkey.get(), reinterpret_cast<unsigned char *>(buffer.data()), &len);
+            Func(pkey.get(), reinterpret_cast<unsigned char *>(buffer->data()), &len);
             return buffer;
         }
 

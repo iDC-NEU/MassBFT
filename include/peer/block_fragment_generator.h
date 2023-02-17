@@ -60,6 +60,7 @@ namespace peer {
             // Invoke for validation
             // support concurrent validation
             // This func will throw runtime error
+            // WARNING: THE CALLER MUST KEEP THE RAW FRAGMENT UNTIL GENERATED, std::string_view raw
             bool validateAndDeserializeFragments(const pmt::HashString& root, std::string_view raw, int start, int end) {
                 if (start<0 || start>=end || end>fragmentCnt) {
                     LOG(ERROR) << "index out of range!";

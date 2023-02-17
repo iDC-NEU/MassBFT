@@ -68,7 +68,7 @@ namespace peer {
             if (blockNumber < nextReceiveBlockNumber) {
                 LOG(ERROR) << "Stale block fragment, drop it, " << blockNumber;
                 return false;
-            } else if (blockNumber > nextReceiveBlockNumber) {
+            } else if (blockNumber > nextReceiveBlockNumber+1) {
                 LOG(WARNING) << "Block number leapfrog from: " << nextReceiveBlockNumber << " to: "<< blockNumber;
             }
 

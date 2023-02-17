@@ -59,33 +59,87 @@ TEST_F(BlockReceiverTest, IntrgrateTest) {
     int regionId = 0;
     int nodesPerRegion = 4;
     int blockNumber = 10;
+    // prepare all fragments
+    std::vector<std::unique_ptr<util::ZMQInstance>> servers(nodesPerRegion);
+    for(int i=0; i<(int)servers.size(); i++) {
+        auto sender = util::ZMQInstance::NewServer<zmq::socket_type::pub>(51200+i);
+        ASSERT_TRUE(sender != nullptr) << "Create instance failed";
+        servers[i] = std::move(sender);
+    }
+    int shardPerNode = (parityShardCnt+senderPosition)/nodesPerRegion;    // must be divisible
+    // spin up client
     auto nodesCfg = GenerateNodesConfig(regionId, nodesPerRegion);
     auto regionZeroReceiver = peer::SingleRegionBlockReceiver::NewSingleRegionBlockReceiver(bfgUtils.bfg, bfgUtils.cfgList[regionId], nodesCfg);
     ASSERT_TRUE(regionZeroReceiver != nullptr) << "Create instance failed";
     regionZeroReceiver->activeStart(blockNumber);
 
-    // prepare all fragments
-    auto senderContext = bfgUtils.getContext(senderPosition);
-    std::vector<std::unique_ptr<util::ZMQInstance>> servers(nodesPerRegion);
-    std::vector<std::string> serializedFragment(nodesPerRegion);
-    int shardPerNode = (parityShardCnt+senderPosition)/nodesPerRegion;    // must be divisible
-    for(int i=0; i<(int)servers.size(); i++) {
-        serializedFragment[i] = bfgUtils.generateMockFragment(senderContext.get(), blockNumber, i*shardPerNode, (i+1)*shardPerNode);
-
-        auto sender = util::ZMQInstance::NewServer<zmq::socket_type::pub>(51200+i);
-        ASSERT_TRUE(sender != nullptr) << "Create instance failed";
-        servers[i] = std::move(sender);
-    }
     // Give the subscribers a chance to connect, so they don't lose any messages
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
+    auto senderContext = bfgUtils.getContext(senderPosition);
+    std::vector<std::string> serializedFragment(nodesPerRegion);
+    for(int i=0; i<(int)servers.size(); i++) {
+        serializedFragment[i] = bfgUtils.generateMockFragment(senderContext.get(), blockNumber, i*shardPerNode, (i+1)*shardPerNode);
+    }
     // send fragment to corresponding peer
     for(int i=0; i<(int)servers.size(); i++) {
         servers[i]->send(std::move(serializedFragment[i]));
     }
 
+    // check the received fragment
     auto ret = regionZeroReceiver->activeGet();
     ASSERT_TRUE(ret != nullptr) << "Can not get block fragments!";
+    if (*ret != bfgUtils.message) {
+        LOG(INFO) << ret->substr(0, 100);
+        LOG(INFO) << bfgUtils.message.substr(0, 100);
+    }
     ASSERT_TRUE(*ret == bfgUtils.message) << "Message mismatch!";
+}
 
+// test if there is a resource leak
+TEST_F(BlockReceiverTest, ContinueousSending) {
+    // region 0
+    int regionId = 0;
+    int nodesPerRegion = 4;
+    int startWith = 10;
+    int endWith = 1000;
+    // prepare all fragments
+    std::vector<std::unique_ptr<util::ZMQInstance>> servers(nodesPerRegion);
+    for(int i=0; i<(int)servers.size(); i++) {
+        auto sender = util::ZMQInstance::NewServer<zmq::socket_type::pub>(51200+i);
+        ASSERT_TRUE(sender != nullptr) << "Create instance failed";
+        servers[i] = std::move(sender);
+    }
+    int shardPerNode = (parityShardCnt+senderPosition)/nodesPerRegion;    // must be divisible
+    // spin up client
+    auto nodesCfg = GenerateNodesConfig(regionId, nodesPerRegion);
+    auto regionZeroReceiver = peer::SingleRegionBlockReceiver::NewSingleRegionBlockReceiver(bfgUtils.bfg, bfgUtils.cfgList[regionId], nodesCfg);
+    ASSERT_TRUE(regionZeroReceiver != nullptr) << "Create instance failed";
+    regionZeroReceiver->passiveStart(startWith);
+
+    // Give the subscribers a chance to connect, so they don't lose any messages
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+    for (int blockNumber=startWith; blockNumber<endWith; blockNumber++) {
+        LOG(INFO) << "Block number " << blockNumber << " start sending.";
+        tests::BFGUtils::FillDummy(bfgUtils.message, 1024*1024*2);
+        auto senderContext = bfgUtils.getContext(senderPosition);
+        std::vector<std::string> serializedFragment(nodesPerRegion);
+        for(int i=0; i<(int)servers.size(); i++) {
+            serializedFragment[i] = bfgUtils.generateMockFragment(senderContext.get(), blockNumber, i*shardPerNode, (i+1)*shardPerNode);
+        }
+        // send fragment to corresponding peer
+        for(int i=0; i<(int)servers.size(); i++) {
+            servers[i]->send(std::move(serializedFragment[i]));
+        }
+
+        // check the received fragment
+        auto ret = regionZeroReceiver->passiveGet(blockNumber);
+        ASSERT_TRUE(ret != nullptr) << "Can not get block fragments!";
+        if (*ret != bfgUtils.message) {
+            LOG(INFO) << ret->substr(0, 100);
+            LOG(INFO) << bfgUtils.message.substr(0, 100);
+        }
+        ASSERT_TRUE(*ret == bfgUtils.message) << "Message mismatch!";
+    }
 }

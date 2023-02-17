@@ -167,7 +167,7 @@ namespace peer {
             auto* receiver = static_cast<SingleRegionBlockReceiver*>(ptr);
             auto& buf =  receiver->_ringBuf;
             auto nextBlockNumber = buf.nextBlock();
-            LOG(INFO) << "SingleRegionBlockReceiver active get start from block:" << nextBlockNumber;
+            LOG(INFO) << "SingleRegionBlockReceiver active get start from block: " << nextBlockNumber;
             while(!receiver->tearDownSignal) {
                 auto ret = receiver->passiveGet(nextBlockNumber);
                 if (ret == nullptr) {
@@ -190,17 +190,23 @@ namespace peer {
 
             auto& queue = _ringBuf.get(number);
             // There may exist multiple fragments, so multiple slot is needed.
-            BufferBlock tmp;
+            std::vector<BufferBlock> blockList;
             const uint32_t minShardRequire = _fragmentConfig.dataShardCnt;
             const uint32_t totalShard = _fragmentConfig.dataShardCnt + _fragmentConfig.parityShardCnt;
             std::map<pmt::HashString, BlockRegenerateOptions> haveShard;    // TODO: make val.size byzantine free
             while (!tearDownSignal) {
-                if (!queue.wait_dequeue_timed(tmp, DEQUEUE_TIMEOUT_US)) {
-                    continue;   // retry after timeout
+                {
+                    BufferBlock tmp;
+                    if (!queue.wait_dequeue_timed(tmp, DEQUEUE_TIMEOUT_US)) {
+                        continue;   // retry after timeout
+                    }
+                    blockList.push_back(std::move(tmp));
                 }
-                auto& ebf = tmp.fragment->ebf;
+                auto& ebf = blockList.back().fragment->ebf;
                 if (ebf.blockNumber != number) {
-                    LOG(WARNING) << "Receive incorrect block number: " << ebf.blockNumber << ", want:" << number;
+                    if (ebf.blockNumber > number) {
+                        LOG(WARNING) << "Receive incorrect block number: " << ebf.blockNumber << ", want:" << number;
+                    }
                     continue;
                 }
                 auto& val = haveShard[ebf.root];

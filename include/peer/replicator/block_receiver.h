@@ -80,13 +80,13 @@ namespace peer {
         ~SingleRegionBlockReceiver() {
             tearDownSignal = true;
             _receiverList.clear();
-            bthread_join(_tid, nullptr);
+            if (tid) { tid->join(); }
         }
 
         // active object version
         void activeStart(proto::BlockNumber startAt) {
             passiveStart(startAt);
-            bthread_start_background(&_tid, &BTHREAD_ATTR_NORMAL, run, this);
+            tid = std::make_unique<std::thread>(run, this);
         }
 
         // block may be nullptr;
@@ -164,6 +164,7 @@ namespace peer {
                 , _fragmentConfig(fragmentConfig) { }
 
         static void* run(void* ptr) {
+            pthread_setname_np(pthread_self(), "blk_receiver");
             auto* receiver = static_cast<SingleRegionBlockReceiver*>(ptr);
             auto& buf =  receiver->_ringBuf;
             auto nextBlockNumber = buf.nextBlock();
@@ -241,7 +242,7 @@ namespace peer {
         }
 
     private:
-        bthread_t _tid = {};
+        std::unique_ptr<std::thread> tid;
         volatile bool tearDownSignal = false;
         std::shared_ptr<BlockFragmentGenerator> _bfg;
         const BlockFragmentGenerator::Config _fragmentConfig;

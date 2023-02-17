@@ -18,14 +18,23 @@ public:
     BlockReceiverTest() {
         dataShardCnt = 4;
         parityShardCnt = 8;
+        senderPosition = -1;
+        refreshConfig();
+    }
+
+    void refreshConfig() {
+        bfgUtils.cfgList.clear();
         for(int i=0; i<4; i++) {
-            // 4 regions, each region 4+4 shards
+            // Each zone must guarantee at least one configuration
+            // Pushing more configs is good for concurrency
+            // We only have 1 region here, so size of the config is set to 4
             bfgUtils.addCFG(dataShardCnt, parityShardCnt, 1, 2);
         }
         // the sender cfg
         senderPosition = bfgUtils.addCFG(dataShardCnt, parityShardCnt, 1, 2);
         bfgUtils.startBFG();
     }
+
     static std::vector<ConfigPtr> GenerateNodesConfig(int groupId, int count) {
         std::vector<ConfigPtr> nodesConfig;
         for (int i=0; i<count; i++) {
@@ -68,7 +77,7 @@ TEST_F(BlockReceiverTest, IntrgrateTest) {
         ASSERT_TRUE(sender != nullptr) << "Create instance failed";
         servers[i] = std::move(sender);
     }
-    int shardPerNode = (parityShardCnt+senderPosition)/nodesPerRegion;    // must be divisible
+    int shardPerNode = (parityShardCnt+dataShardCnt)/nodesPerRegion;    // must be divisible
     // spin up client
     auto nodesCfg = GenerateNodesConfig(regionId, nodesPerRegion);
     auto regionZeroReceiver = peer::SingleRegionBlockReceiver::NewSingleRegionBlockReceiver(bfgUtils.bfg, bfgUtils.cfgList[regionId], nodesCfg);
@@ -112,7 +121,7 @@ TEST_F(BlockReceiverTest, ContinueousSending) {
         ASSERT_TRUE(sender != nullptr) << "Create instance failed";
         servers[i] = std::move(sender);
     }
-    int shardPerNode = (parityShardCnt+senderPosition)/nodesPerRegion;    // must be divisible
+    int shardPerNode = (parityShardCnt+dataShardCnt)/nodesPerRegion;    // must be divisible
     // spin up client
     auto nodesCfg = GenerateNodesConfig(regionId, nodesPerRegion);
     auto regionZeroReceiver = peer::SingleRegionBlockReceiver::NewSingleRegionBlockReceiver(bfgUtils.bfg, bfgUtils.cfgList[regionId], nodesCfg);
@@ -150,9 +159,12 @@ TEST_F(BlockReceiverTest, ContinueousSending) {
 TEST_F(BlockReceiverTest, SendingAsync) {
     // region 0
     int regionId = 0;
-    int nodesPerRegion = 4;
+    int nodesPerRegion = 12;
     int startWith = 0;
     int endWith = 100;
+    dataShardCnt = nodesPerRegion;
+    parityShardCnt = nodesPerRegion*2;
+    refreshConfig();
     // prepare all fragments
     std::vector<std::unique_ptr<util::ZMQInstance>> servers(nodesPerRegion);
     for(int i=0; i<(int)servers.size(); i++) {
@@ -160,7 +172,7 @@ TEST_F(BlockReceiverTest, SendingAsync) {
         ASSERT_TRUE(sender != nullptr) << "Create instance failed";
         servers[i] = std::move(sender);
     }
-    int shardPerNode = (parityShardCnt+senderPosition)/nodesPerRegion;    // must be divisible
+    int shardPerNode = (parityShardCnt+dataShardCnt)/nodesPerRegion;    // must be divisible
     // spin up client
     auto nodesCfg = GenerateNodesConfig(regionId, nodesPerRegion);
     auto regionZeroReceiver = peer::SingleRegionBlockReceiver::NewSingleRegionBlockReceiver(bfgUtils.bfg, bfgUtils.cfgList[regionId], nodesCfg);
@@ -172,7 +184,7 @@ TEST_F(BlockReceiverTest, SendingAsync) {
 
     std::vector<std::string> msgList(endWith - startWith);
     for (int blockNumber=startWith; blockNumber<endWith; blockNumber++) {
-        tests::BFGUtils::FillDummy(msgList[blockNumber-startWith], 1024 * 1024 * 2);
+        tests::BFGUtils::FillDummy(msgList[blockNumber-startWith], 250 * 1024);
     }
 
     auto f1 = bfgUtils.tp->submit([&]{

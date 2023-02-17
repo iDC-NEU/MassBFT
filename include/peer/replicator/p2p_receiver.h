@@ -18,6 +18,7 @@ namespace peer {
     protected:
         // use an event loop to drain block pieces from zmq sender.
         static void* run(void* ptr) {
+            pthread_setname_np(pthread_self(), "p2p_receiver");
             auto* instance=static_cast<P2PReceiver*>(ptr);
             while(true) {
                 auto ret = instance->_clientSubscriber->receive();
@@ -44,12 +45,12 @@ namespace peer {
             // close the zmq instance to unblock local receiver thread.
             _clientSubscriber->shutdown();
             // join the event loop
-            bthread_join(tid, nullptr);
+            if (tid) { tid->join(); }
         }
 
         void start(std::unique_ptr<util::ZMQInstance> clientSubscriber) {
             _clientSubscriber = std::move(clientSubscriber);
-            bthread_start_background(&tid, &BTHREAD_ATTR_NORMAL, run, this);
+            tid = std::make_unique<std::thread>(run, this);
         }
 
         void setOnMapUpdate(const auto& handle) { onMapUpdate = handle; }
@@ -99,7 +100,7 @@ namespace peer {
     private:
         // the block number that consumer WILL get from map
         BlockNumber nextReceiveBlockNumber = 0;
-        bthread_t tid{};
+        std::unique_ptr<std::thread> tid;
         std::unique_ptr<util::ZMQInstance> _clientSubscriber;
         gtl::parallel_flat_hash_map<BlockNumber, std::unique_ptr<FragmentBlock>> map;
         std::function<void(BlockNumber, std::unique_ptr<FragmentBlock>)> onMapUpdate;

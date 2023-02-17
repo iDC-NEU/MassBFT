@@ -2,10 +2,8 @@
 // Created by peng on 2/16/23.
 //
 
-#include <memory>
-
 #include "peer/replicator/p2p_receiver.h"
-#include "peer/block_fragment_generator.h"
+#include "tests/block_fragment_generator_utils.h"
 
 #include "common/cv_wrapper.h"
 #include "bthread/countdown_event.h"
@@ -16,22 +14,13 @@
 class P2PReceiverTest : public ::testing::Test {
 public:
     P2PReceiverTest() {
-        fillDummy(message, 1024*1024*2);
-        tp = std::make_unique<util::thread_pool_light>();
-        cfg = { .dataShardCnt=4,
-                .parityShardCnt=4,
-                .instanceCount=1,
-                .concurrency=2, };
+        bfgUtils.addCFG(4, 4, 1, 2);
+        bfgUtils.startBFG();
     }
 
 protected:
     void SetUp() override {
-        // crypto and message pre-allocate
-        util::OpenSSLSHA256::initCrypto();
-        std::vector<peer::BlockFragmentGenerator::Config> cfgList = {cfg};
-        bfg = std::make_unique<peer::BlockFragmentGenerator>(cfgList, tp.get());
-        context = bfg->getEmptyContext(cfg);
-        context->initWithMessage(message);
+        context = bfgUtils.getContext(0);
     };
 
     void TearDown() override {
@@ -39,36 +28,11 @@ protected:
     };
 
     std::string generateMockFragment(proto::BlockNumber number, uint32_t start, uint32_t end) {
-        proto::EncodeBlockFragment fragment{number, {}, start, end, {}};
-        auto encodeMessageBuf = fillFragment(start, end);
-        fragment.encodeMessage = encodeMessageBuf;
-        std::string dataOut;
-        zpp::bits::out out(dataOut);
-        if(failure(out(fragment))) {
-            CHECK(false) << "Encode message fragment failed!";
-        }
-        return dataOut;
-    }
-
-private:
-    std::string fillFragment(uint32_t start, uint32_t end) {
-        std::string buffer;
-        CHECK(context->serializeFragments(start, end, buffer)) << "create fragment failed!";
-        return buffer;
-    }
-
-    static void fillDummy(std::string& dummyBytes, int len) {
-        dummyBytes.resize(len);
-        for (auto &b: dummyBytes) {
-            b = (char)(random() % 256);
-        }
+        return bfgUtils.generateMockFragment(context.get(), number, start, end);
     }
 
 protected:
-    std::string message;
-    std::unique_ptr<util::thread_pool_light> tp;
-    peer::BlockFragmentGenerator::Config cfg;
-    std::unique_ptr<peer::BlockFragmentGenerator> bfg;
+    tests::BFGUtils bfgUtils;
     std::shared_ptr<peer::BlockFragmentGenerator::Context> context;
 };
 

@@ -31,6 +31,8 @@ namespace peer {
             int instanceCount = 1;
             // count of concurrent generator+validator
             int concurrency = 1;
+
+            [[nodiscard]] bool valid() const { return dataShardCnt>0 && parityShardCnt>=0 && instanceCount>0 && concurrency>0;}
         };
 
         class Context {

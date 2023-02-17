@@ -10,6 +10,8 @@
 #include "common/cv_wrapper.h"
 #include "bthread/countdown_event.h"
 
+#include <random>
+
 namespace tests {
     class BFGUtils {
     public:
@@ -60,10 +62,19 @@ namespace tests {
         }
 
         static void FillDummy(std::string& dummyBytes, int len) {
-            dummyBytes.resize(len);
-            for (auto &b: dummyBytes) {
-                b = (char)(random() % 256);
-            }
+            constexpr static const char alphabet[] =
+                    "abcdefghijklmnopqrstuvwxyz"
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                    "0123456789";
+            std::random_device rd;
+            std::default_random_engine rng(rd());
+            std::uniform_int_distribution<> dist(0, sizeof(alphabet) / sizeof(*alphabet) - 2);
+
+            dummyBytes.clear();
+            dummyBytes.reserve(len);
+            std::generate_n(std::back_inserter(dummyBytes), len, [&]() {
+                return alphabet[dist(rng)];
+            });
         }
 
 

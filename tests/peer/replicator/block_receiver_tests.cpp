@@ -5,6 +5,8 @@
 #include "peer/replicator/block_receiver.h"
 #include "tests/block_fragment_generator_utils.h"
 
+#include "bthread/countdown_event.h"
+
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
@@ -122,7 +124,7 @@ TEST_F(BlockReceiverTest, ContinueousSending) {
 
     for (int blockNumber=startWith; blockNumber<endWith; blockNumber++) {
         LOG(INFO) << "Block number " << blockNumber << " start sending.";
-        tests::BFGUtils::FillDummy(bfgUtils.message, 1024*1024*2);
+        tests::BFGUtils::FillDummy(bfgUtils.message, 1024*2);
         auto senderContext = bfgUtils.getContext(senderPosition);
         std::vector<std::string> serializedFragment(nodesPerRegion);
         for(int i=0; i<(int)servers.size(); i++) {
@@ -142,4 +144,72 @@ TEST_F(BlockReceiverTest, ContinueousSending) {
         }
         ASSERT_TRUE(*ret == bfgUtils.message) << "Message mismatch!";
     }
+}
+
+// test performance
+TEST_F(BlockReceiverTest, SendingAsync) {
+    // region 0
+    int regionId = 0;
+    int nodesPerRegion = 4;
+    int startWith = 0;
+    int endWith = 100;
+    // prepare all fragments
+    std::vector<std::unique_ptr<util::ZMQInstance>> servers(nodesPerRegion);
+    for(int i=0; i<(int)servers.size(); i++) {
+        auto sender = util::ZMQInstance::NewServer<zmq::socket_type::pub>(51200+i);
+        ASSERT_TRUE(sender != nullptr) << "Create instance failed";
+        servers[i] = std::move(sender);
+    }
+    int shardPerNode = (parityShardCnt+senderPosition)/nodesPerRegion;    // must be divisible
+    // spin up client
+    auto nodesCfg = GenerateNodesConfig(regionId, nodesPerRegion);
+    auto regionZeroReceiver = peer::SingleRegionBlockReceiver::NewSingleRegionBlockReceiver(bfgUtils.bfg, bfgUtils.cfgList[regionId], nodesCfg);
+    ASSERT_TRUE(regionZeroReceiver != nullptr) << "Create instance failed";
+    regionZeroReceiver->activeStart(startWith);
+
+    // Give the subscribers a chance to connect, so they don't lose any messages
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+    std::vector<std::string> msgList(endWith - startWith);
+    for (int blockNumber=startWith; blockNumber<endWith; blockNumber++) {
+        tests::BFGUtils::FillDummy(msgList[blockNumber-startWith], 1024 * 1024 * 2);
+    }
+
+    auto f1 = bfgUtils.tp->submit([&]{
+        for (int blockNumber=startWith; blockNumber<endWith; blockNumber++) {
+            LOG(INFO) << "Block number " << blockNumber << " start sending.";
+            bfgUtils.message = msgList[blockNumber-startWith];
+            auto senderContext = bfgUtils.getContext(senderPosition);
+            std::vector<std::string> serializedFragment(nodesPerRegion);
+            bthread::CountdownEvent countdown((int)servers.size());
+            for (int i = 0; i < (int) servers.size(); i++) {
+                bfgUtils.tp->push_task([&, i=i] {
+                    serializedFragment[i] = bfgUtils.generateMockFragment(
+                            senderContext.get(), blockNumber, i * shardPerNode, (i + 1) * shardPerNode);
+                    countdown.signal();
+                });
+            }
+            countdown.wait();
+            // send fragment to corresponding peer
+            for (int i = 0; i < (int) servers.size(); i++) {
+                servers[i]->send(std::move(serializedFragment[i]));
+            }
+        }
+    });
+
+    for (int blockNumber=startWith; blockNumber<endWith; blockNumber++) {
+        LOG(INFO) << "Block number " << blockNumber << " start receiving.";
+        // check the received fragment
+        auto ret = regionZeroReceiver->activeGet();
+        ASSERT_TRUE(ret != nullptr) << "Can not get block fragments!";
+        auto& msg = msgList[blockNumber-startWith];
+        if (*ret != msg) {
+            LOG(INFO) << ret->substr(0, 100);
+            LOG(INFO) << msg.substr(0, 100);
+        }
+        ASSERT_TRUE(*ret == msg) << "Message mismatch!";
+    }
+    // join the thread
+    f1.wait();
+    LOG(INFO) << "Exit.";
 }

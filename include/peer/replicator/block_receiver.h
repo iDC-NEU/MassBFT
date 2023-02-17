@@ -18,6 +18,9 @@
 namespace peer {
     // SingleRegionBlockReceiver owns multiple P2PReceivers from the same region
     class SingleRegionBlockReceiver {
+    protected:
+        constexpr static const auto DEQUEUE_TIMEOUT_US = 1000*1000;     // 1 sec
+
         template<class T, int cap, int mask=cap-1>
         class Buffer {
         public:
@@ -40,12 +43,13 @@ namespace peer {
             }
 
             // call by consumer
+            // blocks below b are stale
             template<bool checkLow=true>
-            void clear(proto::BlockNumber blockNumber) {
+            void clearBelow(proto::BlockNumber b) {
                 if (checkLow) {
-                    CHECK(low == blockNumber);
+                    CHECK(low+1 == b);
                 }
-                low = low+1;
+                low = b;
             }
 
             // call by consumer
@@ -60,7 +64,10 @@ namespace peer {
     public:
         struct Config {
             util::NodeConfigPtr nodeConfig;
-            std::string addr;
+            std::string& addr() {
+                DCHECK(nodeConfig != nullptr) << "nodeConfig unset!";
+                return nodeConfig->ip;
+            }
             int port;
         };
         using ConfigPtr = std::shared_ptr<Config>;
@@ -70,27 +77,8 @@ namespace peer {
             util::NodeConfigPtr nodeConfig;
         };
 
-        // the owner of this
-        SingleRegionBlockReceiver(
-                std::shared_ptr<BlockFragmentGenerator> bfg
-                , const BlockFragmentGenerator::Config& fragmentConfig
-                , const std::vector<ConfigPtr>& nodesConfig)
-                : _bfg(std::move(bfg))
-                , _fragmentConfig(fragmentConfig) {
-            for (const auto& it: nodesConfig) {
-                auto receiver = std::make_unique<P2PReceiver>();
-                receiver->setOnMapUpdate([cfg=it->nodeConfig, this](auto n, auto b){
-                    _ringBuf.push(n, {std::move(b), cfg});
-                });
-                auto zmq = util::ZMQInstance::NewClient<zmq::socket_type::sub>(it->addr, it->port);
-                if (!zmq) {
-                    CHECK(false) << "Could not init SingleRegionBlockReceiver";
-                }
-                receiver->start(std::move(zmq));
-            }
-        }
-
         ~SingleRegionBlockReceiver() {
+            tearDownSignal = true;
             _receiverList.clear();
             bthread_join(_tid, nullptr);
         }
@@ -104,13 +92,14 @@ namespace peer {
         // block may be nullptr;
         std::unique_ptr<std::string> activeGet() {
             std::unique_ptr<std::string> block;
+            // no need to be wait_dequeue_timed, because block may be nullptr
             _activeBlockResultQueue.wait_dequeue(block);
             return block;
         }
 
         // passive object version
         void passiveStart(proto::BlockNumber startAt) {
-            _ringBuf.clear<false>(startAt);
+            _ringBuf.clearBelow<false>(startAt);
         }
 
         // block may be nullptr;
@@ -118,20 +107,73 @@ namespace peer {
             auto ret = genBlockFromQueue(number);
             if (!ret) {
                 LOG(ERROR) << "can not regenerate block from fragments, block id: " << number;
+                return nullptr;
             }
-            _ringBuf.clear(number);
+            _ringBuf.clearBelow(number+1);
             return ret;
         }
 
+        // the owner of this
+        static std::unique_ptr<SingleRegionBlockReceiver> NewSingleRegionBlockReceiver(
+                std::shared_ptr<BlockFragmentGenerator> bfg
+                , const BlockFragmentGenerator::Config& fragmentConfig
+                , const std::vector<ConfigPtr>& nodesConfig) {
+            if (nodesConfig.empty() || !fragmentConfig.valid()) {
+                return nullptr;
+            }
+            // ensure the nodes are from the same group
+            auto& n0 = nodesConfig[0];
+            for (int i=1; i<(int)nodesConfig.size(); i++) {
+                if (n0->nodeConfig->groupId != nodesConfig[i]->nodeConfig->groupId) {
+                    LOG(ERROR) << "GroupId is not the same!";
+                    return nullptr;
+                }
+                if (n0->addr() == nodesConfig[i]->addr() && n0->port == nodesConfig[i]->port) {
+                    LOG(ERROR) << "Two nodes have the same remote listen address!";
+                    return nullptr;
+                }
+                if (n0->nodeConfig->ski == nodesConfig[i]->nodeConfig->ski) {
+                    LOG(ERROR) << "Two nodes have the same ski!";
+                    return nullptr;
+                }
+            }
+            std::unique_ptr<SingleRegionBlockReceiver> srBlockReceiver(new SingleRegionBlockReceiver(std::move(bfg), fragmentConfig));
+            // spin up clients
+            for (const auto& it: nodesConfig) {
+                auto receiver = std::make_unique<P2PReceiver>();
+                receiver->setOnMapUpdate([cfg=it->nodeConfig, ptr=srBlockReceiver.get()](auto n, auto b){
+                    ptr->_ringBuf.push(n, {std::move(b), cfg});
+                });
+                auto zmq = util::ZMQInstance::NewClient<zmq::socket_type::sub>(it->addr(), it->port);
+                if (!zmq) {
+                    LOG(ERROR) << "Could not init SingleRegionBlockReceiver";
+                    return nullptr;
+                }
+                receiver->start(std::move(zmq));
+                srBlockReceiver->_receiverList.push_back(std::move(receiver));
+            }
+            return srBlockReceiver;
+        }
+
     protected:
+        // the owner of this
+        SingleRegionBlockReceiver(
+                std::shared_ptr<BlockFragmentGenerator> bfg
+                , const BlockFragmentGenerator::Config& fragmentConfig)
+                : _bfg(std::move(bfg))
+                , _fragmentConfig(fragmentConfig) { }
+
         static void* run(void* ptr) {
             auto* receiver = static_cast<SingleRegionBlockReceiver*>(ptr);
             auto& buf =  receiver->_ringBuf;
             auto nextBlockNumber = buf.nextBlock();
-            while(true) {
+            LOG(INFO) << "SingleRegionBlockReceiver active get start from block:" << nextBlockNumber;
+            while(!receiver->tearDownSignal) {
                 auto ret = receiver->passiveGet(nextBlockNumber);
+                if (ret == nullptr) {
+                    continue;
+                }
                 receiver->_activeBlockResultQueue.enqueue(std::move(ret));
-                buf.clear(nextBlockNumber);
                 nextBlockNumber++;
             }
             return nullptr;
@@ -152,8 +194,10 @@ namespace peer {
             const uint32_t minShardRequire = _fragmentConfig.dataShardCnt;
             const uint32_t totalShard = _fragmentConfig.dataShardCnt + _fragmentConfig.parityShardCnt;
             std::map<pmt::HashString, BlockRegenerateOptions> haveShard;    // TODO: make val.size byzantine free
-            while(true) {
-                queue.wait_dequeue(tmp);
+            while (!tearDownSignal) {
+                if (!queue.wait_dequeue_timed(tmp, DEQUEUE_TIMEOUT_US)) {
+                    continue;   // retry after timeout
+                }
                 auto& ebf = tmp.fragment->ebf;
                 if (ebf.blockNumber != number) {
                     LOG(WARNING) << "Receive incorrect block number: " << ebf.blockNumber << ", want:" << number;
@@ -187,10 +231,12 @@ namespace peer {
                     return msg;
                 }
             }
+            return nullptr;
         }
 
     private:
-        bthread_t _tid{};
+        bthread_t _tid = {};
+        volatile bool tearDownSignal = false;
         std::shared_ptr<BlockFragmentGenerator> _bfg;
         const BlockFragmentGenerator::Config _fragmentConfig;
         Buffer<BufferBlock, 64> _ringBuf;

@@ -424,7 +424,7 @@ namespace peer {
             }
         }
 
-        ~BlockFragmentGenerator() = default;
+        virtual ~BlockFragmentGenerator() = default;
 
         BlockFragmentGenerator(const BlockFragmentGenerator&) = delete;
 

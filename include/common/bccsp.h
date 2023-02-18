@@ -112,11 +112,13 @@ namespace util {
     public:
         explicit BCCSP(std::unique_ptr<KeyStorage> storage_) : storage(std::move(storage_)) {}
 
-        ~BCCSP() = default;
+        virtual ~BCCSP() = default;
 
         BCCSP(const BCCSP &) = delete;
 
-        // KeyGen generates a key using opts.
+        BCCSP(BCCSP &&) = delete;
+
+        // KeyGen generates a key using opts, thread safe(depend on storage)
         // Ephemeral returns true if the key to generate has to be ephemeral,
         CstKeyPtr generateED25519Key(std::string_view ski, bool ephemeral) {
             auto ret = util::OpenSSLED25519::generateKeyFiles({}, {}, {});

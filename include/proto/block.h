@@ -11,7 +11,17 @@
 namespace proto {
     using HashString = util::OpenSSLSHA256::digestType;
     // publicKeyHex, signature
-    using SignatureString = std::pair<std::shared_ptr<std::string>, util::OpenSSLED25519::digestType>;
+    struct SignatureString {
+        std::string ski;
+        std::shared_ptr<std::string> pubKey;    // optional
+        util::OpenSSLED25519::digestType digest{};
+    public:
+        friend zpp::bits::access;
+
+        constexpr static auto serialize(auto &archive, SignatureString &s) {
+            return archive(s.ski, s.pubKey, s.digest);
+        }
+    };
 
     using BlockNumber = uint64_t;
 
@@ -33,6 +43,10 @@ namespace proto {
 
         void setSerializedMessage(std::string *m) {
             storage = std::make_shared<std::string>(std::move(*m));
+        }
+
+        std::shared_ptr<const std::string> getSerializedMessage() {
+            return storage;
         }
 
     public:
@@ -279,9 +293,9 @@ namespace proto {
 
         class Metadata {
         public:
-            // when a peer validate a block, it adds its signature of the HEADER to signatures.
+            // when a peer validated a block(before execution), it adds its signature of the HEADER+BODY to signatures.
             std::vector<SignatureString> consensusSignatures;
-            // when a peer validate a block, it adds its signature of the (HEADER+ExecuteResult) to signatures.
+            // when a peer validated a block(after execution), it adds its signature of the (HEADER+BODY+ExecuteResult) to signatures.
             std::vector<SignatureString> validateSignatures;
         public:
             friend zpp::bits::access;
@@ -303,14 +317,39 @@ namespace proto {
         ExecuteResult executeResult;
         Metadata metadata;
 
-        bool deserializeFromString(std::string &&raw, int pos = 0) {
+        struct PosList {
+            bool valid = false;
+            std::size_t headerPos{};
+            std::size_t bodyPos{};
+            std::size_t execResultPos{};
+            std::size_t metadataPos{};
+            std::size_t endPos{};
+        };
+
+        PosList deserializeFromString(std::string &&raw, int pos = 0) {
+            PosList posList;
             this->setSerializedMessage(std::move(raw));
             auto in = zpp::bits::in(*(this->storage));
             in.reset(pos);
-            if(failure(in(*this))) {
-                return false;
+            posList.headerPos = in.position();
+            if(failure(in(this->header))) {
+                return posList;
             }
-            return true;
+            posList.bodyPos = in.position();
+            if(failure(in(this->body))) {
+                return posList;
+            }
+            posList.execResultPos = in.position();
+            if(failure(in(this->executeResult))) {
+                return posList;
+            }
+            posList.metadataPos = in.position();
+            if(failure(in(this->metadata))) {
+                return posList;
+            }
+            posList.endPos = in.position();
+            posList.valid = true;
+            return posList;
         }
 
         // all pointer must be not null!
@@ -321,13 +360,6 @@ namespace proto {
                 return false;
             }
             return true;
-        }
-
-    public:
-        friend zpp::bits::access;
-
-        constexpr static auto serialize(auto &archive, Block &b) {
-            return archive(b.header, b.body, b.executeResult, b.metadata);
         }
     };
 }

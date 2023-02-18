@@ -57,7 +57,8 @@ TEST_F(BlockTest, CreateTest) {
     std::string message1, message2, message3;
     b.serializeToString(&message1);
     b.serializeToString(&message2);
-    auto c = proto::Block::DeserializeBlock(std::move(message1));
+    std::shared_ptr<proto::Block> c(new proto::Block);
+    c->deserializeFromString(std::move(message1));
     c->serializeToString(&message3);
     ASSERT_TRUE(message2 == message3);
 }

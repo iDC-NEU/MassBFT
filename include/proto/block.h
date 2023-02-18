@@ -303,20 +303,23 @@ namespace proto {
         ExecuteResult executeResult;
         Metadata metadata;
 
-        static auto DeserializeBlock(std::string &&raw, int pos = 0) {
-            auto block = std::make_unique<Block>();
-            block->setSerializedMessage(std::move(raw));
-            auto in = zpp::bits::in(*(block->storage));
+        bool deserializeFromString(std::string &&raw, int pos = 0) {
+            this->setSerializedMessage(std::move(raw));
+            auto in = zpp::bits::in(*(this->storage));
             in.reset(pos);
-            in(block).or_throw();
-            return block;
+            if(failure(in(*this))) {
+                return false;
+            }
+            return true;
         }
 
         // all pointer must be not null!
         bool serializeToString(std::string *buf, int pos = 0) {
             zpp::bits::out out(*buf);
             out.reset(pos);
-            out(*this).or_throw();
+            if(failure(out(*this))) {
+                return false;
+            }
             return true;
         }
 

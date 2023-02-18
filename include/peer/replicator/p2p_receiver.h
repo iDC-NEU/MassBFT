@@ -5,7 +5,7 @@
 #pragma once
 
 #include "common/zeromq.h"
-#include "proto/block.h"
+#include "proto/fragment.h"
 #include "bthread/bthread.h"
 #include "gtl/phmap.hpp"
 #include <string>

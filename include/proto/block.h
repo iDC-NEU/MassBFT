@@ -15,193 +15,316 @@ namespace proto {
 
     using BlockNumber = uint64_t;
 
-    struct KV {
-        std::string key;
-        std::string value;
+    class DeserializeStorage {
+    public:
+        DeserializeStorage() = default;
+
+        DeserializeStorage(const DeserializeStorage &rhs) {
+            storage = rhs.storage;
+        }
+
+        DeserializeStorage(DeserializeStorage &&rhs) noexcept {
+            storage = std::move(rhs.storage);
+        }
+
+        void setSerializedMessage(std::string &&m) {
+            storage = std::make_shared<std::string>(std::move(m));
+        }
+
+        void setSerializedMessage(std::string *m) {
+            storage = std::make_shared<std::string>(std::move(*m));
+        }
+
+    public:
+        friend zpp::bits::access;
+
+        constexpr static auto serialize(auto &, DeserializeStorage &) {
+            return zpp::bits::errc{};
+        }
+
+    protected:
+        std::shared_ptr<const std::string> storage;
     };
 
-    struct TxReadWriteSet {
-        std::string chaincodeName;
-        std::vector<KV> reads;
-        std::vector<KV> writes;
+    // When deserialized, the caller need to ensure the active data is still valid.
+    class KV {
+    public:
+        template<class T1, class T2>
+        requires requires(T1 t1, T2 t2) { std::string(t1); std::string(t2); }
+        KV(T1 &&key, T2 &&value)
+                : _key(std::forward<T1>(key)), _value(std::forward<T2>(value)),
+                  _keySV(_key), _valueSV(_value) {}
+
+        KV() = default;
+
+        KV(const KV &rhs) = delete;
+
+        KV(KV &&rhs) = delete;
+
+        void setKey(std::string &&key) {
+            _key = std::move(key);
+            _keySV = _key;
+        }
+
+        void setValue(std::string &&value) {
+            _value = std::move(value);
+            _valueSV = _value;
+        }
+
+        [[nodiscard]] const std::string_view &getKeySV() const {
+            return _keySV;
+        }
+
+        [[nodiscard]] const std::string_view &getValueSV() const {
+            return _valueSV;
+        }
+
+    public:
+        friend zpp::bits::access;
+
+        constexpr static auto serialize(auto &archive, KV &kv) {
+            return archive(kv._keySV, kv._valueSV);
+        }
+
+    private:
+        std::string _key;
+        std::string _value;
+        std::string_view _keySV;
+        std::string_view _valueSV;
     };
 
-    struct QueryResult {
-        std::string chaincodeName;
-        std::vector<KV> reads;
+    class TxReadWriteSet {
+    public:
+        template<class T>
+        requires requires(T t) { std::string(t); }
+        explicit TxReadWriteSet(T &&ccName, int32_t retCode=0)
+                : _ccName(std::forward<T>(ccName)), _ccNameSV(_ccName), _retCode(retCode) {}
+
+        TxReadWriteSet() : _ccName(), _ccNameSV(_ccName), _retCode(0) {}
+
+        TxReadWriteSet(const TxReadWriteSet &rhs) = delete;
+
+        TxReadWriteSet(TxReadWriteSet &&rhs) = delete;
+
+        void setCCName(std::string &&ccName) {
+            _ccName = std::move(ccName);
+            _ccNameSV = _ccName;
+        }
+
+        [[nodiscard]] const std::string_view &getCCNameSV() const {
+            return _ccNameSV;
+        }
+
+        void setRetCode(int32_t retCode) {
+            _retCode = retCode;
+        }
+
+        [[nodiscard]] int32_t getRetCode() const {
+            return _retCode;
+        }
+
+        [[nodiscard]] const auto &getReads() const {
+            return _reads;
+        }
+
+        [[nodiscard]] const auto &getWrites() const {
+            return _writes;
+        }
+
+        [[nodiscard]] auto &getReads() {
+            return _reads;
+        }
+
+        [[nodiscard]] auto &getWrites() {
+            return _writes;
+        }
+
+    public:
+        friend zpp::bits::access;
+
+        constexpr static auto serialize(auto &archive, TxReadWriteSet &t) {
+            return archive(t._ccNameSV, t._reads, t._writes);
+        }
+
+    private:
+        std::string _ccName;
+        std::string_view _ccNameSV;
+        int32_t _retCode;
+        std::vector<std::unique_ptr<KV>> _reads;
+        std::vector<std::unique_ptr<KV>> _writes;
     };
 
-    struct UserRequest {
-        std::string chaincodeName;
-        std::vector<std::string> args;
-    };
+    class UserRequest {
+    public:
+        UserRequest() : _ccName(), _ccNameSV(_ccName) {}
 
-    struct Block {
-        struct Header {
-            friend zpp::bits::access;
-            constexpr static auto serialize(auto & archive, Header& h) {
-                return archive(h.number, h.previousHash, h.dataHash);
+        UserRequest(const UserRequest &rhs) = delete;
+
+        UserRequest(UserRequest &&rhs) = delete;
+
+        void setCCName(std::string &&ccName) {
+            _ccName = std::move(ccName);
+            _ccNameSV = _ccName;
+        }
+
+        [[nodiscard]] const std::string_view &getCCNameSV() const {
+            return _ccNameSV;
+        }
+
+        void setArgs(std::vector<std::string> &&args) {
+            _args = std::move(args);
+            _argsSV.clear();
+            _argsSV.reserve(_args.size());
+            for (const auto &it: _args) {
+                _argsSV.push_back(it);
             }
+        }
+
+        [[nodiscard]] const std::vector<std::string_view> &getArgs() const { return _argsSV; }
+
+    public:
+        friend zpp::bits::access;
+
+        constexpr static auto serialize(auto &archive, UserRequest &t) {
+            return archive(t._ccNameSV, t._args);
+        }
+
+    private:
+        std::string _ccName;
+        std::string_view _ccNameSV;
+        std::vector<std::string> _args;
+        std::vector<std::string_view> _argsSV;
+    };
+
+    // WARNING: ENVELOP HAS STRING_VIEW TYPE, MUST CONSIDER DANGING POINTER
+    class Envelop : public DeserializeStorage {
+    public:
+        Envelop() = default;
+
+        Envelop(const Envelop &rhs) = delete;
+
+        Envelop(Envelop &&rhs) = delete;
+
+        void setPayload(std::string &&raw) {
+            _payload = std::move(raw);
+            _payloadSV = _payload;
+        }
+
+        [[nodiscard]] const std::string_view &getPayload() const { return _payloadSV; }
+
+        template<class T>
+        requires requires(T t) { SignatureString(t); }
+        void setSignature(T t) {
+            _signature = std::forward<T>(t);
+        }
+
+    public:
+        friend zpp::bits::access;
+
+        constexpr static auto serialize(auto &archive, Envelop &e) {
+            return archive(e._payloadSV, e._signature);
+        }
+
+    private:
+        std::string_view _payloadSV;
+        std::string _payload;
+        SignatureString _signature;
+    };
+
+    class Block : public DeserializeStorage {
+    public:
+        class Header {
+        public:
             BlockNumber number{};
             // previous hash of ALL the user request
             HashString previousHash{};
             // current user request hash
             HashString dataHash{};
+
+        public:
+            friend zpp::bits::access;
+
+            constexpr static auto serialize(auto &archive, Header &h) {
+                return archive(h.number, h.previousHash, h.dataHash);
+            }
         };
 
         // a vector of transaction
-        struct Body {
+        class Body {
+        public:
+            // userRequests: represent the raw request sent by the user
+            std::vector<std::unique_ptr<Envelop>> userRequests;
+
+        public:
             friend zpp::bits::access;
-            constexpr static auto serialize(auto & archive, Body& b) {
+
+            constexpr static auto serialize(auto &archive, Body &b) {
                 return archive(b.userRequests);
             }
-            // WARNING: ENVELOP HAS STRING_VIEW TYPE, MUST CONSIDER DANGING POINTER
-            struct Envelop {
-                Envelop() = default;
-
-                Envelop(const Envelop& rhs) {
-                    this->_raw = rhs._raw;
-                    this->_payload = this->_raw;
-                    this->signature = rhs.signature;
-                }
-
-                Envelop(Envelop&& rhs) noexcept {
-                    this->_raw = std::move(rhs._raw);
-                    this->_payload = this->_raw;
-                    this->signature = std::move(rhs.signature);
-                }
-
-                friend zpp::bits::access;
-                constexpr static auto serialize(auto & archive, Envelop& e) {
-                    return archive(e._payload, e.signature);
-                }
-
-                void setPayload(std::string&& raw, std::string_view payload) {
-                    _payload=payload;
-                    _raw=std::move(raw);
-                }
-
-                void setPayload(std::string&& raw) {
-                    _raw=std::move(raw);
-                    _payload=_raw;
-                }
-
-                // owner must ensure payload is valid
-                void setPayload(std::string_view payload) {
-                    _payload=payload;
-                }
-
-                [[nodiscard]] const std::string_view& getPayload() const { return _payload; }
-
-                SignatureString signature;
-            private:
-                std::string_view _payload;
-                std::string _raw;
-            };
-            // userRequests: represent the raw request sent by the user
-            std::vector<Envelop> userRequests;
         };
 
-        struct ExecuteResult {
-            ExecuteResult() = default;
-
-            ExecuteResult(const ExecuteResult& rhs) {
-                this->_raw = rhs._raw;
-                for (const auto& it: _raw) {
-                    txReadWriteSet.push_back(it);
-                }
-            }
-
-            ExecuteResult(ExecuteResult&& rhs) noexcept {
-                this->_raw = std::move(rhs._raw);
-                for (const auto& it: _raw) {
-                    txReadWriteSet.push_back(it);
-                }
-            }
-
-            friend zpp::bits::access;
-            constexpr static auto serialize(auto & archive, ExecuteResult& e) {
-                return archive(e.txReadWriteSet, e.transactionFilter);
-            }
-
-            void setRWSets(std::vector<std::string>&& raw) {
-                _raw=std::move(raw);
-                txReadWriteSet.clear();
-                txReadWriteSet.reserve(_raw.size());
-                for (const auto& it: _raw) {
-                    txReadWriteSet.push_back(it);
-                }
-            }
-
-            // owner must ensure payload is valid
-            void setRWSets(std::vector<std::string_view>&& rwSets) {
-                txReadWriteSet=std::move(rwSets);
-            }
-
-            [[nodiscard]] const std::vector<std::string_view>& getRWSets() const { return txReadWriteSet; }
-
+        class ExecuteResult {
+        public:
+            std::vector<std::unique_ptr<TxReadWriteSet>> txReadWriteSet;
             // check if a transaction is valid
             std::vector<std::byte> transactionFilter;
 
-        private:
-            std::vector<std::string_view> txReadWriteSet;
-            std::vector<std::string> _raw;
+        public:
+            friend zpp::bits::access;
+
+            constexpr static auto serialize(auto &archive, ExecuteResult &e) {
+                return archive(e.txReadWriteSet, e.transactionFilter);
+            }
         };
 
-        struct Metadata {
-            friend zpp::bits::access;
-            constexpr static auto serialize(auto & archive, Metadata& m) {
-                return archive(m.consensusSignatures, m.validateSignatures);
-            }
+        class Metadata {
+        public:
             // when a peer validate a block, it adds its signature of the HEADER to signatures.
             std::vector<SignatureString> consensusSignatures;
             // when a peer validate a block, it adds its signature of the (HEADER+ExecuteResult) to signatures.
             std::vector<SignatureString> validateSignatures;
+        public:
+            friend zpp::bits::access;
+
+            constexpr static auto serialize(auto &archive, Metadata &m) {
+                return archive(m.consensusSignatures, m.validateSignatures);
+            }
         };
+
+    public:
+        Block() = default;
+
+        Block(const Block &) = delete;
+
+        Block(Block &&) = delete;
 
         Header header;
         Body body;
         ExecuteResult executeResult;
         Metadata metadata;
 
-        friend zpp::bits::access;
-        constexpr static auto serialize(auto & archive, Block& b) {
-            return archive(b.header, b.body, b.executeResult, b.metadata);
-        }
-
-        static auto DeserializeBlock(std::string&& raw, int pos=0) {
+        static auto DeserializeBlock(std::string &&raw, int pos = 0) {
             auto block = std::make_unique<Block>();
-            block->_raw=std::move(raw);
-            auto in = zpp::bits::in(block->_raw);
+            block->setSerializedMessage(std::move(raw));
+            auto in = zpp::bits::in(*(block->storage));
             in.reset(pos);
             in(block).or_throw();
             return block;
         }
 
         // all pointer must be not null!
-        bool serializeToString(std::string* buf, int pos=0) {
+        bool serializeToString(std::string *buf, int pos = 0) {
             zpp::bits::out out(*buf);
             out.reset(pos);
             out(*this).or_throw();
             return true;
         }
 
-    private:
-        std::string _raw;
-    };
+    public:
+        friend zpp::bits::access;
 
-    // EncodeMessage has type sv, so encoder / decoder must keep the actual message
-    struct EncodeBlockFragment {
-        constexpr static auto serialize(auto& archive, EncodeBlockFragment& self) {
-            return archive(self.blockNumber, self.root, self.size, self.start, self.end, self.encodeMessage);
+        constexpr static auto serialize(auto &archive, Block &b) {
+            return archive(b.header, b.body, b.executeResult, b.metadata);
         }
-        BlockNumber blockNumber;
-        // the size hint of the actual data, and root
-        pmt::HashString root;
-        size_t size;
-        // the start and end fragment id
-        uint32_t start;
-        uint32_t end;
-        std::string_view encodeMessage;
     };
 }

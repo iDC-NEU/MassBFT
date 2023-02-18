@@ -194,29 +194,40 @@ namespace util {
             return key;
         }
 
-        CstKeyPtr KeyImportRAW(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) {
-            return KeyImportRAWInner<true>(ski, raw, isPrivate, ephemeral);
+        // Thread safe (depends on storage), NOT override if exist
+        CstKeyPtr ImportKeyAndSave(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) {
+            KeyPtr key = GetKeyFromRaw(ski, raw, isPrivate, ephemeral);
+            if (!ephemeral) {
+                storage->saveKey(ski, raw, isPrivate, true);
+            }
+            cache[key->SKI()] = key;
+            return key;
         }
 
         // GetKey returns the key this CSP associates to
-        // the Subject Key Identifier ski.
+        // the Subject Key Identifier ski, thread safe.
         [[nodiscard]] CstKeyPtr GetKey(std::string_view ski) const {
             // load from cache
-            if (cache.contains(ski)) {
-                return cache.at(ski);
+            KeyPtr key = nullptr;
+            if (cache.if_contains(ski, [&](CacheType::value_type& value) { key = value.second; })) {
+                return key;
             }
             // load from disk
             auto ret = storage->loadKey(ski);
             if (!ret) { // we cant find it in cache or storage
                 return nullptr;
             }
-            auto [raw, isPrivate] = std::move(*ret);
-            return KeyImportRAWInner<false>(ski, raw, isPrivate, false);
+            auto notExist = [&](const CacheType::constructor& ctor) {
+                auto [raw, isPrivate] = std::move(*ret);
+                key = GetKeyFromRaw(ski, raw, isPrivate, false);
+                ctor(ski, key);
+                return true;
+            };
+            cache.lazy_emplace_l(ski, [&](CacheType::value_type& value) { key = value.second; }, notExist);
+            return key;
         }
 
-    protected:
-        template<bool saveToStorage>
-        [[nodiscard]] CstKeyPtr KeyImportRAWInner(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) const {
+        [[nodiscard]] static KeyPtr GetKeyFromRaw(std::string_view ski, std::string_view raw, bool isPrivate, bool ephemeral) {
             std::unique_ptr<util::OpenSSLED25519> pri, pub;
             KeyPtr key;
             if (isPrivate) {
@@ -246,15 +257,12 @@ namespace util {
                 // new key
                 key = std::make_shared<Key>(std::string(ski), std::move(pub), ephemeral);
             }
-            if (!ephemeral && saveToStorage) {
-                storage->saveKey(ski, raw, isPrivate, true);
-            }
-            cache[key->SKI()] = key;
             return key;
         }
 
     private:
-        mutable gtl::parallel_flat_hash_map<std::string_view, KeyPtr> cache;
+        using CacheType = gtl::parallel_flat_hash_map<std::string_view, KeyPtr>;
+        mutable CacheType cache;
         std::unique_ptr<KeyStorage> storage;
     };
 }

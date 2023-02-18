@@ -183,7 +183,8 @@ TEST_F(BlockReceiverTest, SendingAsync) {
         tests::BFGUtils::FillDummy(msgList[blockNumber - startWith], 250 * 1024);
     }
 
-    auto f1 = bfgUtils.tp->submit([&] {
+    std::unique_ptr<util::thread_pool_light> threadPool(new util::thread_pool_light(4));
+    auto f1 = threadPool->submit([&] {
         for (int blockNumber = startWith; blockNumber < endWith; blockNumber++) {
             LOG(INFO) << "Block number " << blockNumber << " start sending.";
             bfgUtils.message = msgList[blockNumber - startWith];
@@ -191,9 +192,8 @@ TEST_F(BlockReceiverTest, SendingAsync) {
             std::vector<std::string> serializedFragment(nodesPerRegion);
             bthread::CountdownEvent countdown((int) servers.size());
             for (int i = 0; i < (int) servers.size(); i++) {
-                bfgUtils.tp->push_task([&, i = i] {
-                    serializedFragment[i] = bfgUtils.generateMockFragment(
-                            senderContext.get(), blockNumber, i * shardPerNode, (i + 1) * shardPerNode);
+                threadPool->push_task([&, i = i] {
+                    serializedFragment[i] = bfgUtils.generateMockFragment(senderContext.get(), blockNumber, i * shardPerNode, (i + 1) * shardPerNode);
                     countdown.signal();
                 });
             }

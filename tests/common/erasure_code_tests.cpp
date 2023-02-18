@@ -9,6 +9,7 @@
 #include "common/timer.h"
 #include <vector>
 #include <thread>
+#include <random>
 #include "common/crypto.h"
 
 class ESTest : public ::testing::Test {
@@ -18,6 +19,22 @@ protected:
 
     void TearDown() override {
     };
+
+    static void FillDummy(std::string& dummyBytes, int len) {
+        constexpr static const char alphabet[] =
+                "abcdefghijklmnopqrstuvwxyz"
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                "0123456789";
+        std::random_device rd;
+        std::default_random_engine rng(rd());
+        std::uniform_int_distribution<> dist(0, sizeof(alphabet) / sizeof(*alphabet) - 2);
+
+        dummyBytes.clear();
+        dummyBytes.reserve(len);
+        std::generate_n(std::back_inserter(dummyBytes), len, [&]() {
+            return alphabet[dist(rng)];
+        });
+    }
 
     void stop() {
         for(auto& t: t_list_) {
@@ -35,25 +52,20 @@ protected:
         sema_.signal(thread_cnt);
     }
 
+    // NOTE: current backend is EC_BACKEND_ISA_L_RS_VAND, may have bug.
     static void encodeDecodeTest(util::ErasureCode& ec1, util::ErasureCode& ec2, bool success=true) {
         std::string dataEncode;
-        for(int i=0; i<1000; i++) {
-            dataEncode += std::to_string(i*3);
-        }
+        FillDummy(dataEncode, 1024);
+
         LOG(INFO) << "----construct and restore----";
         LOG(INFO) << "original data size: " << dataEncode.size();
         auto encodeResult = ec1.encode(dataEncode);
-        std::vector<std::string_view> svList;
+        auto svList = *encodeResult->getAll();
+        EXPECT_TRUE((int)svList.size() == 60) << "Encode failed!";
+
         size_t erasureDataSize = 0;
-        for(int i=0; ; i++) {
-            auto fragment = encodeResult->get(i);
-            if(!fragment) {
-                EXPECT_EQ(i, 60) << "fragment count not equal 60";
-                break;
-            }
-            EXPECT_TRUE(!fragment->empty()) << "fragment is empty";
-            svList.push_back(fragment.value());
-            erasureDataSize += fragment->size();
+        for(auto i : svList) {
+            erasureDataSize += i.size();
         }
         LOG(INFO) << "Erasure data size(60 pieces): " << erasureDataSize;
 
@@ -115,7 +127,7 @@ protected:
         LOG(INFO) << "Percentage:" << double(m)/n << " vs " << double(erasureDataSize) / double(dataEncode.size());
     }
 
-    static void encodePerformanceTest(util::ErasureCode& ec, int m, int n) {
+    static void encodePerformanceTest(util::ErasureCode& ec, int m, int) {
         std::string dataEncode;
         for(int i=0; i<200000; i++) {
             dataEncode += std::to_string(i*3);
@@ -139,7 +151,7 @@ protected:
         LOG(INFO) << "Decode time: " << spanEncode;
     }
 
-    void multiThreadProcessing(auto ecCreateFunc, int m, int n, int tc) {
+    void multiThreadProcessing(auto ecCreateFunc, int m, int, int tc) {
         LOG(INFO) << "----MultiThread Encode performance test----";
         util::Timer timer;
         start(tc, [&](int tid) {

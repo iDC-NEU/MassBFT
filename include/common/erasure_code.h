@@ -112,6 +112,7 @@ namespace util {
                 return std::nullopt;
             }
             std::vector<std::string_view> fragmentList;
+            fragmentList.reserve(_dataNum);
             for(int i=0; i<_dataNum; i++) {
                 fragmentList.emplace_back(encodedData[i], _fragmentLen);
             }
@@ -220,7 +221,7 @@ namespace util {
             return nullptr;
         }
 
-        [[nodiscard]] std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList, int dataLen) const override {
+        [[nodiscard]] std::unique_ptr<DecodeResult> decode(const std::vector<std::string_view>& fragmentList, int) const override {
             if (fragmentList.empty()) {
                 return nullptr;
             }
@@ -338,8 +339,9 @@ namespace util {
                 return std::nullopt;
             }
             std::vector<std::string_view> fragmentList;
+            fragmentList.reserve(_shardLen);
             for (int i=0; i<_shardLen; i++) {
-                fragmentList.emplace_back(std::string_view(shardsRaw.get()[i], _fragmentLen));
+                fragmentList.emplace_back(shardsRaw.get()[i], _fragmentLen);
             }
             return fragmentList;
         }

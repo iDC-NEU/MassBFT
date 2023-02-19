@@ -391,6 +391,7 @@ namespace peer {
         requires std::is_base_of<util::ErasureCode, ErasureCodeType>::value
         BlockFragmentGenerator(const std::vector<Config>& cfgList, util::thread_pool_light* wpForMTAndEC_)
                 : wpForMTAndEC(wpForMTAndEC_) {
+            CHECK(wpForMTAndEC != nullptr) << "Thread pool unset, can not start bfg";
             int max_x = 0, max_y = 0;
             for (const auto& cfg: cfgList) {
                 if (cfg.dataShardCnt > max_x) {

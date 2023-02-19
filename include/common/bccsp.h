@@ -20,12 +20,17 @@ namespace util {
         Key(std::string ski, std::unique_ptr<util::OpenSSLED25519> publicKey,
             std::unique_ptr<util::OpenSSLED25519> privateKey, bool ephemeral)
                 : _ski(std::move(ski)), isPrivate(true), isEphemeral(ephemeral), _publicKey(std::move(*publicKey)),
-                  _privateKey(std::move(*privateKey)) {}
+                  _privateKey(std::move(*privateKey)) {
+            _publicBytes = _publicKey.getHexFromPublicKey();
+            _privateBytes = _privateKey.getHexFromPrivateKey();
+        }
 
         // public key version
         Key(std::string ski, std::unique_ptr<util::OpenSSLED25519> publicKey, bool ephemeral)
                 : _ski(std::move(ski)), isPrivate(false), isEphemeral(ephemeral), _publicKey(std::move(*publicKey)),
-                  _privateKey(nullptr) {}
+                  _privateKey(nullptr) {
+            _publicBytes = _publicKey.getHexFromPublicKey();
+        }
 
         ~Key() = default;
 
@@ -34,14 +39,11 @@ namespace util {
         // Bytes converts this key to its byte representation,
         // if this operation is allowed.
         [[nodiscard]] std::shared_ptr<std::string> PrivateBytes() const {
-            if (!isPrivate) {
-                return nullptr;
-            }
-            return _privateKey.getHexFromPrivateKey();
+            return _privateBytes;
         }
 
         [[nodiscard]] std::shared_ptr<std::string> PublicBytes() const {
-            return _publicKey.getHexFromPublicKey();
+            return _publicBytes;
         }
 
         // SKI returns the subject key identifier of this key.
@@ -85,8 +87,10 @@ namespace util {
         bool isPrivate;
         bool isEphemeral;
         util::OpenSSLED25519 _publicKey;
+        std::shared_ptr<std::string> _publicBytes;
         // If private key exists, public key MUST exist.
         util::OpenSSLED25519 _privateKey;
+        std::shared_ptr<std::string> _privateBytes;
     };
 
     using CstKeyPtr = std::shared_ptr<const Key>;

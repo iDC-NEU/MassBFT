@@ -18,6 +18,15 @@ namespace util {
     };
     using NodeConfigPtr = std::shared_ptr<NodeConfig>;
 
+    struct ZMQInstanceConfig {
+        util::NodeConfigPtr nodeConfig;
+        std::string& addr() {
+            DCHECK(nodeConfig != nullptr) << "nodeConfig unset!";
+            return nodeConfig->ip;
+        }
+        int port;
+    };
+
     class Properties {
     private:
         static inline std::unique_ptr<Properties> p;

@@ -62,14 +62,7 @@ namespace peer {
         };
 
     public:
-        struct Config {
-            util::NodeConfigPtr nodeConfig;
-            std::string& addr() {
-                DCHECK(nodeConfig != nullptr) << "nodeConfig unset!";
-                return nodeConfig->ip;
-            }
-            int port;
-        };
+        using Config = util::ZMQInstanceConfig;
         using ConfigPtr = std::shared_ptr<Config>;
 
         struct BufferBlock {

@@ -17,6 +17,17 @@ namespace proto {
         constexpr static auto serialize(auto& archive, EncodeBlockFragment& self) {
             return archive(self.blockNumber, self.root, self.size, self.start, self.end, self.encodeMessage);
         }
+
+        bool serializeWithoutMessage(std::string* rawEncodeMessage, int offset=0) {
+            zpp::bits::out out(*rawEncodeMessage);
+            out.reset(offset);
+            if(failure(out(blockNumber, root, size, start, end))) {
+                return false;
+            }
+            return true;
+        }
+
+        // block number must be equal to the actual block number
         BlockNumber blockNumber;
         // the size hint of the actual data, and root
         pmt::HashString root;
@@ -24,6 +35,8 @@ namespace proto {
         // the start and end fragment id
         uint32_t start;
         uint32_t end;
+        // The local node does not need to sign the message,
+        // because the point-to-point connection is secured by ssl
         std::string_view encodeMessage;
     };
 }

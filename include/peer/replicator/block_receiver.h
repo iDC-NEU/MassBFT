@@ -5,7 +5,7 @@
 #pragma once
 
 #include "peer/replicator/p2p_receiver.h"
-#include "peer/block_fragment_generator.h"
+#include "peer/replicator/block_fragment_generator.h"
 
 #include "common/property.h"
 #include "blockingconcurrentqueue.h"

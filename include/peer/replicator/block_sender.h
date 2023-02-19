@@ -5,7 +5,7 @@
 #pragma once
 
 #include "peer/replicator/mr_block_storage.h"
-#include "peer/block_fragment_generator.h"
+#include "peer/replicator/block_fragment_generator.h"
 #include "common/zeromq.h"
 #include "common/property.h"
 #include "butil/time.h"

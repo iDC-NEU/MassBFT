@@ -3,7 +3,7 @@
 //
 
 
-#include "peer/block_fragment_generator.h"
+#include "peer/replicator/block_fragment_generator.h"
 #include "common/timer.h"
 
 #include "gtest/gtest.h"

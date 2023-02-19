@@ -64,11 +64,21 @@ TEST_F(MRBlockReceiverTest, TestBlockSignValidate) {
         }
     }
 
-    auto mr = peer::MRBlockReceiver::NewMRBlockReceiver(configList, bfgUtils->cfgList);
+    // Init bfg
+    std::shared_ptr<util::thread_pool_light> tpForBFGAndBCCSP(new util::thread_pool_light());
+    auto bfg = std::make_shared<peer::BlockFragmentGenerator>(bfgUtils->cfgList, tpForBFGAndBCCSP.get());
+    // Init bccsp
+    auto bccsp = std::make_shared<util::BCCSP>(std::make_unique<util::DefaultKeyStorage>());
+    // Init storage
+    auto storage = std::make_shared<peer::MRBlockStorage>(3);   // 3 regions
+
+    auto mr = peer::MRBlockReceiver::NewMRBlockReceiver(configList, bfg, bfgUtils->cfgList);
     ASSERT_TRUE(mr != nullptr);
 
+    mr->setBCCSPWithThreadPool(bccsp, tpForBFGAndBCCSP);
+    mr->setStorage(storage);
+
     // prepare keys
-    auto bccsp = mr->getBCCSP();
     for (int i=0; i<3; i++) {
         for(int j=0; j<4; j++) {
             bccsp->generateED25519Key(std::to_string(i) + "_" + std::to_string(j), false);
@@ -102,7 +112,6 @@ TEST_F(MRBlockReceiverTest, TestBlockSignValidate) {
     ASSERT_TRUE(mr->checkAndStartService(0)) << "can not start mr";
 
     // encode to fragments, and send them
-    auto bfg = mr->getBFG();
     for (int i=0; i<3; i++) {
         auto context = bfg->getEmptyContext(bfgUtils->cfgList[i]);
         context->initWithMessage(regionBlockRaw[i]);
@@ -125,7 +134,7 @@ TEST_F(MRBlockReceiverTest, TestBlockSignValidate) {
             servers(i, j)->send(std::move(serializedFragment[j]));
         }
     }
-    auto storage = mr->getStorage();
+
     for (int i=0; i<3; i++) {
         storage->waitForNewBlock(i);
     }

@@ -5,206 +5,16 @@
 #pragma once
 
 #include "peer/replicator/block_receiver.h"
+#include "peer/replicator/mr_block_storage.h"
 
 #include "common/thread_pool_light.h"
 #include "common/bccsp.h"
 #include "common/cv_wrapper.h"
-#include "proto/block.h"
 
 #include "bthread/countdown_event.h"
-#include "bthread/butex.h"
 #include "gtl/phmap.hpp"
-#include <string>
 
 namespace peer {
-
-    class DefaultKeyStorage : public util::KeyStorage {
-    public:
-        bool saveKey(std::string_view ski, std::string_view raw, bool isPrivate, bool) override {
-            keyMap[ski] = Cell{std::string(raw), isPrivate};
-            return true;
-        }
-
-        auto loadKey(std::string_view ski) -> std::optional<std::pair<std::string, bool>> override {
-            std::pair<std::string, bool> ret;
-            bool contains = keyMap.if_contains(ski, [&ret](const KeyMap::value_type &v) {
-                ret.first = v.second._raw;
-                ret.second = v.second._isPrivate;
-            });
-            if (!contains) {
-                return std::nullopt;
-            }
-            return ret;
-        }
-
-    private:
-        struct Cell {
-            // std::string _ski{}; key
-            std::string _raw{}; // value
-            bool _isPrivate{};
-        };
-        using KeyMap = gtl::parallel_flat_hash_map<std::string, Cell>;
-        KeyMap keyMap;
-    };
-
-    class BSSCPWithThreadPool : public util::BCCSP {
-    public:
-        explicit BSSCPWithThreadPool() : BCCSP(std::make_unique<DefaultKeyStorage>()) { }
-
-        // for validation only, no blocking options.
-        mutable util::thread_pool_light tp;
-    };
-
-    class BFGWithThreadPool : public BlockFragmentGenerator {
-    public:
-        explicit BFGWithThreadPool(const std::vector<Config>& cfgList, std::unique_ptr<util::thread_pool_light> tp_)
-                : BlockFragmentGenerator(cfgList, tp_.get()), tp(std::move(tp_)) { }
-
-    private:
-        std::unique_ptr<util::thread_pool_light> tp;
-    };
-
-    // the block storage for ALL regions(include this one)
-    class MRBlockStorage {
-    public:
-        explicit MRBlockStorage(int regionCount)
-                : blockStorage(regionCount)
-                , newBlockFutexList(regionCount)
-                , persistBlockFutexList(regionCount) {
-            for (int i = 0; i < regionCount; i++) {
-                newBlockFutexList[i] = bthread::butex_create_checked<butil::atomic<int>>();
-                newBlockFutexList[i]->store(-1, std::memory_order_relaxed);
-                persistBlockFutexList[i] = bthread::butex_create_checked<butil::atomic<int>>();
-                persistBlockFutexList[i]->store(-1, std::memory_order_relaxed);
-            }
-            totalNewBlockCount = bthread::butex_create_checked<butil::atomic<int>>();
-            totalPersistBlockCount = bthread::butex_create_checked<butil::atomic<int>>();
-        }
-
-        virtual ~MRBlockStorage() {
-            for (int i = 0; i < (int)blockStorage.size(); i++) {
-                bthread::butex_destroy(newBlockFutexList[i]);
-                bthread::butex_destroy(persistBlockFutexList[i]);
-            }
-            bthread::butex_destroy(totalNewBlockCount);
-            bthread::butex_destroy(totalPersistBlockCount);
-        }
-
-        MRBlockStorage(const MRBlockStorage &) = delete;
-
-        MRBlockStorage(MRBlockStorage &&) = delete;
-
-        // thread safe, return -1 if not exist
-        int getMaxStoredBlockNumber(int regionId) {
-            return newBlockFutexList[regionId]->load(std::memory_order_acquire);
-        }
-
-        // thread safe, nullptr if not exist
-        std::shared_ptr<proto::Block> getBlock(int regionId, proto::BlockNumber blockId) {
-            if ((int) blockStorage.size() <= regionId) {
-                return nullptr;
-            }
-            std::shared_ptr<proto::Block> block = nullptr;
-            blockStorage[regionId].if_contains(blockId, [&block](
-                    const RegionStorage::value_type &v) { block = v.second.block; });
-            return block;
-        }
-
-        // thread safe
-        void insertBlock(int regionId, std::shared_ptr<proto::Block> block) {
-            if ((int) blockStorage.size() <= regionId) {
-                return;
-            }
-            auto blockNumber = block->header.number;
-            blockStorage[regionId].try_emplace(blockNumber, BlockCell{false, std::move(block)});
-        }
-
-        // thread safe, return false if not exist
-        bool setPersist(int regionId, proto::BlockNumber blockId) {
-            if ((int) blockStorage.size() <= regionId) {
-                return false;
-            }
-            blockStorage[regionId].modify_if(blockId, [](RegionStorage::value_type &v) { v.second.persist = true; });
-            return true;
-        }
-
-        // return true if persisted
-        bool isPersist(int regionId, proto::BlockNumber blockId) {
-            if ((int) blockStorage.size() <= regionId) {
-                return false;
-            }
-            bool ret = false;
-            blockStorage[regionId].if_contains(blockId, [&ret](const RegionStorage::value_type &v) { ret = v.second.persist; });
-            return ret;
-        }
-
-        [[nodiscard]] auto regionCount() const { return blockStorage.size(); }
-
-        int onReceivedNewBlock(int regionId, proto::BlockNumber blockNumber) {
-            auto smallBlockNumber = (int) blockNumber;
-            auto& futex = newBlockFutexList[regionId];
-            futex->store(smallBlockNumber);
-            return bthread::butex_wake_all(futex);
-        }
-
-        // blockNumber is the maximum processed block
-        // oldBlockNumber == -1 on starting
-        int waitForNewBlock(int regionId, int oldBlockNumber) {
-            auto& futex = newBlockFutexList[regionId];
-            return bthread::butex_wait(futex, oldBlockNumber, nullptr);
-        }
-
-        int onBlockPersist(int regionId, proto::BlockNumber blockNumber) {
-            auto smallBlockNumber = (int) blockNumber;
-            auto& futex = persistBlockFutexList[regionId];
-            futex->store(smallBlockNumber);
-            return bthread::butex_wake_all(futex);
-        }
-
-        // blockNumber is the maximum processed block
-        // oldBlockNumber == -1 on starting
-        int waitForBlockPersist(int regionId, int oldBlockNumber) {
-            auto& futex = persistBlockFutexList[regionId];
-            return bthread::butex_wait(futex, oldBlockNumber, nullptr);
-        }
-
-        int onReceivedNewBlock() {
-            totalNewBlockCount->fetch_add(1, std::memory_order_relaxed);
-            return bthread::butex_wake_all(totalNewBlockCount);
-        }
-
-        // currentBlockCount == 0 on starting
-        int waitForNewBlock(int currentBlockCount) {
-            return bthread::butex_wait(totalNewBlockCount, currentBlockCount, nullptr);
-        }
-
-        int onBlockPersist() {
-            totalPersistBlockCount->fetch_add(1, std::memory_order_relaxed);
-            return bthread::butex_wake_all(totalPersistBlockCount);
-        }
-
-        // currentBlockCount == 0 on starting
-        int waitForBlockPersist(int currentBlockCount) {
-            return bthread::butex_wait(totalPersistBlockCount, currentBlockCount, nullptr);
-        }
-
-    private:
-        struct BlockCell {
-            // block replicated successfully over n/2 regions
-            bool persist = false;
-            // the deserialized block and the related raw form
-            std::shared_ptr<proto::Block> block = nullptr;
-        };
-        // key block id, value actual block
-        using RegionStorage = gtl::parallel_flat_hash_map<proto::BlockNumber, BlockCell>;
-        // multi region block storage
-        std::vector<RegionStorage> blockStorage;
-        // change when block updated
-        butil::atomic<int>* totalNewBlockCount;
-        butil::atomic<int>* totalPersistBlockCount;
-        std::vector<butil::atomic<int>*> newBlockFutexList;
-        std::vector<butil::atomic<int>*> persistBlockFutexList;
-    };
 
     // MRBlockReceiver contains multiple BlockReceiver from different region,
     // and is responsible for things such as store and manage the entire blockchain.
@@ -228,7 +38,7 @@ namespace peer {
             bthread::CountdownEvent countdown(signatureCnt);
             std::atomic<int> verifiedSigCnt = 0;
             for (int i=0; i<signatureCnt; i++) {
-                bccsp->tp.push_task([&, i=i] {
+                auto task = [&, i=i] {
                     do {
                         auto& sig = block->metadata.consensusSignatures[i];
                         auto key = bccsp->GetKey(sig.ski);
@@ -245,7 +55,12 @@ namespace peer {
                         verifiedSigCnt.fetch_add(1, std::memory_order_relaxed);
                     } while (false);
                     countdown.signal();
-                });
+                };
+                if (tp != nullptr) {
+                    tp->push_task(task);
+                } else {
+                    task();
+                }
             }
             countdown.wait();
             // TODO: thresh hold is enough
@@ -259,6 +74,11 @@ namespace peer {
 
         // start all the receiver
         bool checkAndStartService(proto::BlockNumber startAt) {
+            if (!storage || !bccsp || !bfg) {
+                LOG(ERROR) << "Not init yet!";
+                return false;
+            }
+
             auto regionCount = storage->regionCount();
             if (regionCount != regions.size()) {
                 LOG(ERROR) << "Region size mismatch!";
@@ -304,23 +124,32 @@ namespace peer {
             return true;
         }
 
+        void setStorage(std::shared_ptr<MRBlockStorage> storage_) { storage = std::move(storage_); }
+
         std::shared_ptr<MRBlockStorage> getStorage() { return storage; }
 
-        std::shared_ptr<BSSCPWithThreadPool> getBCCSP() { return bccsp; }
+        void setBCCSPWithThreadPool(std::shared_ptr<util::BCCSP> bccsp_, std::shared_ptr<util::thread_pool_light> tp_=nullptr) {
+            bccsp = std::move(bccsp_);
+            tp = std::move(tp_);
+        }
 
-        std::shared_ptr<BFGWithThreadPool> getBFG() { return bfg; }
+        std::shared_ptr<util::BCCSP> getBCCSP() { return bccsp; }
+
+        std::shared_ptr<BlockFragmentGenerator> getBFG() { return bfg; }
 
         // region count is bfgCfgList.size()
         static std::unique_ptr<MRBlockReceiver> NewMRBlockReceiver(
                 // config of ALL nodes in ALL regions
                 std::vector<SingleRegionBlockReceiver::ConfigPtr>& regionConfig,
+                // erasure code sharding instance for all regions
+                std::shared_ptr<BlockFragmentGenerator> bfg,
                 // erasure code sharding config for all regions
                 const std::vector<BlockFragmentGenerator::Config>& bfgCfgList) {
-            auto regionCount = bfgCfgList.size();
             // Create new instance
             std::unique_ptr<MRBlockReceiver> br(new MRBlockReceiver());
-            br->bfg = std::make_shared<peer::BFGWithThreadPool>(bfgCfgList, std::make_unique<util::thread_pool_light>());
+            br->bfg = std::move(bfg);
             // Init regions
+            auto regionCount = bfgCfgList.size();
             br->regions.reserve(regionCount);
             for (int i = 0; i < (int) regionCount; i++) {
                 std::unique_ptr<RegionDS> rds(new RegionDS);
@@ -348,10 +177,6 @@ namespace peer {
                 }
                 br->regions.push_back(std::move(rds));
             }
-            // Init storage
-            br->storage = std::make_shared<MRBlockStorage>(regionCount);
-            // Init bccsp
-            br->bccsp = std::make_shared<BSSCPWithThreadPool>();
             // Do not start the system
             return br;
         }
@@ -361,7 +186,7 @@ namespace peer {
 
     private:
         // decode and encode block
-        std::shared_ptr<BFGWithThreadPool> bfg;
+        std::shared_ptr<BlockFragmentGenerator> bfg;
         // receive block from multiple regions
         class RegionDS {
         public:
@@ -373,7 +198,8 @@ namespace peer {
         // store the whole blockchain
         std::shared_ptr<MRBlockStorage> storage;
         // for block signature validation
-        std::shared_ptr<BSSCPWithThreadPool> bccsp;
+        std::shared_ptr<util::BCCSP> bccsp;
+        // thread pool for bccsp
+        mutable std::shared_ptr<util::thread_pool_light> tp;
     };
-
 }

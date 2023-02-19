@@ -13,30 +13,11 @@
 
 class MRBlockReceiverTest : public ::testing::Test {
 protected:
-    using ConfigPtr = peer::SingleRegionBlockReceiver::ConfigPtr;
-    using Config = peer::SingleRegionBlockReceiver::Config;
-
     void SetUp() override {
     };
 
     void TearDown() override {
     };
-
-    static std::vector<ConfigPtr> GenerateNodesConfig(int groupId, int count, int portOffset) {
-        std::vector<ConfigPtr> nodesConfig;
-        for (int i = 0; i < count; i++) {
-            auto cfg = std::make_shared<Config>();
-            auto nodeCfg = std::make_shared<util::NodeConfig>();
-            nodeCfg->groupId = groupId;
-            nodeCfg->nodeId = i;
-            nodeCfg->ski = std::to_string(groupId) + "_" + std::to_string(i);
-            cfg->nodeConfig = std::move(nodeCfg);
-            cfg->addr() = "127.0.0.1";
-            cfg->port = 51200 + portOffset + i;
-            nodesConfig.push_back(std::move(cfg));
-        }
-        return nodesConfig;
-    }
 
 };
 
@@ -48,9 +29,9 @@ TEST_F(MRBlockReceiverTest, TestBlockSignValidate) {
     bfgUtils->addCFG(4, 8, 1, 5);
     bfgUtils->addCFG(4, 8, 1, 5);
 
-    std::vector<ConfigPtr> configList;
+    std::vector<tests::ProtoBlockUtils::ConfigPtr> configList;
     for (int i=0; i<3; i++) {
-        auto ret = GenerateNodesConfig(i, 4, i*4);
+        auto ret = tests::ProtoBlockUtils::GenerateNodesConfig(i, 4, i*4);
         std::move(ret.begin(), ret.end(), std::back_inserter(configList));
     }
 

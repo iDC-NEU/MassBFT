@@ -4,6 +4,7 @@
 
 #include "peer/replicator/block_receiver.h"
 #include "tests/block_fragment_generator_utils.h"
+#include "tests/proto_block_utils.h"
 
 #include "bthread/countdown_event.h"
 
@@ -12,9 +13,6 @@
 
 class BlockReceiverTest : public ::testing::Test {
 public:
-    using ConfigPtr = peer::SingleRegionBlockReceiver::ConfigPtr;
-    using Config = peer::SingleRegionBlockReceiver::Config;
-
     BlockReceiverTest() {
         dataShardCnt = 4;
         parityShardCnt = 8;
@@ -29,22 +27,6 @@ public:
         // We only have 1 region here, so size of the config is set to 5 (4 region instance+1 sender instance)
         cfgPosition = bfgUtils.addCFG(dataShardCnt, parityShardCnt, 1, 5);
         bfgUtils.startBFG();
-    }
-
-    static std::vector<ConfigPtr> GenerateNodesConfig(int groupId, int count) {
-        std::vector<ConfigPtr> nodesConfig;
-        for (int i = 0; i < count; i++) {
-            auto cfg = std::make_shared<Config>();
-            auto nodeCfg = std::make_shared<util::NodeConfig>();
-            nodeCfg->groupId = groupId;
-            nodeCfg->nodeId = i;
-            nodeCfg->ski = std::to_string(i);
-            cfg->nodeConfig = std::move(nodeCfg);
-            cfg->addr() = "127.0.0.1";
-            cfg->port = 51200 + i;
-            nodesConfig.push_back(std::move(cfg));
-        }
-        return nodesConfig;
     }
 
 protected:
@@ -75,7 +57,7 @@ TEST_F(BlockReceiverTest, IntrgrateTest) {
     }
     int shardPerNode = (parityShardCnt + dataShardCnt) / nodesPerRegion;    // must be divisible
     // spin up client
-    auto nodesCfg = GenerateNodesConfig(regionId, nodesPerRegion);
+    auto nodesCfg = tests::ProtoBlockUtils::GenerateNodesConfig(regionId, nodesPerRegion, 0);
     auto regionZeroReceiver = peer::SingleRegionBlockReceiver::NewSingleRegionBlockReceiver(bfgUtils.bfg, bfgUtils.cfgList[regionId], nodesCfg);
     ASSERT_TRUE(regionZeroReceiver != nullptr) << "Create instance failed";
     regionZeroReceiver->activeStart(blockNumber);
@@ -119,7 +101,7 @@ TEST_F(BlockReceiverTest, ContinueousSending) {
     }
     int shardPerNode = (parityShardCnt + dataShardCnt) / nodesPerRegion;    // must be divisible
     // spin up client
-    auto nodesCfg = GenerateNodesConfig(regionId, nodesPerRegion);
+    auto nodesCfg = tests::ProtoBlockUtils::GenerateNodesConfig(regionId, nodesPerRegion, 0);
     auto regionZeroReceiver = peer::SingleRegionBlockReceiver::NewSingleRegionBlockReceiver(bfgUtils.bfg, bfgUtils.cfgList[regionId], nodesCfg);
     ASSERT_TRUE(regionZeroReceiver != nullptr) << "Create instance failed";
     regionZeroReceiver->passiveStart(startWith);
@@ -170,7 +152,7 @@ TEST_F(BlockReceiverTest, SendingAsync) {
     }
     int shardPerNode = (parityShardCnt + dataShardCnt) / nodesPerRegion;    // must be divisible
     // spin up client
-    auto nodesCfg = GenerateNodesConfig(regionId, nodesPerRegion);
+    auto nodesCfg = tests::ProtoBlockUtils::GenerateNodesConfig(regionId, nodesPerRegion, 0);
     auto regionZeroReceiver = peer::SingleRegionBlockReceiver::NewSingleRegionBlockReceiver(bfgUtils.bfg, bfgUtils.cfgList[regionId], nodesCfg);
     ASSERT_TRUE(regionZeroReceiver != nullptr) << "Create instance failed";
     regionZeroReceiver->activeStart(startWith);

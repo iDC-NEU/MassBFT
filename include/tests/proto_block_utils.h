@@ -5,6 +5,7 @@
 #pragma once
 
 #include "proto/block.h"
+#include "common/property.h"
 
 namespace tests {
     class ProtoBlockUtils {
@@ -46,6 +47,25 @@ namespace tests {
             b.body.userRequests.push_back(std::move(env1));
 
             return realBlock;
+        }
+
+        using Config = util::ZMQInstanceConfig;
+        using ConfigPtr = std::shared_ptr<util::ZMQInstanceConfig>;
+
+        static std::vector<ConfigPtr> GenerateNodesConfig(int groupId, int count, int portOffset) {
+            std::vector<ConfigPtr> nodesConfig;
+            for (int i = 0; i < count; i++) {
+                auto cfg = std::make_shared<Config>();
+                auto nodeCfg = std::make_shared<util::NodeConfig>();
+                nodeCfg->groupId = groupId;
+                nodeCfg->nodeId = i;
+                nodeCfg->ski = std::to_string(groupId) + "_" + std::to_string(i);
+                cfg->nodeConfig = std::move(nodeCfg);
+                cfg->addr() = "127.0.0.1";
+                cfg->port = 51200 + portOffset + i;
+                nodesConfig.push_back(std::move(cfg));
+            }
+            return nodesConfig;
         }
     };
 }

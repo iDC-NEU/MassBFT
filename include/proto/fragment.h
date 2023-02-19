@@ -12,18 +12,31 @@ namespace proto {
 
     using BlockNumber = uint64_t;
 
+    // Do not serialize this class using in() or out() method
     // EncodeMessage has type sv, so encoder / decoder must keep the actual message
     struct EncodeBlockFragment {
-        constexpr static auto serialize(auto& archive, EncodeBlockFragment& self) {
-            return archive(self.blockNumber, self.root, self.size, self.start, self.end, self.encodeMessage);
-        }
-
-        bool serializeWithoutMessage(std::string* rawEncodeMessage, int offset=0) {
+        bool serializeToString(std::string* rawEncodeMessage, int offset, bool withBody) {
             zpp::bits::out out(*rawEncodeMessage);
             out.reset(offset);
             if(failure(out(blockNumber, root, size, start, end))) {
                 return false;
             }
+            if (!withBody) {
+                return true;
+            }
+            rawEncodeMessage->resize(out.position()+encodeMessage.size());
+            std::memcpy(rawEncodeMessage->data()+out.position(), encodeMessage.data(), encodeMessage.size());
+            return true;
+        }
+
+        bool deserializeFromString(std::string_view raw, int offset=0) {
+            zpp::bits::in in(raw);
+            in.reset(offset);
+            if(failure(in(blockNumber, root, size, start, end))) {
+                return false;
+            }
+            // encodeMessage may be larger than expected
+            encodeMessage = std::string_view(raw.data()+in.position(), raw.size()-in.position());
             return true;
         }
 

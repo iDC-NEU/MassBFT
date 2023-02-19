@@ -48,8 +48,7 @@ namespace tests {
             fragment.root = context->getRoot();
             // serialize to string
             std::string dataOut;
-            zpp::bits::out out(dataOut);
-            if(failure(out(fragment))) {
+            if(!fragment.serializeToString(&dataOut, 0, true)) {
                 CHECK(false) << "Encode message fragment failed!";
             }
             return dataOut;

@@ -105,8 +105,7 @@ TEST_F(MRBlockReceiverTest, TestBlockSignValidate) {
             fragment.encodeMessage = msgBuf;    // string view
             fragment.root = context->getRoot();
             // serialize to string
-            zpp::bits::out out(serializedFragment[j]);
-            if(failure(out(fragment))) {
+            if(!fragment.serializeToString(&serializedFragment[j], 0, true)) {
                 CHECK(false) << "Encode message fragment failed!";
             }
         }

@@ -60,8 +60,7 @@ namespace peer {
             std::unique_ptr<FragmentBlock> fragmentBlock(new FragmentBlock{{}, std::move(raw)});
             std::string_view message(reinterpret_cast<const char*>(fragmentBlock->data.data()), fragmentBlock->data.size());
             // get the actual block fragment
-            zpp::bits::in inEBF(message);
-            if(failure(inEBF(fragmentBlock->ebf))) {
+            if(!fragmentBlock->ebf.deserializeFromString(message)) {
                 LOG(ERROR) << "Decode message fragment failed!";
                 return false;
             }

@@ -271,4 +271,36 @@ namespace util {
         mutable CacheType cache;
         std::unique_ptr<KeyStorage> storage;
     };
+
+    class DefaultKeyStorage : public util::KeyStorage {
+    public:
+        bool saveKey(std::string_view ski, std::string_view raw, bool isPrivate, bool overwrite) override {
+            if (overwrite) {
+                keyMap[ski] = Cell{std::string(raw), isPrivate};
+            }
+            keyMap.try_emplace(ski, Cell{std::string(raw), isPrivate});
+            return true;
+        }
+
+        auto loadKey(std::string_view ski) -> std::optional<std::pair<std::string, bool>> override {
+            std::pair<std::string, bool> ret;
+            bool contains = keyMap.if_contains(ski, [&ret](const KeyMap::value_type &v) {
+                ret.first = v.second._raw;
+                ret.second = v.second._isPrivate;
+            });
+            if (!contains) {
+                return std::nullopt;
+            }
+            return ret;
+        }
+
+    private:
+        struct Cell {
+            // std::string _ski{}; key
+            std::string _raw{}; // value
+            bool _isPrivate{};
+        };
+        using KeyMap = gtl::parallel_flat_hash_map<std::string, Cell>;
+        KeyMap keyMap;
+    };
 }

@@ -87,7 +87,7 @@ namespace peer {
                     LOG(INFO) << "Can not get block, retrying: " << nextBlockNumber;
                     continue;
                 }
-                DLOG(INFO) << "Region " << regionId <<" get block from storage: " << nextBlockNumber;
+                // DLOG(INFO) << "Region " << regionId <<" get block from storage: " << nextBlockNumber;
                 if (!encodeAndSendBlock(block)) {
                     CHECK(false) << "Can not send block: " << nextBlockNumber;
                 }

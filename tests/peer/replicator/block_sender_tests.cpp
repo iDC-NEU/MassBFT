@@ -17,6 +17,33 @@ protected:
 
     void TearDown() override {
     };
+
+    // 3 regions, 4 nodes version
+    std::vector<std::string> prepareBlock(proto::BlockNumber blockNumber, util::BCCSP* bccsp) {
+        // prepare a mock block
+        std::string blockRaw;
+        auto block = tests::ProtoBlockUtils::CreateDemoBlock();
+        block->metadata.consensusSignatures.clear();
+        block->header.number = blockNumber;
+        auto pos = block->serializeToString(&blockRaw);
+        CHECK(pos.valid) << "serialize block failed!";
+        // sign the body and write back
+        std::vector<std::string> regionBlockRaw(3);
+        for (int i=0; i<3; i++) {
+            for(int j=0; j<4; j++) {
+                auto ski = std::to_string(i) + "_" + std::to_string(j);
+                auto key = bccsp->GetKey(ski);
+                std::string_view serHBody(blockRaw.data()+pos.headerPos, pos.execResultPos-pos.headerPos);
+                CHECK(key->Private()) << "Can not sign header+body!";
+                auto ret = key->Sign(serHBody.data(), serHBody.size());
+                CHECK(ret) << "Sig validate failed, ski: " << ski;
+                // push back the signature
+                block->metadata.consensusSignatures.push_back({ski, key->PublicBytes(), *ret});
+            }
+            block->serializeToString(&regionBlockRaw[i]);
+        }
+        return regionBlockRaw;
+    }
 };
 
 TEST_F(BlockSenderTest, IntrgrateTest) {
@@ -67,49 +94,30 @@ TEST_F(BlockSenderTest, IntrgrateTest) {
             bccsp->generateED25519Key(std::to_string(i) + "_" + std::to_string(j), false);
         }
     }
-    // prepare a mock block
-    std::string blockRaw;
-    auto block = tests::ProtoBlockUtils::CreateDemoBlock();
-    block->metadata.consensusSignatures.clear();
-    block->header.number = 0;
-    auto pos = block->serializeToString(&blockRaw);
-    ASSERT_TRUE(pos.valid) << "serialize block failed!";
-    // sign the body and write back
-    std::vector<std::string> regionBlockRaw(3);
-    for (int i=0; i<3; i++) {
-        for(int j=0; j<4; j++) {
-            auto ski = std::to_string(i) + "_" + std::to_string(j);
-            auto key = bccsp->GetKey(ski);
-            std::string_view serHBody(blockRaw.data()+pos.headerPos, pos.execResultPos-pos.headerPos);
-            ASSERT_TRUE(key->Private()) << "Can not sign header+body!";
-            auto ret = key->Sign(serHBody.data(), serHBody.size());
-            ASSERT_TRUE(ret) << "Sig validate failed, ski: " << ski;
-            // push back the signature
-            block->metadata.consensusSignatures.push_back({ski, key->PublicBytes(), *ret});
-        }
-        block->serializeToString(&regionBlockRaw[i]);
-    }
 
     // Give the subscribers a chance to connect, so they don't lose any messages
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
     ASSERT_TRUE(mr->checkAndStartService(0)) << "can not start mr";
 
-    for (int i=0; i<3; i++) {
-        std::unique_ptr<proto::Block> regionBlock(new proto::Block);
-        regionBlock->deserializeFromString(std::string(regionBlockRaw[i]));
-        // Region r broadcasts block to all other regions
-        storageList[i]->insertBlock(i, std::move(regionBlock));
-        storageList[i]->onReceivedNewBlock(i, 0);
-    }
-    // check the block data
-    // Since we only deploy one receiving instance (region 0),
-    // it will only receive block 0 from region 1 and region 2,
-    // so it will only receive two blocks in total
-    for (int i = 0; i < 3; i++) {
-        int localRegionId = 0;
-        storageList[localRegionId]->waitForNewBlock(i, 0, nullptr);
-        std::string buf;
-        storageList[localRegionId]->getBlock(i, 0)->serializeToString(&buf);
-        ASSERT_TRUE(regionBlockRaw[i] == buf) << "block mismatch!";
+    for (int bkNum = 0; bkNum<100; bkNum++) {
+        auto regionBlockRaw = prepareBlock(bkNum, bccsp.get());
+        for (int i=0; i<3; i++) {
+            std::unique_ptr<proto::Block> regionBlock(new proto::Block);
+            regionBlock->deserializeFromString(std::string(regionBlockRaw[i]));
+            // Region r broadcasts block to all other regions
+            storageList[i]->insertBlock(i, std::move(regionBlock));
+            storageList[i]->onReceivedNewBlock(i, bkNum);
+        }
+        // check the block data
+        // Since we only deploy one receiving instance (region 0),
+        // it will only receive block 0 from region 1 and region 2,
+        // so it will only receive two blocks in total
+        for (int i = 0; i < 3; i++) {
+            int localRegionId = 0;
+            while(!storageList[localRegionId]->waitForNewBlock(i, bkNum, nullptr));
+            std::string buf;
+            storageList[localRegionId]->getBlock(i, bkNum)->serializeToString(&buf);
+            ASSERT_TRUE(regionBlockRaw[i] == buf) << "block mismatch!";
+        }
     }
 }

@@ -136,7 +136,7 @@ TEST_F(MRBlockReceiverTest, TestBlockSignValidate) {
     }
 
     for (int i=0; i<3; i++) {
-        storage->waitForNewBlock(i);
+        storage->waitForNewBlock(i, nullptr);
     }
 
     for (int i=0; i<3; i++) {

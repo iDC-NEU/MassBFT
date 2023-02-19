@@ -95,9 +95,10 @@ namespace peer {
 
         // blockNumber is the maximum processed block
         // oldBlockNumber == -1 on starting
-        int waitForNewBlock(int regionId, int oldBlockNumber) {
+        // auto timeout = butil::milliseconds_to_timespec(1000);
+        int waitForNewBlock(int regionId, int oldBlockNumber, const timespec* timeout) {
             auto& futex = newBlockFutexList[regionId];
-            return bthread::butex_wait(futex, oldBlockNumber, nullptr);
+            return bthread::butex_wait(futex, oldBlockNumber, timeout);
         }
 
         int onBlockPersist(int regionId, proto::BlockNumber blockNumber) {
@@ -109,9 +110,10 @@ namespace peer {
 
         // blockNumber is the maximum processed block
         // oldBlockNumber == -1 on starting
-        int waitForBlockPersist(int regionId, int oldBlockNumber) {
+        // auto timeout = butil::milliseconds_to_timespec(1000);
+        int waitForBlockPersist(int regionId, int oldBlockNumber, const timespec* timeout) {
             auto& futex = persistBlockFutexList[regionId];
-            return bthread::butex_wait(futex, oldBlockNumber, nullptr);
+            return bthread::butex_wait(futex, oldBlockNumber, timeout);
         }
 
         int onReceivedNewBlock() {
@@ -120,8 +122,9 @@ namespace peer {
         }
 
         // currentBlockCount == 0 on starting
-        int waitForNewBlock(int currentBlockCount) {
-            return bthread::butex_wait(totalNewBlockCount, currentBlockCount, nullptr);
+        // auto timeout = butil::milliseconds_to_timespec(1000);
+        int waitForNewBlock(int currentBlockCount, const timespec* timeout) {
+            return bthread::butex_wait(totalNewBlockCount, currentBlockCount, timeout);
         }
 
         int onBlockPersist() {
@@ -130,8 +133,9 @@ namespace peer {
         }
 
         // currentBlockCount == 0 on starting
-        int waitForBlockPersist(int currentBlockCount) {
-            return bthread::butex_wait(totalPersistBlockCount, currentBlockCount, nullptr);
+        // auto timeout = butil::milliseconds_to_timespec(1000);
+        int waitForBlockPersist(int currentBlockCount, const timespec* timeout) {
+            return bthread::butex_wait(totalPersistBlockCount, currentBlockCount, timeout);
         }
 
     private:

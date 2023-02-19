@@ -73,8 +73,12 @@ namespace peer {
                 , persistBlockFutexList(regionCount) {
             for (int i = 0; i < regionCount; i++) {
                 newBlockFutexList[i] = bthread::butex_create_checked<butil::atomic<int>>();
+                newBlockFutexList[i]->store(-1, std::memory_order_relaxed);
                 persistBlockFutexList[i] = bthread::butex_create_checked<butil::atomic<int>>();
+                persistBlockFutexList[i]->store(-1, std::memory_order_relaxed);
             }
+            totalNewBlockCount = bthread::butex_create_checked<butil::atomic<int>>();
+            totalPersistBlockCount = bthread::butex_create_checked<butil::atomic<int>>();
         }
 
         virtual ~MRBlockStorage() {
@@ -82,11 +86,18 @@ namespace peer {
                 bthread::butex_destroy(newBlockFutexList[i]);
                 bthread::butex_destroy(persistBlockFutexList[i]);
             }
+            bthread::butex_destroy(totalNewBlockCount);
+            bthread::butex_destroy(totalPersistBlockCount);
         }
 
         MRBlockStorage(const MRBlockStorage &) = delete;
 
         MRBlockStorage(MRBlockStorage &&) = delete;
+
+        // thread safe, return -1 if not exist
+        int getMaxStoredBlockNumber(int regionId) {
+            return newBlockFutexList[regionId]->load(std::memory_order_acquire);
+        }
 
         // thread safe, nullptr if not exist
         std::shared_ptr<proto::Block> getBlock(int regionId, proto::BlockNumber blockId) {
@@ -133,28 +144,48 @@ namespace peer {
             auto smallBlockNumber = (int) blockNumber;
             auto& futex = newBlockFutexList[regionId];
             futex->store(smallBlockNumber);
-            return bthread::butex_wake(futex);
+            return bthread::butex_wake_all(futex);
         }
 
         // blockNumber is the maximum processed block
-        int waitForNewBlock(int regionId, proto::BlockNumber oldBlockNumber) {
-            auto smallBlockNumber = (int) oldBlockNumber;
+        // oldBlockNumber == -1 on starting
+        int waitForNewBlock(int regionId, int oldBlockNumber) {
             auto& futex = newBlockFutexList[regionId];
-            return bthread::butex_wait(futex, smallBlockNumber, nullptr);
+            return bthread::butex_wait(futex, oldBlockNumber, nullptr);
         }
 
         int onBlockPersist(int regionId, proto::BlockNumber blockNumber) {
             auto smallBlockNumber = (int) blockNumber;
             auto& futex = persistBlockFutexList[regionId];
             futex->store(smallBlockNumber);
-            return bthread::butex_wake(futex);
+            return bthread::butex_wake_all(futex);
         }
 
         // blockNumber is the maximum processed block
-        int waitForBlockPersist(int regionId, proto::BlockNumber oldBlockNumber) {
-            auto smallBlockNumber = (int) oldBlockNumber;
+        // oldBlockNumber == -1 on starting
+        int waitForBlockPersist(int regionId, int oldBlockNumber) {
             auto& futex = persistBlockFutexList[regionId];
-            return bthread::butex_wait(futex, smallBlockNumber, nullptr);
+            return bthread::butex_wait(futex, oldBlockNumber, nullptr);
+        }
+
+        int onReceivedNewBlock() {
+            totalNewBlockCount->fetch_add(1, std::memory_order_relaxed);
+            return bthread::butex_wake_all(totalNewBlockCount);
+        }
+
+        // currentBlockCount == 0 on starting
+        int waitForNewBlock(int currentBlockCount) {
+            return bthread::butex_wait(totalNewBlockCount, currentBlockCount, nullptr);
+        }
+
+        int onBlockPersist() {
+            totalPersistBlockCount->fetch_add(1, std::memory_order_relaxed);
+            return bthread::butex_wake_all(totalPersistBlockCount);
+        }
+
+        // currentBlockCount == 0 on starting
+        int waitForBlockPersist(int currentBlockCount) {
+            return bthread::butex_wait(totalPersistBlockCount, currentBlockCount, nullptr);
         }
 
     private:
@@ -169,6 +200,8 @@ namespace peer {
         // multi region block storage
         std::vector<RegionStorage> blockStorage;
         // change when block updated
+        butil::atomic<int>* totalNewBlockCount;
+        butil::atomic<int>* totalPersistBlockCount;
         std::vector<butil::atomic<int>*> newBlockFutexList;
         std::vector<butil::atomic<int>*> persistBlockFutexList;
     };
@@ -183,7 +216,7 @@ namespace peer {
 
         // input serialized block, return deserialized block if validated
         // thread safe
-        std::shared_ptr<proto::Block> getBlockFromRawString(std::string&& raw) const {
+        [[nodiscard]] std::shared_ptr<proto::Block> getBlockFromRawString(std::unique_ptr<std::string> raw) const {
             std::shared_ptr<proto::Block> block(new proto::Block);
             auto ret = block->deserializeFromString(std::move(raw));
             if (!ret.valid) {
@@ -196,15 +229,21 @@ namespace peer {
             std::atomic<int> verifiedSigCnt = 0;
             for (int i=0; i<signatureCnt; i++) {
                 bccsp->tp.push_task([&, i=i] {
-                    auto& sig = block->metadata.consensusSignatures[i];
-                    auto key = bccsp->GetKey(sig.ski);
-                    // header + body serialized data
-                    std::string_view serBody(block->getSerializedMessage()->data()+ret.headerPos, ret.execResultPos-ret.headerPos);
-                    if (!key->Verify(sig.digest, serBody.data(), serBody.size())) {
-                        LOG(ERROR) << "Sig validate failed, ski: " << sig.ski;
-                    } else {
+                    do {
+                        auto& sig = block->metadata.consensusSignatures[i];
+                        auto key = bccsp->GetKey(sig.ski);
+                        if (key == nullptr) {
+                            LOG(ERROR) << "Failed to found key, ski: " << sig.ski;
+                            break;
+                        }
+                        // header + body serialized data
+                        std::string_view serBody(block->getSerializedMessage()->data()+ret.headerPos, ret.execResultPos-ret.headerPos);
+                        if (!key->Verify(sig.digest, serBody.data(), serBody.size())) {
+                            LOG(ERROR) << "Sig validate failed, ski: " << sig.ski;
+                            break;
+                        }
                         verifiedSigCnt.fetch_add(1, std::memory_order_relaxed);
-                    }
+                    } while (false);
                     countdown.signal();
                 });
             }
@@ -219,7 +258,7 @@ namespace peer {
         }
 
         // start all the receiver
-        bool checkAndStartService() {
+        bool checkAndStartService(proto::BlockNumber startAt) {
             auto regionCount = storage->regionCount();
             if (regionCount != regions.size()) {
                 LOG(ERROR) << "Region size mismatch!";
@@ -227,19 +266,40 @@ namespace peer {
             }
             // set handle
             for (int i=0; i<(int)regionCount; i++) {
-                auto validateFunc = [this, idx=i](std::string& raw) ->bool {
-                    auto block = getBlockFromRawString(std::move(raw));
+                auto validateFunc = [this, idx=i](std::string& raw, const std::vector<SingleRegionBlockReceiver::BufferBlock>& peerList) ->bool {
+                    for (const auto& it: peerList) {
+                        if (it.fragment->ebf.size != raw.size()) {
+                            LOG(WARNING) << "Serialized block size mismatch!";
+                            // TODO: BLOCK SIZE BYZANTINE ERROR HANDLING
+                        }
+                    }
+                    auto block = getBlockFromRawString(std::make_unique<std::string>(std::move(raw)));
                     if (block == nullptr) {
+                        LOG(ERROR) << "Can not generate block!";
                         return false;
                     }
+                    // Check other stuff
+                    if (peerList.empty()) {
+                        LOG(ERROR) << "PeerList is empty!";
+                        return false;
+                    }
+                    // check block number consist
                     auto blockNumber = block->header.number;
+                    for (const auto& it: peerList) {
+                        if (it.fragment->ebf.blockNumber != blockNumber) {
+                            LOG(ERROR) << "Block number mismatch!";
+                            return false;
+                        }
+                    }
+
                     storage->insertBlock(idx, std::move(block));
                     // wake up all consumer
                     storage->onReceivedNewBlock(idx, blockNumber);
+                    storage->onReceivedNewBlock();
                     return true;
                 };  // end of lambda
                 // start service
-                regions[i]->blockReceiver->activeStart(0, validateFunc);
+                regions[i]->blockReceiver->activeStart(startAt, validateFunc);
             }
             return true;
         }

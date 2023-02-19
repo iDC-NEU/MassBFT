@@ -24,6 +24,7 @@ namespace peer {
 
         MRBlockReceiver(MRBlockReceiver&&) = delete;
 
+    protected:
         // input serialized block, return deserialized block if validated
         // thread safe
         [[nodiscard]] std::shared_ptr<proto::Block> getBlockFromRawString(std::unique_ptr<std::string> raw) const {
@@ -72,9 +73,10 @@ namespace peer {
             return block;
         }
 
+    public:
         // start all the receiver
         bool checkAndStartService(proto::BlockNumber startAt) {
-            if (!storage || !bccsp || !bfg) {
+            if (!storage || !bccsp || !bfg || localRegionId==-1) {
                 LOG(ERROR) << "Not init yet!";
                 return false;
             }
@@ -86,6 +88,9 @@ namespace peer {
             }
             // set handle
             for (int i=0; i<(int)regionCount; i++) {
+                if (i == localRegionId) {
+                    continue;   // skip local region
+                }
                 auto validateFunc = [this, idx=i](std::string& raw, const std::vector<SingleRegionBlockReceiver::BufferBlock>& peerList) ->bool {
                     for (const auto& it: peerList) {
                         if (it.fragment->ebf.size != raw.size()) {
@@ -139,6 +144,8 @@ namespace peer {
 
         // region count is bfgCfgList.size()
         static std::unique_ptr<MRBlockReceiver> NewMRBlockReceiver(
+                // We do not receive fragments from local region
+                int localRegionId,
                 // config of ALL nodes in ALL regions
                 std::vector<SingleRegionBlockReceiver::ConfigPtr>& regionConfig,
                 // erasure code sharding instance for all regions
@@ -152,6 +159,11 @@ namespace peer {
             auto regionCount = bfgCfgList.size();
             br->regions.reserve(regionCount);
             for (int i = 0; i < (int) regionCount; i++) {
+                if (i == localRegionId) {
+                    br->localRegionId = localRegionId;
+                    br->regions.push_back(nullptr);
+                    continue;   // skip local region
+                }
                 std::unique_ptr<RegionDS> rds(new RegionDS);
                 // 1. process regionConfig
                 for(auto& it: regionConfig) {
@@ -185,6 +197,7 @@ namespace peer {
         MRBlockReceiver() = default;
 
     private:
+        int localRegionId = -1;
         // decode and encode block
         std::shared_ptr<BlockFragmentGenerator> bfg;
         // receive block from multiple regions

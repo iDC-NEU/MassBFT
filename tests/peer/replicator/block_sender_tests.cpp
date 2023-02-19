@@ -53,7 +53,7 @@ TEST_F(BlockSenderTest, IntrgrateTest) {
         std::move(regionBfgConf.begin(), regionBfgConf.end(), std::back_inserter(configList));
     }
 
-    auto mr = peer::MRBlockReceiver::NewMRBlockReceiver(configList, bfg, bfgUtils->cfgList);
+    auto mr = peer::MRBlockReceiver::NewMRBlockReceiver(0, configList, bfg, bfgUtils->cfgList);
     ASSERT_TRUE(mr != nullptr);
 
     // Init bccsp

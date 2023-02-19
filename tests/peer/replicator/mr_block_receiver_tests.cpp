@@ -23,6 +23,7 @@ protected:
 
 TEST_F(MRBlockReceiverTest, TestBlockSignValidate) {
     auto bfgUtils = std::make_unique<tests::BFGUtils>();
+    int localRegionId = 0;
 
     // 3 regions, each region 4 nodes+1 sender
     bfgUtils->addCFG(4, 8, 1, 5);
@@ -53,7 +54,7 @@ TEST_F(MRBlockReceiverTest, TestBlockSignValidate) {
     // Init storage
     auto storage = std::make_shared<peer::MRBlockStorage>(3);   // 3 regions
 
-    auto mr = peer::MRBlockReceiver::NewMRBlockReceiver(configList, bfg, bfgUtils->cfgList);
+    auto mr = peer::MRBlockReceiver::NewMRBlockReceiver(localRegionId, configList, bfg, bfgUtils->cfgList);
     ASSERT_TRUE(mr != nullptr);
 
     mr->setBCCSPWithThreadPool(bccsp, tpForBFGAndBCCSP);
@@ -115,11 +116,15 @@ TEST_F(MRBlockReceiverTest, TestBlockSignValidate) {
         }
     }
 
-    for (int i=0; i<3; i++) {
+    // region count-1=number of blocks
+    for (int i=0; i<2; i++) {
         storage->waitForNewBlock(i, nullptr);
     }
 
     for (int i=0; i<3; i++) {
+        if (i == localRegionId) {
+            continue;
+        }
         auto maxId = storage->getMaxStoredBlockNumber(i);
         ASSERT_TRUE(maxId == 0) << "store block failed, id: " << maxId;
         auto recBlock = storage->getBlock(i, 0);

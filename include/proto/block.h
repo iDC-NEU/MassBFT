@@ -41,7 +41,7 @@ namespace proto {
             storage = std::make_shared<std::string>(std::move(m));
         }
 
-        void setSerializedMessage(std::string *m) {
+        void setSerializedMessage(std::unique_ptr<std::string> m) {
             storage = std::make_shared<std::string>(std::move(*m));
         }
 
@@ -326,9 +326,21 @@ namespace proto {
             std::size_t endPos{};
         };
 
-        PosList deserializeFromString(std::string &&raw, int pos = 0) {
-            PosList posList;
+        PosList deserializeFromString(std::unique_ptr<std::string> raw, int pos = 0) {
             this->setSerializedMessage(std::move(raw));
+            return deserializeFromString(pos);
+        }
+
+        PosList deserializeFromString(std::string&& raw, int pos = 0) {
+            this->setSerializedMessage(std::make_unique<std::string>(std::move(raw)));
+            return deserializeFromString(pos);
+        }
+
+        PosList deserializeFromString(int pos = 0) {
+            PosList posList;
+            if (this->storage == nullptr) {
+                return posList;
+            }
             auto in = zpp::bits::in(*(this->storage));
             in.reset(pos);
             posList.headerPos = in.position();
@@ -353,13 +365,75 @@ namespace proto {
         }
 
         // all pointer must be not null!
-        bool serializeToString(std::string *buf, int pos = 0) {
+        PosList serializeToString(std::string *buf, int pos = 0) {
+            PosList posList;
             zpp::bits::out out(*buf);
             out.reset(pos);
-            if(failure(out(*this))) {
-                return false;
+            posList.headerPos = out.position();
+            if(failure(out(this->header))) {
+                return posList;
             }
-            return true;
+            posList.bodyPos = out.position();
+            if(failure(out(this->body))) {
+                return posList;
+            }
+            posList.execResultPos = out.position();
+            if(failure(out(this->executeResult))) {
+                return posList;
+            }
+            posList.metadataPos = out.position();
+            if(failure(out(this->metadata))) {
+                return posList;
+            }
+            posList.endPos = out.position();
+            posList.valid = true;
+            return posList;
+        }
+
+        // return 0 on failure
+        static PosList UpdateSerializedHeader(const Header& h, std::string *buf, int headerPos = 0) {
+            PosList posList;
+            zpp::bits::out out(*buf);
+            out.reset(headerPos);
+            posList.headerPos = out.position();
+            if(failure(out(h))) {
+                return posList;
+            }
+            posList.bodyPos = out.position();
+            posList.valid = true;
+            return posList;
+        }
+
+        // Append Execution result and metadata
+        static PosList AppendSerializedExecutionResult(const Block& b, std::string *buf, int execResultPos = 0) {
+            PosList posList;
+            zpp::bits::out out(*buf);
+            out.reset(execResultPos);
+            posList.execResultPos = out.position();
+            if(failure(out(b.executeResult))) {
+                return posList;
+            }
+            posList.metadataPos = out.position();
+            if(failure(out(b.metadata))) {
+                return posList;
+            }
+            posList.endPos = out.position();
+            posList.valid = true;
+            return posList;
+        }
+
+        // Append metadata
+        static PosList AppendSerializedMetadata(const Metadata& m, std::string *buf, int metadataPos = 0) {
+            PosList posList;
+            zpp::bits::out out(*buf);
+            out.reset(metadataPos);
+            posList.metadataPos = out.position();
+            if(failure(out(m))) {
+                return posList;
+            }
+            posList.endPos = out.position();
+            posList.valid = true;
+            return posList;
         }
     };
 }

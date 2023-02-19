@@ -302,8 +302,9 @@ namespace peer {
                 for (auto i=start*_ecConfig.instanceCount; i<end*_ecConfig.instanceCount; i++) {
                     reserveSize += ecEncodeResult[i].size()+sizeof(int)*10;
                 }
-                if (bufferOut.size() + offset < reserveSize) {
-                    bufferOut.resize(reserveSize + offset);
+                reserveSize += offset;
+                if (bufferOut.size() < reserveSize) {
+                    bufferOut.resize(reserveSize);
                 }
 
                 // create serializer
@@ -336,7 +337,7 @@ namespace peer {
                     // 4. write actual data
                     out(ecEncodeResult[i]).or_throw();
                 }
-                DCHECK(bufferOut.size() + offset <= reserveSize) << "please reserve data size, actual size: " << bufferOut.size() + offset << " estimate size " << reserveSize;
+                DCHECK(bufferOut.size() <= reserveSize) << "please reserve data size, actual size: " << bufferOut.size() << " estimate size " << reserveSize;
                 bufferOut.resize(out.position());
                 return true;
             }

@@ -96,9 +96,10 @@ namespace peer {
         // blockNumber is the maximum processed block
         // oldBlockNumber == -1 on starting
         // auto timeout = butil::milliseconds_to_timespec(1000);
-        int waitForNewBlock(int regionId, int oldBlockNumber, const timespec* timeout) {
+        bool waitForNewBlock(int regionId, int nextBlockNumber, const timespec* timeout) {
             auto& futex = newBlockFutexList[regionId];
-            return bthread::butex_wait(futex, oldBlockNumber, timeout);
+            bthread::butex_wait(futex, nextBlockNumber-1, timeout);
+            return futex->load(std::memory_order_relaxed) != nextBlockNumber-1;
         }
 
         int onBlockPersist(int regionId, proto::BlockNumber blockNumber) {
@@ -111,12 +112,13 @@ namespace peer {
         // blockNumber is the maximum processed block
         // oldBlockNumber == -1 on starting
         // auto timeout = butil::milliseconds_to_timespec(1000);
-        int waitForBlockPersist(int regionId, int oldBlockNumber, const timespec* timeout) {
+        bool waitForBlockPersist(int regionId, int nextBlockNumber, const timespec* timeout) {
             auto& futex = persistBlockFutexList[regionId];
-            return bthread::butex_wait(futex, oldBlockNumber, timeout);
+            bthread::butex_wait(futex, nextBlockNumber-1, timeout);
+            return futex->load(std::memory_order_relaxed) != nextBlockNumber-1;
         }
 
-        int onReceivedNewBlock() {
+        bool onReceivedNewBlock() {
             totalNewBlockCount->fetch_add(1, std::memory_order_relaxed);
             return bthread::butex_wake_all(totalNewBlockCount);
         }
@@ -124,7 +126,8 @@ namespace peer {
         // currentBlockCount == 0 on starting
         // auto timeout = butil::milliseconds_to_timespec(1000);
         int waitForNewBlock(int currentBlockCount, const timespec* timeout) {
-            return bthread::butex_wait(totalNewBlockCount, currentBlockCount, timeout);
+            bthread::butex_wait(totalNewBlockCount, currentBlockCount, timeout);
+            return totalNewBlockCount->load(std::memory_order_relaxed) != currentBlockCount;
         }
 
         int onBlockPersist() {
@@ -135,7 +138,8 @@ namespace peer {
         // currentBlockCount == 0 on starting
         // auto timeout = butil::milliseconds_to_timespec(1000);
         int waitForBlockPersist(int currentBlockCount, const timespec* timeout) {
-            return bthread::butex_wait(totalPersistBlockCount, currentBlockCount, timeout);
+            bthread::butex_wait(totalPersistBlockCount, currentBlockCount, timeout);
+            return totalNewBlockCount->load(std::memory_order_relaxed) != currentBlockCount;
         }
 
     private:

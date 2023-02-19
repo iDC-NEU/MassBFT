@@ -4,10 +4,12 @@
 
 #pragma once
 
-#include "ankerl/unordered_dense.h"
 #include "common/thread_pool_light.h"
 #include "common/crypto.h"
+
+#include "ankerl/unordered_dense.h"
 #include "glog/logging.h"
+#include "bthread/countdown_event.h"
 #include <vector>
 #include <functional>
 #include <cmath>
@@ -350,7 +352,7 @@ namespace pmt {
             this->Leaves.resize(lenLeaves);
 
             auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, lenLeaves);
-            auto sema = util::NewSema();
+            bthread::CountdownEvent countdown(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
                 wp->push_task([&, start=i]{
                     for (int j = start; j < lenLeaves; j += numRoutines) {
@@ -360,10 +362,10 @@ namespace pmt {
                         }
                         this->Leaves[j] = *hash;
                     }
-                    sema.signal();
+                    countdown.signal();
                 });
             }
-            util::wait_for_sema(sema, numRoutines);
+            countdown.wait();
             return true;
         }
 
@@ -378,9 +380,9 @@ namespace pmt {
 
             proofGenBufList.push_back(std::make_unique<std::vector<HashString>>(prevLen >> 1));
             std::vector<HashString>* buf2 = proofGenBufList.back().get();
-            auto sema = util::NewSema();
             for (auto step = 1; step < int(Depth); step++) {
                 auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
+                bthread::CountdownEvent countdown(numRoutines);
                 for (auto i = 0; i < numRoutines; i++) {
                     wp->push_task([&, start=i << 1] {
                         for (auto j = start; j < prevLen; j += (numRoutines << 1)) {
@@ -391,14 +393,14 @@ namespace pmt {
                             }
                             (*buf2)[j >> 1] = *newHash;
                         }
-                        sema.signal();
+                        countdown.signal();
                     });
                 }
                 buf1 = buf2;
                 proofGenBufList.push_back(std::make_unique<std::vector<HashString>>(prevLen >> 1));
                 buf2 = proofGenBufList.back().get();
                 prevLen >>= 1;
-                util::wait_for_sema(sema, numRoutines);
+                countdown.wait();
                 // do not modify buf1 until all workers finished.
                 this->fixOdd(*buf1, prevLen);
                 this->updateProofsParallel(*buf1, prevLen, step);
@@ -414,17 +416,17 @@ namespace pmt {
         void updateProofsParallel(const std::vector<HashString> &buf, int bufLen, int step) {
             auto batch = 1 << step;
 
-            auto sema = util::NewSema();
             auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, bufLen);
+            bthread::CountdownEvent countdown(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
                 wp->push_task([&, start=i << 1] {
                     for (auto j = start; j < bufLen; j += (numRoutines << 1)) {
                         this->updatePairProof(buf, j, batch, step);
                     }
-                    sema.signal();
+                    countdown.signal();
                 });
             }
-            util::wait_for_sema(sema, numRoutines);
+            countdown.wait();
         }
 
         bool treeBuild() {
@@ -440,14 +442,14 @@ namespace pmt {
             int prevLen = (int) numLeaves;
             this->fixOdd(tree[0], prevLen);
 
-            auto sema = util::NewSema();
             for (uint32_t i = 0; i < Depth - 1; i++) {
                 this->tree[i + 1] = std::vector<HashString>(prevLen >> 1);
                 if (config.RunInParallel) {
                     auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
+                    bthread::CountdownEvent countdown(numRoutines);
                     for (auto j = 0; j < numRoutines; j++) {
                         // ----in the original version, numRoutines==config::NumRoutines----
-                        wp->push_task([this, start=j << 1, prevLen=prevLen, numRoutines=numRoutines, depth=i, &sema]{
+                        wp->push_task([this, start=j << 1, prevLen=prevLen, numRoutines=numRoutines, depth=i, &countdown]{
                             for (auto k = start; k < prevLen; k += (numRoutines << 1)) {
                                 auto ret = Config::HashFunc(this->tree[depth][k], this->tree[depth][k + 1]);
                                 if (!ret) {
@@ -456,11 +458,11 @@ namespace pmt {
                                 }
                                 this->tree[depth + 1][k >> 1] = *ret;
                             }
-                            sema.signal();
+                            countdown.signal();
                         });
                         // -----------------------------------------------------------------
                     }
-                    util::wait_for_sema(sema, numRoutines);
+                    countdown.wait();
                 } else {
                     for (auto j = 0; j < prevLen; j += 2) {
                         auto ret = Config::HashFunc(tree[i][j], tree[i][j + 1]);

@@ -283,7 +283,7 @@ namespace peer {
             // serializeFragments is called after initWithMessage
             // not include end: [start, start+1, ..., end-1]
             // This func will throw runtime error
-            [[nodiscard]] bool serializeFragments(int start, int end, std::string& bufferOut) const {
+            [[nodiscard]] bool serializeFragments(int start, int end, std::string& bufferOut, int offset=0) const {
                 const auto& proofs = mt->getProofs();
                 if (start<0 || start>=end || end>fragmentCnt) {
                     LOG(ERROR) << "index out of range!";
@@ -302,13 +302,13 @@ namespace peer {
                 for (auto i=start*_ecConfig.instanceCount; i<end*_ecConfig.instanceCount; i++) {
                     reserveSize += ecEncodeResult[i].size()+sizeof(int)*10;
                 }
-                if (bufferOut.size() < reserveSize) {
-                    bufferOut.resize(reserveSize);
+                if (bufferOut.size() + offset < reserveSize) {
+                    bufferOut.resize(reserveSize + offset);
                 }
 
                 // create serializer
                 auto out = zpp::bits::out(bufferOut);
-                out.reset(0);
+                out.reset(offset);
                 // 1. write depth(compressed)
                 out((int64_t) depth).or_throw();
 
@@ -336,7 +336,7 @@ namespace peer {
                     // 4. write actual data
                     out(ecEncodeResult[i]).or_throw();
                 }
-                DCHECK(bufferOut.size() <= reserveSize) << "please reserve data size, actual size: " << bufferOut.size() << " estimate size " << reserveSize;
+                DCHECK(bufferOut.size() + offset <= reserveSize) << "please reserve data size, actual size: " << bufferOut.size() + offset << " estimate size " << reserveSize;
                 bufferOut.resize(out.position());
                 return true;
             }

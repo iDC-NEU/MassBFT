@@ -63,9 +63,9 @@ TEST_F(BlockTest, SerializePartTest) {
 
 TEST_F(BlockTest, TxReadWriteSetTest) {
     auto rwSet = std::make_unique<proto::TxReadWriteSet>();
-    rwSet->setCCSpec("spec");
+    rwSet->setCCNamespace("spec");
     rwSet->setRetCode(1);
-    rwSet->setRequestHash({"hash"});
+    rwSet->setRequestDigest({"hash"});
     std::unique_ptr<proto::KV> read(new proto::KV("key1", "value1"));
     rwSet->getReads().push_back(std::move(read));
     std::unique_ptr<proto::KV> write(new proto::KV("key2", "value2"));
@@ -80,7 +80,7 @@ TEST_F(BlockTest, TxReadWriteSetTest) {
 
     ASSERT_TRUE(rwSet->getReads()[0]->equals(*rwSet2->getReads()[0]));
     ASSERT_TRUE(rwSet->getWrites()[0]->equals(*rwSet2->getWrites()[0]));
-    ASSERT_TRUE(rwSet->getCCSpecSV() == rwSet2->getCCSpecSV());
+    ASSERT_TRUE(rwSet->getCCNamespaceSV() == rwSet2->getCCNamespaceSV());
     ASSERT_TRUE(rwSet->getRetCode() == rwSet2->getRetCode());
-    ASSERT_TRUE(rwSet->getRequestHash() == rwSet2->getRequestHash());
+    ASSERT_TRUE(rwSet->getRequestDigest() == rwSet2->getRequestDigest());
 }

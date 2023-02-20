@@ -19,7 +19,7 @@ protected:
     };
 
     // 3 regions, 4 nodes version
-    std::vector<std::string> prepareBlock(proto::BlockNumber blockNumber, util::BCCSP* bccsp) {
+    static std::vector<std::string> prepareBlock(proto::BlockNumber blockNumber, util::BCCSP* bccsp) {
         // prepare a mock block
         std::string blockRaw;
         auto block = tests::ProtoBlockUtils::CreateDemoBlock();

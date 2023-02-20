@@ -7,8 +7,7 @@
 #include "common/zeromq.h"
 #include "proto/fragment.h"
 #include "bthread/bthread.h"
-#include "gtl/phmap.hpp"
-#include <string>
+#include "common/phmap.h"
 
 namespace peer {
     // receive from a peer at another region
@@ -101,7 +100,7 @@ namespace peer {
         BlockNumber nextReceiveBlockNumber = 0;
         std::unique_ptr<std::thread> tid;
         std::unique_ptr<util::ZMQInstance> _clientSubscriber;
-        gtl::parallel_flat_hash_map<BlockNumber, std::unique_ptr<FragmentBlock>> map;
+        util::MyFlatHashMap<BlockNumber, std::unique_ptr<FragmentBlock>, std::mutex> map;
         std::function<void(BlockNumber, std::unique_ptr<FragmentBlock>)> onMapUpdate;
     };
 }

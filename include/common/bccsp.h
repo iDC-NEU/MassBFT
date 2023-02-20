@@ -6,7 +6,7 @@
 
 #include "common/crypto.h"
 
-#include "gtl/phmap.hpp"
+#include "common/phmap.h"
 #include <optional>
 #include <string>
 #include <memory>
@@ -267,7 +267,7 @@ namespace util {
         }
 
     private:
-        using CacheType = gtl::parallel_flat_hash_map<std::string_view, KeyPtr>;
+        using CacheType = util::MyFlatHashMap<std::string_view, KeyPtr, std::mutex>;
         mutable CacheType cache;
         std::unique_ptr<KeyStorage> storage;
     };
@@ -300,7 +300,7 @@ namespace util {
             std::string _raw{}; // value
             bool _isPrivate{};
         };
-        using KeyMap = gtl::parallel_flat_hash_map<std::string, Cell>;
+        using KeyMap = util::MyFlatHashMap<std::string, Cell, std::mutex>;
         KeyMap keyMap;
     };
 }

@@ -12,7 +12,6 @@
 #include "common/cv_wrapper.h"
 
 #include "bthread/countdown_event.h"
-#include "gtl/phmap.hpp"
 
 namespace peer {
 

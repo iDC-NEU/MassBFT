@@ -9,7 +9,6 @@
 #include "common/thread_pool_light.h"
 #include "common/matrix_2d.h"
 #include "rigtorp/MPMCQueue.h"
-#include "gtl/phmap.hpp"
 #include "glog/logging.h"
 
 #include "zpp_bits.h"

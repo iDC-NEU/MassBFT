@@ -6,7 +6,7 @@
 
 #include "proto/block.h"
 #include "bthread/butex.h"
-#include "gtl/phmap.hpp"
+#include "common/phmap.h"
 
 namespace peer {
 
@@ -150,7 +150,7 @@ namespace peer {
             std::shared_ptr<proto::Block> block = nullptr;
         };
         // key block id, value actual block
-        using RegionStorage = gtl::parallel_flat_hash_map<proto::BlockNumber, BlockCell>;
+        using RegionStorage = util::MyFlatHashMap<proto::BlockNumber, BlockCell, std::mutex>;
         // multi region block storage
         std::vector<RegionStorage> blockStorage;
         // change when block updated

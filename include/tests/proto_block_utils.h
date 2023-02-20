@@ -18,12 +18,13 @@ namespace tests {
             b.header.number = 10;
             std::vector<std::unique_ptr<proto::TxReadWriteSet>> rwSets;
             for(int i=0; i<5; i++) {
-                std::unique_ptr<proto::TxReadWriteSet> rwSet(new proto::TxReadWriteSet("test rw set"));
+                std::unique_ptr<proto::TxReadWriteSet> rwSet(new proto::TxReadWriteSet({"test rw set"}));
                 std::unique_ptr<proto::KV> read(new proto::KV("key1", "value1"));
                 rwSet->getReads().push_back(std::move(read));
                 std::unique_ptr<proto::KV> write(new proto::KV("key2", "value2"));
                 rwSet->getWrites().push_back(std::move(write));
                 rwSet->setRetCode(1);
+                rwSet->setCCSpec("spec");
                 rwSets.push_back(std::move(rwSet));
             }
             b.executeResult.txReadWriteSet = std::move(rwSets);

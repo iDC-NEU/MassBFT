@@ -60,3 +60,27 @@ TEST_F(BlockTest, SerializePartTest) {
     ASSERT_TRUE(proto::Block::AppendSerializedExecutionResult(*block, &raw1, position.execResultPos).valid);
     ASSERT_TRUE(raw1 == raw2);
 }
+
+TEST_F(BlockTest, TxReadWriteSetTest) {
+    auto rwSet = std::make_unique<proto::TxReadWriteSet>();
+    rwSet->setCCSpec("spec");
+    rwSet->setRetCode(1);
+    rwSet->setRequestHash({"hash"});
+    std::unique_ptr<proto::KV> read(new proto::KV("key1", "value1"));
+    rwSet->getReads().push_back(std::move(read));
+    std::unique_ptr<proto::KV> write(new proto::KV("key2", "value2"));
+    rwSet->getWrites().push_back(std::move(write));
+
+    std::string raw;
+    zpp::bits::out out(raw);
+    zpp::bits::in in(raw);
+    ASSERT_TRUE(!failure(out(*rwSet)));
+    auto rwSet2 = std::make_unique<proto::TxReadWriteSet>();
+    ASSERT_TRUE(!failure(in(*rwSet2)));
+
+    ASSERT_TRUE(rwSet->getReads()[0]->equals(*rwSet2->getReads()[0]));
+    ASSERT_TRUE(rwSet->getWrites()[0]->equals(*rwSet2->getWrites()[0]));
+    ASSERT_TRUE(rwSet->getCCSpecSV() == rwSet2->getCCSpecSV());
+    ASSERT_TRUE(rwSet->getRetCode() == rwSet2->getRetCode());
+    ASSERT_TRUE(rwSet->getRequestHash() == rwSet2->getRequestHash());
+}

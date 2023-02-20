@@ -75,6 +75,10 @@ namespace proto {
 
         KV(KV &&rhs) = delete;
 
+        [[nodiscard]] bool equals(const KV& rhs) const {
+            return this->_keySV == rhs._keySV && this->_valueSV == rhs._valueSV;
+        }
+
         void setKey(std::string &&key) {
             _key = std::move(key);
             _keySV = _key;
@@ -109,24 +113,26 @@ namespace proto {
 
     class TxReadWriteSet {
     public:
-        template<class T>
-        requires requires(T t) { std::string(t); }
-        explicit TxReadWriteSet(T &&ccName, int32_t retCode=0)
-                : _ccName(std::forward<T>(ccName)), _ccNameSV(_ccName), _retCode(retCode) {}
+        explicit TxReadWriteSet(HashString requestHash)
+                : _requestHash(requestHash), _retCode(-1) {}
 
-        TxReadWriteSet() : _ccName(), _ccNameSV(_ccName), _retCode(0) {}
+        TxReadWriteSet() : TxReadWriteSet(HashString{}) {}
 
         TxReadWriteSet(const TxReadWriteSet &rhs) = delete;
 
         TxReadWriteSet(TxReadWriteSet &&rhs) = delete;
 
-        void setCCName(std::string &&ccName) {
-            _ccName = std::move(ccName);
-            _ccNameSV = _ccName;
+        void setCCSpec(std::string &&ccSpec) {
+            _ccSpec = std::move(ccSpec);
+            _ccSpecSV = _ccSpec;
         }
 
-        [[nodiscard]] const std::string_view &getCCNameSV() const {
-            return _ccNameSV;
+        void setRequestHash(HashString requestHash) {
+            _requestHash = requestHash;
+        }
+
+        [[nodiscard]] const std::string_view &getCCSpecSV() const {
+            return _ccSpecSV;
         }
 
         void setRetCode(int32_t retCode) {
@@ -153,16 +159,22 @@ namespace proto {
             return _writes;
         }
 
+        [[nodiscard]] const auto& getRequestHash() const {
+            return _requestHash;
+        }
+
     public:
         friend zpp::bits::access;
 
         constexpr static auto serialize(auto &archive, TxReadWriteSet &t) {
-            return archive(t._ccNameSV, t._reads, t._writes);
+            return archive(t._requestHash, t._ccSpecSV, t._retCode, t._reads, t._writes);
         }
 
     private:
-        std::string _ccName;
-        std::string_view _ccNameSV;
+        // requestHash(tid) represents the corresponding user request
+        HashString _requestHash;
+        std::string _ccSpec;
+        std::string_view _ccSpecSV;
         int32_t _retCode;
         std::vector<std::unique_ptr<KV>> _reads;
         std::vector<std::unique_ptr<KV>> _writes;
@@ -210,7 +222,6 @@ namespace proto {
         std::vector<std::string_view> _argsSV;
     };
 
-    // WARNING: ENVELOP HAS STRING_VIEW TYPE, MUST CONSIDER DANGING POINTER
     class Envelop : public DeserializeStorage {
     public:
         Envelop() = default;

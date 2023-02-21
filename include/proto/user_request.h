@@ -42,29 +42,25 @@ namespace proto {
             return _ccNameSV;
         }
 
-        void setArgs(std::vector<std::string> &&args) {
+        void setArgs(std::string &&args) {
             _args = std::move(args);
-            _argsSV.clear();
-            _argsSV.reserve(_args.size());
-            for (const auto &it: _args) {
-                _argsSV.push_back(it);
-            }
+            _argsSV = _args;
         }
 
-        [[nodiscard]] const std::vector<std::string_view> &getArgs() const { return _argsSV; }
+        [[nodiscard]] const std::string_view &getArgs() const { return _argsSV; }
 
     public:
         friend zpp::bits::access;
 
         constexpr static auto serialize(auto &archive, UserRequest &t) {
-            return archive(t._ccNameSV, t._args);
+            return archive(t._ccNameSV, t._argsSV);
         }
 
     private:
         std::string _ccName;
         std::string_view _ccNameSV;
-        std::vector<std::string> _args;
-        std::vector<std::string_view> _argsSV;
+        std::string _args;
+        std::string_view _argsSV;
     };
 
     class DeserializeStorage {

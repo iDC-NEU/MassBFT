@@ -32,12 +32,11 @@ namespace peer::chaincode {
         }
 
         // reset, return the read write sets
-        auto reset(const proto::Transaction* txn_=nullptr) -> std::pair<std::unique_ptr<proto::KVList>, std::unique_ptr<proto::KVList>> {
-            if (txn_ != nullptr) {
-                txn = txn_;
-            }
+        auto reset() -> std::pair<std::unique_ptr<proto::KVList>, std::unique_ptr<proto::KVList>> {
             return orm->reset();
         }
+
+        void setTxnRawPointer(const proto::Transaction* txn_) { txn=txn_; }
 
     protected:
         // use orm to write to db

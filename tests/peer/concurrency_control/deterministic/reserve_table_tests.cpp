@@ -3,6 +3,7 @@
 //
 
 #include "peer/concurrency_control/deterministic/reserve_table.h"
+#include "common/thread_pool_light.h"
 
 #include "bthread/countdown_event.h"
 #include <random>

@@ -6,7 +6,8 @@
 
 #include <memory>
 
-#include "proto/block.h"
+#include "proto/user_request.h"
+#include "proto/read_write_set.h"
 
 namespace proto {
     using tid_type = DigestString;
@@ -21,9 +22,6 @@ namespace proto {
         // Input a user request envelop, return a transaction.
         // The caller need to validate the signature.
         static std::unique_ptr<Transaction> NewTransactionFromEnvelop(std::unique_ptr<Envelop> envelop) {
-            if (!envelop->haveSerializedMessage()) {
-                return nullptr;
-            }
             std::unique_ptr<Transaction> txn(new Transaction());
             txn->_envelop = std::move(envelop);
             txn->_userRequest = std::make_unique<UserRequest>();

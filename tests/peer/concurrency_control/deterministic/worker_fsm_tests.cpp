@@ -70,6 +70,9 @@ TEST_F(WorkerTest, TestSignalSendReceive) {
         cd.wait(); cd.reset(1);
         ASSERT_TRUE(state == peer::cc::ReceiverState::FINISH_COMMIT);
     }
+    worker->execute(peer::cc::InvokerCommand::CUSTOM);
+    cd.wait(); cd.reset(1);
+    ASSERT_TRUE(state == peer::cc::ReceiverState::FINISH_CUSTOM);
     worker->execute(peer::cc::InvokerCommand::EXIT);
     cd.wait(); cd.reset(1);
     ASSERT_TRUE(state == peer::cc::ReceiverState::EXITED);

@@ -20,7 +20,8 @@ namespace peer::cc {
         START = 1,      // initialization
         EXEC = 2,       // start the execution stage of the protocol
         COMMIT = 3,     // start the validation stage of the protocol
-        EXIT = 4,       // exit the worker
+        CUSTOM = 4,     // custom command
+        EXIT = 5,       // exit the worker
     };
 
     // for worker
@@ -28,7 +29,8 @@ namespace peer::cc {
         READY = 0,          // worker is initializing or is free
         FINISH_EXEC = 1,    // worker finish execution phase
         FINISH_COMMIT = 2,  // worker finish validate phase
-        EXITED = 3,         // worker is about to exit, use join func to safe delete it.
+        FINISH_CUSTOM = 3,  // worker finish execute custom command
+        EXITED = 4,         // worker is about to exit, use join func to safe delete it.
     };
 
     class WorkerFSM {
@@ -89,7 +91,7 @@ namespace peer::cc {
                 LOG(ERROR) << "WorkerFSM pointer is nil!";
                 return false;
             }
-            execute(InvokerCommand::START);
+            execute(InvokerCommand::IDLE);
             _tid = std::make_unique<std::thread>(&Worker::run, this);
             return true;
         }
@@ -117,6 +119,9 @@ namespace peer::cc {
                         break;
                     case InvokerCommand::COMMIT:
                         ret = _fsm->OnCommitTransaction();
+                        break;
+                    case InvokerCommand::CUSTOM:
+                        ret = ReceiverState::FINISH_CUSTOM;
                         break;
                     case InvokerCommand::EXIT:
                         ret = _fsm->OnDestroy();

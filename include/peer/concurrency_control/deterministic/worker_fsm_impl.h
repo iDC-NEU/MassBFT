@@ -21,12 +21,10 @@ namespace peer::cc {
         using ResultType = proto::Transaction::ExecutionResult;
         ReceiverState OnCreate() override {
             pthread_setname_np(pthread_self(), "aria_worker");
-            DLOG(INFO) << "OnCreate, id: " << id;
             return peer::cc::ReceiverState::READY;
         }
 
         ReceiverState OnDestroy() override {
-            DLOG(INFO) << "OnDestroy, id: " << id;
             return peer::cc::ReceiverState::EXITED;
         }
 
@@ -37,7 +35,7 @@ namespace peer::cc {
             auto chaincode = std::make_unique<peer::chaincode::SimpleTransfer>(std::move(orm), nullptr);
             do {    // defer func
                 if (txnList.empty() || reserveTable == nullptr) {
-                    LOG(WARNING) << "OnExecuteTransaction input error, id: " << id;
+                    LOG(WARNING) << "OnExecuteTransaction input error";
                     break;
                 }
                 for (auto& txn: txnList) {
@@ -101,16 +99,11 @@ namespace peer::cc {
 
         [[nodiscard]] TxnListType& getMutableTxnList() { return txnList; }
 
-        void setId(int id_) { id = id_; }
-
-        [[nodiscard]] int getId() const { return id; }
-
         void setReserveTable(std::shared_ptr<ReserveTable> reserveTable_) { reserveTable = std::move(reserveTable_); }
 
         void setDB(std::shared_ptr<db::LeveldbConnection> db_) { db = std::move(db_); }
 
     private:
-        int id; // the worker id
         TxnListType txnList;
         // Do not use a shared pointer
         std::shared_ptr<ReserveTable> reserveTable;

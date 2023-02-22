@@ -94,6 +94,10 @@ namespace peer::cc {
             return true;
         }
 
+        inline void setId(int id_) { id = id_; }
+
+        [[nodiscard]] inline int getId() const { return id; }
+
     protected:
         void run() {
             int cEnum = static_cast<int>(InvokerCommand::IDLE);
@@ -128,6 +132,7 @@ namespace peer::cc {
         Worker() { _command = bthread::butex_create_checked<butil::atomic<int>>(); }
 
     private:
+        int id = -1; // the worker id
         std::unique_ptr<std::thread> _tid;
         std::function<void(ReceiverState)> _commandCallback;
         // the fsm may be shared among workers

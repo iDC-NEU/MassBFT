@@ -73,7 +73,6 @@ TEST_F(WorkerImplTest, TestSignalSendReceive) {
     constexpr int txnCount = 1000;
     // setup fsm
     auto fsm = std::make_shared<peer::cc::WorkerFSMImpl>();
-    fsm->setId(1);
     std::shared_ptr<peer::db::LeveldbConnection> dbc = peer::db::LeveldbConnection::NewLeveldbConnection("testDB");
     CHECK(dbc != nullptr) << "create db failed!";
     fsm->setDB(dbc);

@@ -2,13 +2,12 @@
 // Created by peng on 2/21/23.
 //
 
+#include "peer/concurrency_control/deterministic/worker_fsm_impl.h"
+#include "tests/transaction_utils.h"
+#include "bthread/countdown_event.h"
+
 #include "gtest/gtest.h"
 #include "glog/logging.h"
-
-#include <random>
-
-#include "bthread/countdown_event.h"
-#include "peer/concurrency_control/deterministic/worker_fsm_impl.h"
 
 class WorkerImplTest : public ::testing::Test {
 protected:
@@ -17,52 +16,6 @@ protected:
 
     void TearDown() override {
     };
-
-    static void CreateMockTxn(std::vector<std::unique_ptr<proto::Transaction>>* txnList, int count, int range) {
-        txnList->clear();
-        txnList->reserve(count);
-        auto envelopList = CreateMockEnvelop(count, range);
-        for(int i=0; i<count; i++) {
-            auto txn = proto::Transaction::NewTransactionFromEnvelop(std::move(envelopList[i]));
-            txnList->push_back(std::move(txn));
-        }
-    }
-
-    static std::string ParamToString(const std::vector<std::string>& args) {
-        std::string argRaw;
-        zpp::bits::out out(argRaw);
-        CHECK(!failure(out(args)));
-        return argRaw;
-    }
-
-    static std::vector<std::unique_ptr<proto::Envelop>> CreateMockEnvelop(int count, int range) {
-        // init random
-        std::random_device rd;
-        std::default_random_engine rng(rd());
-        std::uniform_int_distribution<> dist(0, range-1);
-
-        std::vector<std::unique_ptr<proto::Envelop>> envelopList;
-        envelopList.reserve(count);
-        for (int i=0; i<count; i++) {
-            proto::UserRequest request;
-            // set from and to
-            request.setArgs(ParamToString({std::to_string(dist(rng)), std::to_string(dist(rng))}));
-            // serialize
-            std::string requestRaw;
-            zpp::bits::out out(requestRaw);
-            CHECK(!failure(out(request)));
-            // wrap it
-            std::unique_ptr<proto::Envelop> envelop(new proto::Envelop);
-            envelop->setPayload(std::move(requestRaw));
-            // compute tid
-            proto::SignatureString signature;
-            auto digest = std::to_string(i);
-            std::copy(digest.begin(), digest.end(), signature.digest.data());
-            envelop->setSignature(std::move(signature));
-            envelopList.push_back(std::move(envelop));
-        }
-        return envelopList;
-    }
 
 };
 
@@ -103,7 +56,7 @@ TEST_F(WorkerImplTest, TestSignalSendReceive) {
     for (int i=0; i< 100; i++) {
         // setup transaction
         auto& txnList = fsm->getMutableTxnList();
-        CreateMockTxn(&txnList, txnCount, recordCount);
+        tests::TransactionUtils::CreateMockTxn(&txnList, txnCount, recordCount);
         // create mock transactions
         worker->execute(peer::cc::InvokerCommand::EXEC);
         cd.wait(); cd.reset(1);

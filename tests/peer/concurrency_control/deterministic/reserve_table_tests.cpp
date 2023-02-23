@@ -3,10 +3,9 @@
 //
 
 #include "peer/concurrency_control/deterministic/reserve_table.h"
+#include "tests/transaction_utils.h"
 #include "common/thread_pool_light.h"
-
 #include "bthread/countdown_event.h"
-#include <random>
 
 #include "gtest/gtest.h"
 
@@ -20,20 +19,6 @@ protected:
 
     };
 
-    static auto CreateRandomKVs(int keySize=10, int range=10000) {
-        std::random_device rd;
-        std::default_random_engine rng(rd());
-        std::uniform_int_distribution<> dist(0, range-1);
-
-        proto::KVList reads;
-        proto::KVList writes;
-        for (int i=0; i<keySize; i++) {
-            reads.push_back(std::make_unique<proto::KV>(std::to_string(dist(rng)), "value"));
-            writes.push_back(std::make_unique<proto::KV>(std::to_string(dist(rng)), "value"));
-        }
-        return std::make_pair(std::move(reads), std::move(writes));
-    }
-
     static auto testCase(util::thread_pool_light* tp=nullptr) {
         static constexpr int range = 100000;
         static constexpr int txnCnt = 5000;
@@ -41,7 +26,7 @@ protected:
         std::vector<int> moneyList(range);
         std::array<std::pair<proto::KVList, proto::KVList>, txnCnt> txnList;
         for (auto& txn: txnList) {
-            txn = CreateRandomKVs(keySize, range);
+            txn = tests::TransactionUtils::CreateRandomKVs(keySize, range);
         }
         peer::cc::ReserveTable table;
         std::array<std::shared_ptr<proto::tid_type>, txnCnt> tidList;

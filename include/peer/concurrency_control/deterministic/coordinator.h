@@ -10,7 +10,7 @@
 namespace peer::cc {
     class Coordinator {
     public:
-        static std::unique_ptr<Coordinator> NewCoordinator(const std::shared_ptr<peer::db::LeveldbConnection>& dbc, int workerCount) {
+        static std::unique_ptr<Coordinator> NewCoordinator(const std::shared_ptr<peer::db::RocksdbConnection>& dbc, int workerCount) {
             std::unique_ptr<Coordinator> c(new Coordinator());
             auto table = std::make_shared<peer::cc::ReserveTable>();
             c->reserveTable = table;

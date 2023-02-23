@@ -26,11 +26,11 @@ TEST_F(WorkerImplTest, TestSignalSendReceive) {
     constexpr int txnCount = 1000;
     // setup fsm
     auto fsm = std::make_shared<peer::cc::WorkerFSMImpl>();
-    std::shared_ptr<peer::db::LeveldbConnection> dbc = peer::db::LeveldbConnection::NewLeveldbConnection("testDB");
+    std::shared_ptr<peer::db::RocksdbConnection> dbc = peer::db::RocksdbConnection::NewConnection("testDB");
     CHECK(dbc != nullptr) << "create db failed!";
     fsm->setDB(dbc);
     // init db
-    dbc->syncWriteBatch([](leveldb::WriteBatch* batch){
+    dbc->syncWriteBatch([](rocksdb::WriteBatch* batch){
         for (int i=0; i<recordCount; i++) {
             batch->Put(std::to_string(i), "0");
         }

@@ -23,10 +23,10 @@ protected:
 
 TEST_F(CoordinatorTest, TestSignalSendReceive) {
     constexpr int recordCount=100000;
-    std::shared_ptr<peer::db::LeveldbConnection> dbc = peer::db::LeveldbConnection::NewLeveldbConnection("testDB");
+    std::shared_ptr<peer::db::RocksdbConnection> dbc = peer::db::RocksdbConnection::NewConnection("testDB");
     CHECK(dbc != nullptr) << "create db failed!";
     // init db
-    dbc->syncWriteBatch([](leveldb::WriteBatch* batch){
+    dbc->syncWriteBatch([](rocksdb::WriteBatch* batch){
         for (int i=0; i<recordCount; i++) {
             batch->Put(std::to_string(i), "0");
         }

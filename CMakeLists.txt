@@ -132,8 +132,8 @@ find_package(protobuf_install
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
-### Leveldb support
-find_package(leveldb_install
+### rocksdb support
+find_package(rocksdb_install
         CONFIG
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor
@@ -186,7 +186,7 @@ ADD_LIBRARY(${PROJECT_NAME}_proto ${PROTO_HDRS} ${PROTO_SRCS})
 # apt-get install libgoogle-perftools-dev
 find_library(gflags gflags PATHS ${PROJECT_BINARY_DIR}/lib)
 # NOTE: DO NOT LINK BRPC.SO AND BRAFT.SO TOGETHER
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ${PROJECT_NAME}_proto leveldb)
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ${PROJECT_NAME}_proto rocksdb)
 
 include_directories(SYSTEM ${CMAKE_BINARY_DIR}/include)
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib)

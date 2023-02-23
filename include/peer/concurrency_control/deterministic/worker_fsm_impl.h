@@ -7,7 +7,7 @@
 #include "peer/concurrency_control/deterministic/worker_fsm.h"
 #include "peer/concurrency_control/deterministic/reserve_table.h"
 
-#include "peer/db/leveldb_connection.h"
+#include "peer/db/rocksdb_connection.h"
 #include "peer/chaincode/orm.h"
 #include "peer/chaincode/simple_transfer.h"
 
@@ -61,7 +61,7 @@ namespace peer::cc {
         }
 
         ReceiverState OnCommitTransaction() override {
-            auto saveToDBFunc = [&](leveldb::WriteBatch* batch) {
+            auto saveToDBFunc = [&](rocksdb::WriteBatch* batch) {
                 for (auto& txn: txnList) {
                     // 1. txn internal error, abort it without dealing with reserve table
                     auto result = txn->getExecutionResult();
@@ -101,14 +101,14 @@ namespace peer::cc {
 
         void setReserveTable(std::shared_ptr<ReserveTable> reserveTable_) { reserveTable = std::move(reserveTable_); }
 
-        void setDB(std::shared_ptr<db::LeveldbConnection> db_) { db = std::move(db_); }
+        void setDB(std::shared_ptr<db::RocksdbConnection> db_) { db = std::move(db_); }
 
     private:
         TxnListType txnList;
         // Do not use a shared pointer
         std::shared_ptr<ReserveTable> reserveTable;
         // TODO: use hash map for multiple tables
-        std::shared_ptr<db::LeveldbConnection> db;
+        std::shared_ptr<db::RocksdbConnection> db;
     };
 
 }

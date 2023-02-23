@@ -5,12 +5,12 @@
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
-#include "peer/db/leveldb_connection.h"
+#include "peer/db/rocksdb_connection.h"
 
 class LevelDBCTest : public ::testing::Test {
 public:
     LevelDBCTest() {
-        dbc = peer::db::LeveldbConnection::NewLeveldbConnection("testDB");
+        dbc = peer::db::RocksdbConnection::NewConnection("testDB");
         CHECK(dbc != nullptr) << "create db failed!";
         CHECK(dbc->getDBName() == "testDB") << "create db failed!";
     }
@@ -20,7 +20,7 @@ protected:
 
     void TearDown() override {
     };
-    std::unique_ptr<peer::db::LeveldbConnection> dbc;
+    std::unique_ptr<peer::db::RocksdbConnection> dbc;
 };
 
 TEST_F(LevelDBCTest, TestGetPutDelete) {
@@ -41,14 +41,14 @@ TEST_F(LevelDBCTest, TestGetPutDelete) {
     ASSERT_TRUE(!dbc->get(key, &value)) << "get after delete!";
 
     // batch
-    auto ret = dbc->syncWriteBatch([&](leveldb::WriteBatch* batch){
+    auto ret = dbc->syncWriteBatch([&](rocksdb::WriteBatch* batch){
         batch->Put(key, "testValue");
         return true;
     });
     ASSERT_TRUE(ret);
     ASSERT_TRUE(dbc->get(key, &value));
     ASSERT_TRUE(value == "testValue");
-    ret = dbc->syncWriteBatch([&](leveldb::WriteBatch* batch){
+    ret = dbc->syncWriteBatch([&](rocksdb::WriteBatch* batch){
         batch->Delete(key);
         return true;
     });

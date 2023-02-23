@@ -3,7 +3,7 @@
 //
 
 #include "peer/chaincode/simple_transfer.h"
-#include "peer/db/leveldb_connection.h"
+#include "peer/db/rocksdb_connection.h"
 
 #include "gtest/gtest.h"
 
@@ -26,7 +26,7 @@ protected:
     }
 
     void initDB() {
-        db = peer::db::LeveldbConnection::NewLeveldbConnection("ChaincodeTestDB");
+        db = peer::db::RocksdbConnection::NewConnection("ChaincodeTestDB");
         CHECK(db != nullptr) << "failed to init db!";
         auto orm = peer::chaincode::ORM::NewORMFromLeveldb(db.get());
         chaincode = std::make_unique<peer::chaincode::SimpleTransfer>(std::move(orm), nullptr);
@@ -38,7 +38,7 @@ protected:
         ASSERT_TRUE((*writes)[99]->getValueSV() == "0");
     }
 
-    std::unique_ptr<peer::db::LeveldbConnection> db;
+    std::unique_ptr<peer::db::RocksdbConnection> db;
     std::unique_ptr<peer::chaincode::SimpleTransfer> chaincode;
 
 };

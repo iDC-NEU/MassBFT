@@ -9,8 +9,6 @@
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
-
-
 class BFGTest : public ::testing::Test {
 protected:
     void SetUp() override {

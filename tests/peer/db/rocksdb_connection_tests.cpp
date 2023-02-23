@@ -2,14 +2,14 @@
 // Created by peng on 2/21/23.
 //
 
+#include "peer/db/rocksdb_connection.h"
+
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
-#include "peer/db/rocksdb_connection.h"
-
-class LevelDBCTest : public ::testing::Test {
+class RocksDBCTest : public ::testing::Test {
 public:
-    LevelDBCTest() {
+    RocksDBCTest() {
         dbc = peer::db::RocksdbConnection::NewConnection("testDB");
         CHECK(dbc != nullptr) << "create db failed!";
         CHECK(dbc->getDBName() == "testDB") << "create db failed!";
@@ -23,7 +23,7 @@ protected:
     std::unique_ptr<peer::db::RocksdbConnection> dbc;
 };
 
-TEST_F(LevelDBCTest, TestGetPutDelete) {
+TEST_F(RocksDBCTest, TestGetPutDelete) {
     auto key = "testKey";
     std::string value;
     // async version

@@ -8,6 +8,9 @@ project(
         LANGUAGES CXX
 )
 
+# For fresh ubuntu 22.04 startup, zlib1g-dev is for gzip compress
+# apt install libtool make autoconf g++-12 zlib1g-dev
+
 # Set debug and release flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable")
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${CMAKE_CXX_FLAGS_COMMON}  -g -O0 -fprofile-arcs -ftest-coverage")
@@ -134,6 +137,13 @@ find_package(protobuf_install
 
 ### rocksdb support
 find_package(rocksdb_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+### Leveldb support, needed for brpc
+find_package(leveldb_install
         CONFIG
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor

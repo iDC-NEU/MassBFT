@@ -27,8 +27,8 @@ protected:
 TEST_F(CryptoTest, TestStaticFunc) {
     util::OpenSSLSHA1::initCrypto();
     util::OpenSSLSHA256::initCrypto();
-    util::OpenSSLSHA1::digestType defaultSha1Msg;
-    util::OpenSSLSHA256::digestType defaultSha256Msg;
+    util::OpenSSLSHA1::digestType defaultSha1Msg{};
+    util::OpenSSLSHA256::digestType defaultSha256Msg{};
     auto msgView = std::string_view(msg);
     ASSERT_TRUE(util::OpenSSLSHA1::toString(util::OpenSSLSHA1::generateDigest(msgView.data(), msgView.size()).value_or(defaultSha1Msg)) == kat1) << "SHA1 FAIL";
     ASSERT_TRUE(util::OpenSSLSHA256::toString(util::OpenSSLSHA256::generateDigest(msgView.data(), msgView.size()).value_or(defaultSha256Msg)) == kat256) << "SHA256 FAIL";
@@ -36,7 +36,7 @@ TEST_F(CryptoTest, TestStaticFunc) {
 
 TEST_F(CryptoTest, TestDynamicFunc) {
     util::OpenSSLSHA256::initCrypto();
-    util::OpenSSLSHA256::digestType defaultSha256Msg;
+    util::OpenSSLSHA256::digestType defaultSha256Msg{};
     auto hash = util::OpenSSLSHA256();
     auto msgView = std::string_view(msg);
     ASSERT_TRUE(hash.update(msgView.data(), msgView.size())) << "update failed";

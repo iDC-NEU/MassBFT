@@ -8,8 +8,10 @@ project(
         LANGUAGES CXX
 )
 
-# For fresh ubuntu 22.04 startup, zlib1g-dev is for gzip compress
-# apt install libtool make autoconf g++-12 zlib1g-dev
+# For fresh ubuntu 22.04 startup
+# zlib1g-dev is for gzip compress
+# libgoogle-perftools-dev for linking tcmalloc
+# apt install libtool make autoconf g++-11 zlib1g-dev libgoogle-perftools-dev
 
 # Set debug and release flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable")
@@ -192,8 +194,6 @@ file(GLOB PROTO_FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/proto/*.proto")
 my_protobuf_generate_cpp(include/proto PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
 ADD_LIBRARY(${PROJECT_NAME}_proto ${PROTO_HDRS} ${PROTO_SRCS})
 
-# for linking tcmalloc_minimal
-# apt-get install libgoogle-perftools-dev
 find_library(gflags gflags PATHS ${PROJECT_BINARY_DIR}/lib)
 # NOTE: DO NOT LINK BRPC.SO AND BRAFT.SO TOGETHER
 SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ${PROJECT_NAME}_proto rocksdb)

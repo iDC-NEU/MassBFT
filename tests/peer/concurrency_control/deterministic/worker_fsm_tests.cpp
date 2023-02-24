@@ -53,7 +53,7 @@ TEST_F(WorkerTest, TestSignalSendReceive) {
     bthread::CountdownEvent cd(1);
     std::atomic<peer::cc::ReceiverState> state{};
     worker->setCommandCallback([&](peer::cc::ReceiverState ret) {
-        state.store(ret, std::memory_order_acq_rel);
+        state.store(ret, std::memory_order_release);
         cd.signal(1);
     });
     ASSERT_TRUE(worker->checkAndStartService());

@@ -20,7 +20,7 @@ namespace peer {
             pthread_setname_np(pthread_self(), "p2p_receiver");
             auto* instance=static_cast<P2PReceiver*>(ptr);
             while(true) {
-                auto ret = instance->_clientSubscriber->receive();
+                auto ret = instance->subscriber->receive();
                 if (ret == std::nullopt) {
                     LOG(ERROR) << "Receive message fragment failed!";
                     break;  // socket dead
@@ -42,17 +42,22 @@ namespace peer {
 
         virtual ~P2PReceiver() {
             // close the zmq instance to unblock local receiver thread.
-            _clientSubscriber->shutdown();
+            subscriber->shutdown();
             // join the event loop
             if (tid) { tid->join(); }
         }
 
-        void start(std::unique_ptr<util::ZMQInstance> clientSubscriber) {
-            _clientSubscriber = std::move(clientSubscriber);
+        [[nodiscard]] bool start(std::unique_ptr<util::ZMQInstance> subscriber_) {
+            subscriber = std::move(subscriber_);
+            if (onReceived == nullptr) {
+                LOG(ERROR) << "onReceived handle not set!";
+                return false;
+            }
             tid = std::make_unique<std::thread>(run, this);
+            return true;
         }
 
-        void setOnMapUpdate(const auto& handle) { onMapUpdate = handle; }
+        void setOnReceived(const auto& handle) { onReceived = handle; }
 
         // The block number must increase only!
         bool addMessageToCache(zmq::message_t&& raw) {
@@ -71,36 +76,17 @@ namespace peer {
                 LOG(WARNING) << "Block number leapfrog from: " << nextReceiveBlockNumber << " to: "<< blockNumber;
             }
 
-            if (onMapUpdate) {
-                onMapUpdate(blockNumber, std::move(fragmentBlock));
-            } else {
-                // store the fragment and the raw data
-                map[blockNumber] = std::move(fragmentBlock);
-            }
+            // the owner is responsible for validate fragment
+            onReceived(blockNumber, std::move(fragmentBlock));
             nextReceiveBlockNumber = blockNumber;
             return true;
         }
 
-        // if onMapUpdate is set, do not call this func, use the callback instead.
-        std::unique_ptr<FragmentBlock> tryGet(BlockNumber blockNumber) {
-            DCHECK(onMapUpdate == nullptr);
-            std::unique_ptr<FragmentBlock> value = nullptr;
-            map.erase_if(blockNumber, [&](auto& v) {
-                if (v.second) {
-                    value=std::move(v.second);
-                    return true;
-                }
-                return false;
-            });
-            return value;
-        }
-
     private:
-        // the block number that consumer WILL get from map
+        // the block number that consumer WILL receive
         BlockNumber nextReceiveBlockNumber = 0;
         std::unique_ptr<std::thread> tid;
-        std::unique_ptr<util::ZMQInstance> _clientSubscriber;
-        util::MyFlatHashMap<BlockNumber, std::unique_ptr<FragmentBlock>, std::mutex> map;
-        std::function<void(BlockNumber, std::unique_ptr<FragmentBlock>)> onMapUpdate;
+        std::unique_ptr<util::ZMQInstance> subscriber;
+        std::function<void(BlockNumber, std::unique_ptr<FragmentBlock>)> onReceived;
     };
 }

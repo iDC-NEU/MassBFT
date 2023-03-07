@@ -52,12 +52,12 @@ TEST_F(P2PReceiverTest, IntrgrateTest) {
     bthread::CountdownEvent event(1);
 
     peer::P2PReceiver p2pReceiver;
-    p2pReceiver.setOnMapUpdate([&](auto, auto b){
+    p2pReceiver.setOnReceived([&](auto, auto b) {
         // performance issues, set the actual data outside the cv.
         block = std::move(b);
         event.signal();
     });
-    p2pReceiver.start(std::move(receiver));
+    ASSERT_TRUE(p2pReceiver.start(std::move(receiver)));
     sender->send(std::move(msg));
     event.wait();
     ASSERT_TRUE(block != nullptr) << "Can not get block fragments";

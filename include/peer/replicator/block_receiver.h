@@ -138,7 +138,7 @@ namespace peer {
             // spin up clients
             for (const auto& it: nodesConfig) {
                 auto receiver = std::make_unique<P2PReceiver>();
-                receiver->setOnMapUpdate([cfg=it->nodeConfig, ptr=srBlockReceiver.get()](auto n, auto b){
+                receiver->setOnReceived([cfg = it->nodeConfig, ptr = srBlockReceiver.get()](auto n, auto b) {
                     ptr->_ringBuf.push(n, {std::move(b), cfg});
                 });
                 auto zmq = util::ZMQInstance::NewClient<zmq::socket_type::sub>(it->addr(), it->port);
@@ -146,7 +146,9 @@ namespace peer {
                     LOG(ERROR) << "Could not init SingleRegionBlockReceiver";
                     return nullptr;
                 }
-                receiver->start(std::move(zmq));
+                if (!receiver->start(std::move(zmq))) {
+                    return nullptr;
+                }
                 srBlockReceiver->_receiverList.push_back(std::move(receiver));
             }
             return srBlockReceiver;

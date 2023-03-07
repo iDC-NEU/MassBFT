@@ -12,6 +12,7 @@ project(
 # zlib1g-dev is for gzip compress
 # libgoogle-perftools-dev for linking tcmalloc
 # apt install libtool make autoconf g++-11 zlib1g-dev libgoogle-perftools-dev
+# apt install g++
 
 # Set debug and release flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable")

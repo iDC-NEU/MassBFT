@@ -4,20 +4,24 @@
 
 #pragma once
 
-#include "peer/concurrency_control/deterministic/worker_fsm_impl.h"
+#include "peer/concurrency_control/deterministic/worker_fsm.h"
 #include "bthread/countdown_event.h"
+#include "peer/db/rocksdb_connection.h"
+#include "reserve_table.h"
 
 namespace peer::cc {
+    template<class WorkerFSMType, class ReserveTableType, class Derived>
     class Coordinator {
     public:
-        static std::unique_ptr<Coordinator> NewCoordinator(const std::shared_ptr<peer::db::RocksdbConnection>& dbc, int workerCount) {
-            std::unique_ptr<Coordinator> c(new Coordinator());
-            auto table = std::make_shared<peer::cc::ReserveTable>();
+        static std::unique_ptr<Derived> NewCoordinator(const std::shared_ptr<peer::db::RocksdbConnection>& dbc, int workerCount) {
+            std::unique_ptr<Derived> ptr(new Derived());
+            auto* c = static_cast<Coordinator*>(ptr.get());
+            auto table = std::make_shared<ReserveTableType>();
             c->reserveTable = table;
             c->workerList.reserve(workerCount);
             c->fsmList.reserve(workerCount);
             for (int i=0; i<workerCount; i++) {
-                auto fsm = std::make_shared<WorkerFSMImpl>();
+                auto fsm = std::make_shared<WorkerFSMType>();
                 if (fsm == nullptr) {
                     LOG(ERROR) << "Create fsm failed!";
                     return nullptr;
@@ -38,17 +42,17 @@ namespace peer::cc {
                 c->fsmList.push_back(std::move(fsm));
                 c->workerList.push_back(std::move(worker));
             }
-            return c;
+            return ptr;
         }
 
-        ~Coordinator() = default;
+        virtual ~Coordinator() = default;
 
         Coordinator(const Coordinator&) = delete;
 
         Coordinator(Coordinator&&) = delete;
 
         // NOT thread safe, CAN NOT be called consecutively!
-        bool invokeCustomCommand(std::function<void(const Worker&, WorkerFSMImpl&)>& command) {
+        bool invokeCustomCommand(std::function<void(const Worker&, WorkerFSMType&)>& command) {
             auto ret = processParallel(InvokerCommand::CUSTOM, ReceiverState::FINISH_CUSTOM, command);
             if (!ret) {
                 LOG(ERROR) << "Command execution failed!";
@@ -57,45 +61,6 @@ namespace peer::cc {
             return true;
         }
 
-        // NOT thread safe
-        // processTxnList will take the transactions and move them back after execution
-        bool processTxnList(std::vector<std::unique_ptr<proto::Transaction>>& txnList) {
-            int totalWorkerCount = (int)workerList.size();
-            reserveTable->reset();
-            // prepare txn function
-            auto afterStart = [&](const Worker& worker, WorkerFSMImpl& fsm) {
-                auto& fsmTxnList = fsm.getMutableTxnList();
-                fsmTxnList.clear();
-                auto id = worker.getId();
-                for (int i = id; i < (int)txnList.size(); i += totalWorkerCount) {
-                    fsmTxnList.push_back(std::move(txnList[i]));
-                }
-            };
-            auto ret = processParallel(InvokerCommand::START, ReceiverState::READY, afterStart);
-            if (!ret) {
-                LOG(ERROR) << "init txnList failed!";
-                return false;
-            }
-            ret = processParallel(InvokerCommand::EXEC, ReceiverState::FINISH_EXEC, nullptr);
-            if (!ret) {
-                LOG(ERROR) << "exec txnList failed!";
-                return false;
-            }
-            // move back
-            auto afterCommit = [&](const Worker& worker, WorkerFSMImpl& fsm) {
-                auto& fsmTxnList = fsm.getMutableTxnList();
-                auto id = worker.getId();
-                for (int i = id, j = 0; i < (int)txnList.size(); i += totalWorkerCount) {
-                    txnList[i] = std::move(fsmTxnList[j++]);
-                }
-            };
-            ret = processParallel(InvokerCommand::COMMIT, ReceiverState::FINISH_COMMIT, afterCommit);
-            if (!ret) {
-                LOG(ERROR) << "commit txnList failed!";
-                return false;
-            }
-            return true;
-        }
     protected:
         Coordinator() = default;
 
@@ -104,7 +69,7 @@ namespace peer::cc {
         // Block until all worker finish
         bool processParallel(InvokerCommand inputCommand, ReceiverState expectRetState,
                              // before a worker finish, called by Worker
-                             const std::function<void(const Worker&, WorkerFSMImpl&)>& beforeFinish) {
+                             const std::function<void(const Worker&, WorkerFSMType&)>& beforeFinish) {
             countdown.reset((int)workerList.size());
             bool ret = true;    // no need to be atomic
             DCHECK(workerList.size() == fsmList.size());
@@ -127,10 +92,10 @@ namespace peer::cc {
             return ret;
         }
 
-    private:
+    protected:
         std::vector<std::unique_ptr<Worker>> workerList;
-        std::vector<std::shared_ptr<WorkerFSMImpl>> fsmList;
-        std::shared_ptr<ReserveTable> reserveTable;
+        std::vector<std::shared_ptr<WorkerFSMType>> fsmList;
+        std::shared_ptr<ReserveTableType> reserveTable;
         // countdown: for method processParallel
         bthread::CountdownEvent countdown;
     };

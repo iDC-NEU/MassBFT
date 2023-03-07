@@ -2,7 +2,7 @@
 // Created by peng on 2/22/23.
 //
 
-#include "peer/concurrency_control/deterministic/coordinator.h"
+#include "peer/concurrency_control/deterministic/coordinator_impl.h"
 #include "tests/transaction_utils.h"
 
 #include "common/timer.h"
@@ -10,7 +10,7 @@
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
-class CoordinatorTest : public ::testing::Test {
+class CoordinatorImplTest : public ::testing::Test {
 protected:
     void SetUp() override {
     };
@@ -21,7 +21,7 @@ protected:
 };
 
 
-TEST_F(CoordinatorTest, TestSignalSendReceive) {
+TEST_F(CoordinatorImplTest, TestSignalSendReceive) {
     constexpr int recordCount=100000;
     std::shared_ptr<peer::db::RocksdbConnection> dbc = peer::db::RocksdbConnection::NewConnection("testDB");
     CHECK(dbc != nullptr) << "create db failed!";
@@ -32,7 +32,7 @@ TEST_F(CoordinatorTest, TestSignalSendReceive) {
         }
         return true;
     });
-    auto c = peer::cc::Coordinator::NewCoordinator(dbc, 10);
+    auto c = peer::cc::CoordinatorImpl::NewCoordinator(dbc, 10);
 
     std::vector<std::vector<std::unique_ptr<proto::Transaction>>> txnListList;
     txnListList.resize(100);

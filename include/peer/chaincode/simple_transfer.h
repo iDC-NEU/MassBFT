@@ -9,8 +9,7 @@
 namespace peer::chaincode {
     class SimpleTransfer : public Chaincode {
     public:
-        SimpleTransfer(std::unique_ptr<ORM> orm_, const proto::Transaction* txn_)
-                : Chaincode(std::move(orm_), txn_) { }
+        explicit SimpleTransfer(std::unique_ptr<ORM> orm_) : Chaincode(std::move(orm_)) { }
 
         // return ret code
         int InvokeChaincode(std::string_view funcNameSV, const std::vector<std::string_view>& args) override {

@@ -36,8 +36,9 @@ namespace util {
 
         constexpr static const auto YCSB_PROPERTY_KEY = "ycsb";
         constexpr static const auto NODES_INFO = "nodes";
+        constexpr static const auto DEFAULT_CHAINCODE = "default_chaincode";
     public:
-        static Properties* GetProperties() {
+        static Properties *GetProperties() {
             if (p == nullptr) {
                 std::lock_guard lock(mutex);
                 if (p == nullptr) {
@@ -45,12 +46,12 @@ namespace util {
                     try {
                         p->loadConfig(Properties::YAML_CONFIG_FILE);
                     }
-                    catch(const YAML::Exception& e) {
+                    catch (const YAML::Exception &e) {
                         LOG(ERROR) << Properties::YAML_CONFIG_FILE << " not exist, switch to bk file!";
                         try {
                             p->loadConfig(Properties::BK_YAML_CONFIG_FILE);
                         }
-                        catch(const YAML::Exception& e) {
+                        catch (const YAML::Exception &e) {
                             CHECK(false) << Properties::BK_YAML_CONFIG_FILE << " not exist!";
                         }
                     }
@@ -58,6 +59,7 @@ namespace util {
             }
             return p.get();
         }
+
         ~Properties() = default;
 
         YAML::Node getRaw() const {
@@ -70,7 +72,7 @@ namespace util {
 
         auto getNodesInfo() const {
             std::vector<NodeConfigPtr> ret;
-            for (const auto& it: n[NODES_INFO]) {
+            for (const auto &it: n[NODES_INFO]) {
                 NodeConfigPtr cfg(new NodeConfig);
                 cfg->nodeId = it["node_id"].as<int>();
                 cfg->groupId = it["group_id"].as<int>();
@@ -81,8 +83,10 @@ namespace util {
             return ret;
         }
 
+        std::string getDefaultChaincodeName() const { return n[DEFAULT_CHAINCODE].as<std::string>(); }
+
     protected:
-        void loadConfig(const std::string& fileName) {
+        void loadConfig(const std::string &fileName) {
             n = YAML::LoadFile(fileName);
         }
 

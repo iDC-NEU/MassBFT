@@ -29,7 +29,7 @@ protected:
         db = peer::db::RocksdbConnection::NewConnection("ChaincodeTestDB");
         CHECK(db != nullptr) << "failed to init db!";
         auto orm = peer::chaincode::ORM::NewORMFromLeveldb(db.get());
-        chaincode = std::make_unique<peer::chaincode::SimpleTransfer>(std::move(orm), nullptr);
+        chaincode = peer::chaincode::NewChaincodeByName("transfer", std::move(orm));
         chaincode->invoke("init", ParamToString({"100"}));
         auto [reads, writes] = chaincode->reset();
         ASSERT_TRUE(reads->empty());
@@ -39,7 +39,7 @@ protected:
     }
 
     std::unique_ptr<peer::db::RocksdbConnection> db;
-    std::unique_ptr<peer::chaincode::SimpleTransfer> chaincode;
+    std::unique_ptr<peer::chaincode::Chaincode> chaincode;
 
 };
 

@@ -9,7 +9,7 @@
 
 #include "peer/db/rocksdb_connection.h"
 #include "peer/chaincode/orm.h"
-#include "peer/chaincode/simple_transfer.h"
+#include "peer/chaincode/chaincode.h"
 
 #include "proto/transaction.h"
 
@@ -31,8 +31,7 @@ namespace peer::cc {
         ReceiverState OnExecuteTransaction() override {
             CHECK(db != nullptr) << "failed to init db!";
             auto orm = peer::chaincode::ORM::NewORMFromLeveldb(db.get());
-            // TODO: use factory method
-            auto chaincode = std::make_unique<peer::chaincode::SimpleTransfer>(std::move(orm), nullptr);
+            auto chaincode = peer::chaincode::NewChaincode(std::move(orm));
             do {    // defer func
                 if (txnList.empty() || reserveTable == nullptr) {
                     LOG(WARNING) << "OnExecuteTransaction input error";

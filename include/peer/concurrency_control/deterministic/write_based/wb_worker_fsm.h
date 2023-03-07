@@ -41,7 +41,7 @@ namespace peer::cc {
                 for (auto& txn: txnList) {
                     chaincode->setTxnRawPointer(txn.get());
                     auto& userRequest = txn->getUserRequest();
-                    auto ret = chaincode->invoke(userRequest.getCCNameSV(), userRequest.getArgs());
+                    auto ret = chaincode->invoke(userRequest.getFuncNameSV(), userRequest.getArgs());
                     // get the rwSets out of the orm
                     auto [reads, writes] = chaincode->reset();
                     txn->getReads() = std::move(*reads);

@@ -25,7 +25,7 @@ namespace proto {
 
     class UserRequest {
     public:
-        UserRequest() : _ccName(), _ccNameSV(_ccName) {}
+        UserRequest() : _funcName(), _funcNameSV(_funcName) {}
 
         UserRequest(const UserRequest &rhs) = delete;
 
@@ -33,13 +33,13 @@ namespace proto {
 
         virtual ~UserRequest() = default;
 
-        void setCCName(std::string &&ccName) {
-            _ccName = std::move(ccName);
-            _ccNameSV = _ccName;
+        void setFuncName(std::string &&funcName) {
+            _funcName = std::move(funcName);
+            _funcNameSV = _funcName;
         }
 
-        [[nodiscard]] const std::string_view &getCCNameSV() const {
-            return _ccNameSV;
+        [[nodiscard]] const std::string_view &getFuncNameSV() const {
+            return _funcNameSV;
         }
 
         void setArgs(std::string &&args) {
@@ -53,12 +53,12 @@ namespace proto {
         friend zpp::bits::access;
 
         constexpr static auto serialize(auto &archive, UserRequest &t) {
-            return archive(t._ccNameSV, t._argsSV);
+            return archive(t._funcNameSV, t._argsSV);
         }
 
     private:
-        std::string _ccName;
-        std::string_view _ccNameSV;
+        std::string _funcName;
+        std::string_view _funcNameSV;
         std::string _args;
         std::string_view _argsSV;
     };

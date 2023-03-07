@@ -21,7 +21,7 @@ protected:
 };
 
 
-TEST_F(CoordinatorImplTest, TestSignalSendReceive) {
+TEST_F(CoordinatorImplTest, TestTransfer) {
     constexpr int recordCount=100000;
     std::shared_ptr<peer::db::RocksdbConnection> dbc = peer::db::RocksdbConnection::NewConnection("testDB");
     CHECK(dbc != nullptr) << "create db failed!";

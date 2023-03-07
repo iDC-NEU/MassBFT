@@ -7,16 +7,16 @@
 #include "peer/chaincode/chaincode.h"
 
 namespace peer::chaincode {
-    class SimpleTransfer : public Chaincode<SimpleTransfer> {
+    class SimpleTransfer : public Chaincode {
     public:
         SimpleTransfer(std::unique_ptr<ORM> orm_, const proto::Transaction* txn_)
                 : Chaincode(std::move(orm_), txn_) { }
 
         // return ret code
-        int InvokeChaincode(std::string_view ccNameSV, const std::vector<std::string_view>& args) {
+        int InvokeChaincode(std::string_view funcNameSV, const std::vector<std::string_view>& args) override {
             if (args.size() != 2) {
                 // init data here
-                if (ccNameSV == "init" && args.size() == 1) {
+                if (funcNameSV == "init" && args.size() == 1) {
                     return InitDatabase(std::stoi(std::string(args[0])));
                 }
                 return -1;

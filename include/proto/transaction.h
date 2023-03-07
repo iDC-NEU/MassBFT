@@ -11,6 +11,14 @@
 
 namespace proto {
     using tid_type = DigestString;
+
+    // <0: left<right
+    // =0; left=right
+    // >0; left>right
+    inline int CompareTID(const proto::tid_type &lhs, const proto::tid_type &rhs) {
+        return std::memcmp(lhs.data(), rhs.data(), lhs.size());
+    }
+
     class Transaction {
     public:
         enum class ExecutionResult {

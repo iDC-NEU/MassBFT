@@ -2,7 +2,7 @@
 // Created by peng on 2/21/23.
 //
 
-#include "peer/chaincode/simple_transfer.h"
+#include "peer/chaincode/chaincode.h"
 #include "peer/db/rocksdb_connection.h"
 
 #include "gtest/gtest.h"

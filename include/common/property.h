@@ -37,24 +37,32 @@ namespace util {
         constexpr static const auto YCSB_PROPERTY_KEY = "ycsb";
         constexpr static const auto NODES_INFO = "nodes";
         constexpr static const auto DEFAULT_CHAINCODE = "default_chaincode";
+
     public:
+        // inside a lock (if called by GetProperties)
+        static void InitProperties(const YAML::Node& node = {}) {
+            p = std::make_unique<Properties>();
+            p->n = node;
+        }
+
         static Properties *GetProperties() {
             if (p == nullptr) {
                 std::lock_guard lock(mutex);
+                YAML::Node node;
                 if (p == nullptr) {
-                    p = std::make_unique<Properties>();
                     try {
-                        p->loadConfig(Properties::YAML_CONFIG_FILE);
+                        node = YAML::LoadFile(Properties::YAML_CONFIG_FILE);
                     }
                     catch (const YAML::Exception &e) {
                         LOG(ERROR) << Properties::YAML_CONFIG_FILE << " not exist, switch to bk file!";
                         try {
-                            p->loadConfig(Properties::BK_YAML_CONFIG_FILE);
+                            node = YAML::LoadFile(Properties::BK_YAML_CONFIG_FILE);
                         }
                         catch (const YAML::Exception &e) {
                             CHECK(false) << Properties::BK_YAML_CONFIG_FILE << " not exist!";
                         }
                     }
+                    InitProperties(node);
                 }
             }
             return p.get();
@@ -85,10 +93,7 @@ namespace util {
 
         std::string getDefaultChaincodeName() const { return n[DEFAULT_CHAINCODE].as<std::string>(); }
 
-    protected:
-        void loadConfig(const std::string &fileName) {
-            n = YAML::LoadFile(fileName);
-        }
+        void setDefaultChaincodeName(const std::string& ccName) { n[DEFAULT_CHAINCODE] = ccName; }
 
     private:
         YAML::Node n;

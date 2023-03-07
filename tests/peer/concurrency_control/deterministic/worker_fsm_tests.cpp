@@ -69,6 +69,11 @@ TEST_F(WorkerTest, TestSignalSendReceive) {
         worker->execute(peer::cc::InvokerCommand::COMMIT);
         cd.wait(); cd.reset(1);
         ASSERT_TRUE(state == peer::cc::ReceiverState::FINISH_COMMIT);
+
+        // commit twice, for write based workload
+        worker->execute(peer::cc::InvokerCommand::COMMIT);
+        cd.wait(); cd.reset(1);
+        ASSERT_TRUE(state == peer::cc::ReceiverState::FINISH_COMMIT);
     }
     worker->execute(peer::cc::InvokerCommand::CUSTOM);
     cd.wait(); cd.reset(1);

@@ -102,11 +102,14 @@ namespace peer::cc {
 
     protected:
         void run() {
-            int cEnum = static_cast<int>(InvokerCommand::IDLE);
+            constexpr auto idleId = static_cast<int>(InvokerCommand::IDLE);
+            auto cEnum = static_cast<int>(InvokerCommand::IDLE);
             do {
-                while(_command->compare_exchange_strong(cEnum, cEnum, std::memory_order_acquire, std::memory_order_relaxed)) {
-                    bthread::butex_wait(_command, cEnum, nullptr);
-                }
+                do {
+                    bthread::butex_wait(_command, idleId, nullptr);
+                    cEnum = _command->load(std::memory_order_relaxed);
+                    _command->compare_exchange_strong(cEnum, idleId, std::memory_order_acquire, std::memory_order_relaxed);
+                } while(cEnum == idleId);
                 ReceiverState ret = ReceiverState::READY;  // return value of command
                 switch (static_cast<InvokerCommand>(cEnum)) {
                     case InvokerCommand::IDLE:

@@ -50,6 +50,11 @@ namespace peer::cc {
                         txn->setExecutionResult(ResultType::ABORT_NO_RETRY);
                         continue;
                     }
+                    // for committed transactions, read only optimization
+                    if (txn->getWrites().empty()) {
+                        txn->setExecutionResult(ResultType::COMMIT);
+                        continue;
+                    }
                     // 2. reserve rw set
                     reserveTable->reserveRWSets(txn->getReads(), txn->getWrites(), txn->getTransactionIdPtr());
                 }
@@ -65,6 +70,11 @@ namespace peer::cc {
                     // 1. txn internal error, abort it without dealing with reserve table
                     auto result = txn->getExecutionResult();
                     if (result == ResultType::ABORT_NO_RETRY) {
+                        continue;
+                    }
+                    // for committed transactions, read only optimization
+                    if (txn->getWrites().empty()) {
+                        txn->setExecutionResult(ResultType::COMMIT);
                         continue;
                     }
                     // 2. analyse dependency

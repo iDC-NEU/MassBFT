@@ -22,8 +22,9 @@ namespace peer::chaincode {
             }
             auto& key = args[0];
             auto& value = args[1];
-            auto keyNum = std::atoi(key.data());
-            if (keyNum%2 == 0) {
+            // If the key is used as a distinction, the read and write sets are disjoint
+            auto valueNum = std::atoi(value.data());
+            if (valueNum%2 == 0) {
                 return Get(key);
             } else {
                 return Set(key, value);

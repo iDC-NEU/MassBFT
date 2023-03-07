@@ -46,8 +46,12 @@ namespace peer::cc {
                     txn->getReads() = std::move(*reads);
                     txn->getWrites() = std::move(*writes);
                     // 1. transaction internal error, abort it without adding reserve table
-                    if ( ret != 0) {
+                    if (ret != 0) {
                         txn->setExecutionResult(ResultType::ABORT_NO_RETRY);
+                        continue;
+                    }
+                    // read only optimization
+                    if (txn->getWrites().empty()) {
                         continue;
                     }
                     // 2. reserve rw set
@@ -80,6 +84,11 @@ namespace peer::cc {
                 // 1. txn internal error, abort it without dealing with reserve table
                 auto result = txn->getExecutionResult();
                 if (result == ResultType::ABORT_NO_RETRY) {
+                    continue;
+                }
+                // for committed transactions, read only optimization
+                if (txn->getWrites().empty()) {
+                    txn->setExecutionResult(ResultType::COMMIT);
                     continue;
                 }
                 // 2. analyse raw

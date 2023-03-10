@@ -4,46 +4,76 @@
 
 #pragma once
 
-#include <vector>
 #include "peer/replicator/block_fragment_generator.h"
 
 namespace peer::v2 {
     class FragmentUtil {
     public:
+        FragmentUtil(int localServerCount, int remoteServerCount) {
+            reset(localServerCount, remoteServerCount);
+        }
+
+        void reset(int localServerCount, int remoteServerCount) {
+            _localServerCount = localServerCount;
+            _remoteServerCount = remoteServerCount;
+            _totalFragments = LCM(_localServerCount, _remoteServerCount);
+            _localFPS = _totalFragments/localServerCount;
+            _remoteFPS = _totalFragments/remoteServerCount;
+        }
+
+        struct FragmentConfig {
+            [[nodiscard]] bool operator==(const FragmentConfig &rhs) const {
+                return startFragmentId == rhs.startFragmentId &&
+                       endFragmentId == rhs.endFragmentId  &&
+                       localId == rhs.localId &&
+                       remoteId == rhs.remoteId;
+            }
+
+            int startFragmentId;
+            int endFragmentId;
+            int localId;
+            int remoteId;
+        };
+
         // How to allocate shards between two clusters
-        static std::vector<std::pair<int, int>> CalculateFragmentConfig(int localServerCount, int remoteServerCount, int localId) {
-            int totalFragments = LCM(localServerCount, remoteServerCount);
-            auto localFPS = totalFragments/localServerCount;
-            auto remoteFPS = totalFragments/remoteServerCount;
-            int start = localFPS*localId;
-            int end = localFPS*(localId+1);
+        // [start, end): the first int is the start fragment id, the next int is the end fragment id.
+        // please use GenerateFragmentConfig to generate readable fragment
+        [[nodiscard]] std::vector<FragmentConfig> getSenderConfig(int localId) const {
+            const int start = _localFPS*localId;
+            const int end = _localFPS*(localId+1);
             // Each server in region A is responsible for sending remoteServerCount fragments.
             // Each server in region B is responsible for sending localServerCount fragments.
-            std::vector<std::pair<int, int>> retList;
-            int left=start;
-            bool leftover = false;
+            std::vector<FragmentConfig> retList;
+            int nextStart=start;
             for (int i=start; i<end; i++) {
-                if (i%remoteFPS == remoteFPS-1) {
+                if (i%_remoteFPS == _remoteFPS-1) {
                     // i+1 is the next fragment
-                    retList.emplace_back(left, i+1);
-                    left = i+1;
-                    leftover = false;
-                    continue;
+                    FragmentConfig cfg{};
+                    cfg.startFragmentId = nextStart;
+                    cfg.endFragmentId = i+1;
+                    cfg.localId = localId;
+                    cfg.remoteId = (i + 1 - 1)/_remoteFPS;
+                    retList.push_back(cfg);
+                    nextStart = i+1;
                 }
-                leftover = true;
             }
-            if (leftover) {
-                retList.emplace_back(left, end);
+            if (nextStart != end) {
+                FragmentConfig cfg{};
+                cfg.startFragmentId = nextStart;
+                cfg.endFragmentId = end;
+                cfg.localId = localId;
+                cfg.remoteId = (end - 1)/_remoteFPS;
+                retList.push_back(cfg);
             }
             return retList;
         }
 
         // The caller manually fills in concurrency and instanceCount (instanceCount is usually 1)
-        static auto GetBFGConfig(int localServerCount, int remoteServerCount) {
+        [[nodiscard]] auto getBFGConfig() const {
             BlockFragmentGenerator::Config cfg;
-            int lcm = FragmentUtil::LCM(localServerCount, remoteServerCount);
-            cfg.dataShardCnt = lcm / 3;     // If not divisible, take the remainder down
-            cfg.parityShardCnt = lcm - cfg.dataShardCnt;
+            // If not divisible, take the remainder down
+            cfg.parityShardCnt = static_cast<int>((2.0 * _totalFragments) / 3);
+            cfg.dataShardCnt = _totalFragments - cfg.parityShardCnt;
             return cfg;
         }
 
@@ -59,5 +89,12 @@ namespace peer::v2 {
             }
             return (n1 * n2) / hcf;
         }
+
+    private:
+        int _localServerCount{};
+        int _remoteServerCount{};
+        int _totalFragments{};    // totalFragments = LCM(localServerCount, remoteServerCount);
+        int _localFPS{};          // localFPS = totalFragments/localServerCount;
+        int _remoteFPS{};         // remoteFPS = totalFragments/remoteServerCount;
     };
 }

@@ -409,21 +409,25 @@ namespace peer {
                 auto x = cfg.dataShardCnt - 1;
                 auto y = cfg.parityShardCnt - 1;
                 auto totalInstanceCount = cfg.instanceCount*cfg.concurrency;
-                // check if we have already allocate
+                std::unique_ptr<ECListType> queue = nullptr;
                 if (ecMap(x, y) != nullptr) {
-                    // use existing queue
-                    auto& queue = ecMap(x, y);
-                    for (int i=0; i<totalInstanceCount; i++) {
-                        queue->push(std::make_unique<ErasureCodeType>(cfg.dataShardCnt, cfg.parityShardCnt));
+                    // drain existing queue
+                    auto oldQueue = std::move(ecMap(x, y));
+                    queue = std::make_unique<ECListType>(totalInstanceCount + oldQueue->size());
+                    while (!oldQueue->empty()) {
+                        std::unique_ptr<util::ErasureCode> data;
+                        oldQueue->pop(data);
+                        DCHECK(data != nullptr);
+                        queue->push(std::move(data));
                     }
                 } else {
                     // allocate new queue
-                    auto queue = std::make_unique<ECListType>(totalInstanceCount);
-                    for (int i=0; i<totalInstanceCount; i++) {
-                        queue->push(std::make_unique<ErasureCodeType>(cfg.dataShardCnt, cfg.parityShardCnt));
-                    }
-                    ecMap(x, y) = std::move(queue);
+                    queue = std::make_unique<ECListType>(totalInstanceCount);
                 }
+                for (int i=0; i<totalInstanceCount; i++) {
+                    queue->push(std::make_unique<ErasureCodeType>(cfg.dataShardCnt, cfg.parityShardCnt));
+                }
+                ecMap(x, y) = std::move(queue);
                 auto& sema = semaMap(x, y);
                 sema.signal(totalInstanceCount);
             }

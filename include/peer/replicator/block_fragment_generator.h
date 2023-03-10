@@ -408,19 +408,23 @@ namespace peer {
                 // index=actual-1
                 auto x = cfg.dataShardCnt - 1;
                 auto y = cfg.parityShardCnt - 1;
+                auto totalInstanceCount = cfg.instanceCount*cfg.concurrency;
                 // check if we have already allocate
                 if (ecMap(x, y) != nullptr) {
-                    continue;
+                    // use existing queue
+                    auto& queue = ecMap(x, y);
+                    for (int i=0; i<totalInstanceCount; i++) {
+                        queue->push(std::make_unique<ErasureCodeType>(cfg.dataShardCnt, cfg.parityShardCnt));
+                    }
+                } else {
+                    // allocate new queue
+                    auto queue = std::make_unique<ECListType>(totalInstanceCount);
+                    for (int i=0; i<totalInstanceCount; i++) {
+                        queue->push(std::make_unique<ErasureCodeType>(cfg.dataShardCnt, cfg.parityShardCnt));
+                    }
+                    ecMap(x, y) = std::move(queue);
                 }
-                auto totalInstanceCount = cfg.instanceCount*cfg.concurrency;
-                // allocate new queue
-                auto queue = std::make_unique<ECListType>(totalInstanceCount);
                 auto& sema = semaMap(x, y);
-                // fill in ec instance
-                for (int i=0; i<totalInstanceCount; i++) {
-                    queue->push(std::make_unique<ErasureCodeType>(cfg.dataShardCnt, cfg.parityShardCnt));
-                }
-                ecMap(x, y) = std::move(queue);
                 sema.signal(totalInstanceCount);
             }
         }

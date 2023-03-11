@@ -77,6 +77,25 @@ namespace peer::v2 {
             return cfg;
         }
 
+        using BFGConfigType = std::unordered_map<int, BlockFragmentGenerator::Config>;
+        using SenderFragmentConfigType = std::unordered_map<int, std::vector<FragmentConfig>>;
+        static std::pair<BFGConfigType, SenderFragmentConfigType> GenerateAllConfig(
+                const std::unordered_map<int, int>& regionNodesCount,
+                int localRegionId,
+                int localId) {
+            BFGConfigType bfgConfig;
+            SenderFragmentConfigType senderConfig;
+            for (const auto& it : regionNodesCount) {
+                if (it.first == localRegionId) {
+                    continue;
+                }
+                FragmentUtil fragmentUtil(regionNodesCount.at(localRegionId), it.second);
+                bfgConfig[it.first] = fragmentUtil.getBFGConfig();
+                senderConfig[it.first] = fragmentUtil.getSenderConfig(localId);
+            }
+            return std::make_pair(bfgConfig, senderConfig);
+        }
+
         static int LCM(int n1, int n2) {
             int hcf = n1;
             int temp = n2;

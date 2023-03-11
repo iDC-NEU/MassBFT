@@ -94,10 +94,9 @@ namespace peer::v2 {
     class BlockSender {
     public:
         static std::unique_ptr<BlockSender>
-        NewBlockSender(const FragmentUtil& fragmentConfig, int localId,
+        NewBlockSender(const std::vector<FragmentUtil::FragmentConfig>& fragmentCfgList,
                        const std::function<std::shared_ptr<util::ZMQInstanceConfig>(int remoteId)>& getZMQConfigByRemoteId) {
             std::unique_ptr<BlockSender> blockSender(new BlockSender);
-            auto fragmentCfgList = fragmentConfig.getSenderConfig(localId);
             for (const auto& it: fragmentCfgList) {
                 auto zmqConfig = getZMQConfigByRemoteId(it.remoteId);
                 if (zmqConfig == nullptr) {
@@ -174,35 +173,31 @@ namespace peer::v2 {
 
         using ConfigPtr = std::shared_ptr<util::ZMQInstanceConfig>;
 
-        static std::unique_ptr<MRBlockSender> NewMRBlockSender(const std::vector<ConfigPtr>& allNodesList,
-                                                               int localRegionId,
-                                                               int localId,
-                                                               std::shared_ptr<util::thread_pool_light> bfgWp = nullptr,
-                                                               std::shared_ptr<util::thread_pool_light> blockSenderWp = nullptr) {
-            std::unordered_map<int, std::vector<ConfigPtr>> allNodesMap;
-            for (auto it: allNodesList) {
-                allNodesMap[it->nodeConfig->groupId].push_back(std::move(it));
-            }
-            if (!allNodesMap.contains(localRegionId)) {
+        static std::unique_ptr<MRBlockSender> NewMRBlockSender(
+                // key: region id; value: nodes zmq config
+                const std::unordered_map<int, std::vector<ConfigPtr>>& regionConfig,
+                // key: region id; value: send/receive fragmentConfig
+                const FragmentUtil::SenderFragmentConfigType& regionsFragmentConfig,
+                int localRegionId,
+                std::shared_ptr<util::thread_pool_light> blockSenderWp = nullptr) {
+            if (!regionConfig.contains(localRegionId)) {
                 LOG(INFO) << "allNodesList input error!";
                 return nullptr;
             }
             std::unique_ptr<MRBlockSender> mrBlockSender(new MRBlockSender);
             mrBlockSender->_localRegionId = localRegionId;
-            std::vector<BlockFragmentGenerator::Config> bfgCfgList;
-            for (const auto& it: allNodesMap) {
+            for (const auto& it: regionConfig) {
                 // skip local region
                 if (it.first == localRegionId) {
                     continue;
                 }
+                if (!regionsFragmentConfig.contains(it.first)) {
+                    return nullptr;
+                }
                 // Generate the config of cluster to cluster broadcast.
-                FragmentUtil fragmentUtil((int)allNodesMap[localRegionId].size(), (int)it.second.size());
-                auto bfgCfg = fragmentUtil.getBFGConfig();
-                auto senderConfig = fragmentUtil.getSenderConfig(localId);
-                bfgCfgList.push_back(bfgCfg);
-                auto getZMQConfigById = [&, remoteRegionId=it.first](int remoteId) ->std::shared_ptr<util::ZMQInstanceConfig> {
+                auto getZMQConfigById = [&, &remoteRegionConfig=it.second](int remoteId) ->std::shared_ptr<util::ZMQInstanceConfig> {
                     // find the node config and wrap it
-                    for (const auto& nodeCfg: allNodesMap[remoteRegionId]) {
+                    for (const auto& nodeCfg: remoteRegionConfig) {
                         if (nodeCfg->nodeConfig->nodeId == remoteId) {
                             return nodeCfg;
                         }
@@ -210,27 +205,17 @@ namespace peer::v2 {
                     return nullptr;
                 };
                 // init sender
-                auto sender = BlockSender::NewBlockSender(fragmentUtil, localId, getZMQConfigById);
+                auto sender = BlockSender::NewBlockSender(regionsFragmentConfig.at(it.first), getZMQConfigById);
                 if (sender == nullptr) {
                     return nullptr;
                 }
-                sender->setBFGConfig(bfgCfg);
-                mrBlockSender->_blockSenderList.push_back(std::move(sender));
+                mrBlockSender->_senderMap[it.first] = std::move(sender);
             }
             // create two thread pools
             if (blockSenderWp == nullptr) {
-                blockSenderWp = std::make_shared<util::thread_pool_light>(std::min((int)allNodesMap.size()-1, (int)std::thread::hardware_concurrency()));
+                blockSenderWp = std::make_shared<util::thread_pool_light>(std::min((int)regionConfig.size()-1, (int)std::thread::hardware_concurrency()));
             }
             mrBlockSender->_wpForBlockSender = std::move(blockSenderWp);
-            if (bfgWp == nullptr) {
-                bfgWp = std::make_shared<util::thread_pool_light>();
-            }
-            mrBlockSender->_wpForBFG = std::move(bfgWp);
-            // init bfg
-            auto bfg = std::make_shared<BlockFragmentGenerator>(bfgCfgList, mrBlockSender->_wpForBFG.get());
-            for (const auto& it: mrBlockSender->_blockSenderList) {
-                it->setBFG(bfg);
-            }
 
             return mrBlockSender;
         }
@@ -244,8 +229,26 @@ namespace peer::v2 {
 
         void setStorage(std::shared_ptr<MRBlockStorage> storage) { _storage =std::move(storage); }
 
+        bool setBFGWithConfig(
+                // erasure code sharding instance for all regions
+                const std::shared_ptr<BlockFragmentGenerator>& bfgInstance,
+                // erasure code sharding config for all regions
+                const FragmentUtil::BFGConfigType& bfgCfgList) {
+            for (auto& it: bfgCfgList) {
+                if (!_senderMap.contains(it.first)) {
+                    return false;
+                }
+                _senderMap[it.first]->setBFGConfig(it.second);
+                _senderMap[it.first]->setBFG(bfgInstance);
+            }
+            _bfg = bfgInstance;
+            return true;
+        }
+
+        [[nodiscard]] std::shared_ptr<BlockFragmentGenerator> getBFG() { return _bfg; }
+
         bool checkAndStart(int startFromBlock) {
-            if (!_wpForBlockSender || !_wpForBFG || !_storage) {
+            if (!_wpForBlockSender|| !_storage || !_bfg) {
                 LOG(ERROR) << "System have not init yet.";
                 return false;
             }
@@ -270,11 +273,11 @@ namespace peer::v2 {
                     LOG(INFO) << "Can not get block, retrying: " << nextBlockNumber;
                     continue;
                 }
-                bthread::CountdownEvent countdown((int)_blockSenderList.size());
+                bthread::CountdownEvent countdown((int)_senderMap.size());
                 bool allSuccess = true;
-                for (int i=0; i<(int)_blockSenderList.size(); i++) {
-                    _wpForBlockSender->push_task([&, i=i](){
-                        auto ret = _blockSenderList[i]->encodeAndSendBlock(block);
+                for (auto& it: _senderMap) {
+                    _wpForBlockSender->push_task([&, &it=it](){
+                        auto ret = it.second->encodeAndSendBlock(block);
                         if (!ret) {
                             allSuccess = false;
                         }
@@ -297,9 +300,9 @@ namespace peer::v2 {
         int _localRegionId = -1;
         // MRBlockSender owns the bfg and the corresponding wp
         std::shared_ptr<util::thread_pool_light> _wpForBlockSender;
-        std::shared_ptr<util::thread_pool_light> _wpForBFG;
-        std::vector<std::unique_ptr<BlockSender>> _blockSenderList;
+        std::unordered_map<int, std::unique_ptr<BlockSender>> _senderMap;
         // shared storage
         std::shared_ptr<MRBlockStorage> _storage;
+        std::shared_ptr<BlockFragmentGenerator> _bfg;
     };
 }

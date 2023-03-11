@@ -56,27 +56,41 @@ TEST_F(BlockSenderTestV2, IntrgrateTest4_4) {
             receivers(i, j) = util::ReliableZmqServer::GetSubscribeServer(configList[i * 4 + j]->port);
         }
     }
+    // change config list to map
+    std::unordered_map<int, std::vector<peer::v2::MRBlockSender::ConfigPtr>> configMap;
+    for (const auto& it:configList) {
+        configMap[it->nodeConfig->groupId].push_back(it);
+    }
+    std::unordered_map<int, int> regionNodesCount;
+    for (const auto& it:configMap) {
+        regionNodesCount[it.first] = (int)it.second.size();
+    }
+    // we use ret.first to init bfg
+    auto bfgWp = std::make_shared<util::thread_pool_light>();
+    // init bfg
+    auto ret = peer::v2::FragmentUtil::GenerateAllConfig(regionNodesCount, 0, 0);
+
+    std::vector<peer::BlockFragmentGenerator::Config> bfgConfigList;
+    bfgConfigList.push_back({.dataShardCnt=2, .parityShardCnt=2, .instanceCount = 1, .concurrency = 1});
+    for (auto& it: ret.first) {
+        bfgConfigList.push_back(it.second);
+    }
+    auto bfg = std::make_shared<peer::BlockFragmentGenerator>(bfgConfigList, bfgWp.get());
+
+    std::unordered_map<int, peer::BlockFragmentGenerator> bfgMap;
     // init senders, local_region==0
     auto bsWp = std::make_shared<util::thread_pool_light>();
-    auto bfgWp = std::make_shared<util::thread_pool_light>();
     for (int i = 0; i < 4; i++) {
-        auto sender = peer::v2::MRBlockSender::NewMRBlockSender(configList, 0, i, bfgWp, bsWp);
-        sender->setStorage(storageList);
-        auto ret = sender->checkAndStart(0);
-        ASSERT_TRUE(ret) << "start sender failed";
+        // ret.first is redundant
+        ret = peer::v2::FragmentUtil::GenerateAllConfig(regionNodesCount, 0, i);
+        auto sender = peer::v2::MRBlockSender::NewMRBlockSender(configMap, ret.second, 0, bsWp);
+        ASSERT_TRUE(sender != nullptr) << "start sender failed";sender->setStorage(storageList);
+        sender->setBFGWithConfig(bfg, ret.first);
+        ASSERT_TRUE(sender->checkAndStart(0)) << "start sender failed";
         servers[i] = std::move(sender);
     }
 
-    std::vector<peer::BlockFragmentGenerator::Config> cfgList;
-    cfgList.push_back({
-                              .dataShardCnt=2,
-                              .parityShardCnt=2,
-                              .instanceCount = 1,
-                              .concurrency = 1,
-                      });
-    peer::BlockFragmentGenerator bfg(cfgList, bfgWp.get());
-
-    for (int bkNum = 0; bkNum < 1; bkNum++) {
+    for (int bkNum = 0; bkNum < 100; bkNum++) {
         // send the data
         auto regionBlockRaw = prepareBlock(bkNum);
         std::unique_ptr<proto::Block> regionBlock(new proto::Block);
@@ -96,7 +110,7 @@ TEST_F(BlockSenderTestV2, IntrgrateTest4_4) {
             ebf1.deserializeFromString(sv1);
             proto::EncodeBlockFragment ebf2;
             ebf2.deserializeFromString(sv2);
-            auto context = bfg.getEmptyContext(cfgList[0]);
+            auto context = bfg->getEmptyContext(bfgConfigList[0]);
             ASSERT_TRUE(context->validateAndDeserializeFragments(ebf1.root, ebf1.encodeMessage, (int)ebf1.start, (int)ebf1.end));
             ASSERT_TRUE(context->validateAndDeserializeFragments(ebf2.root, ebf2.encodeMessage, (int)ebf2.start, (int)ebf2.end));
             std::string blockRaw;

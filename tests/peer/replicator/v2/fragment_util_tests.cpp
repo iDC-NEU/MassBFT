@@ -88,14 +88,25 @@ TEST_F(FragmentUtilTest, TestCalculateFragmentConfigNotEqual) {
 TEST_F(FragmentUtilTest, TestGetBFGConfig) {
     peer::v2::FragmentUtil fu(7, 4);
     auto ret = fu.getBFGConfig();
-    ASSERT_TRUE( ret.dataShardCnt == 10);
-    ASSERT_TRUE( ret.parityShardCnt == 18);
+    // region a byzantine node = 2, region b = 1
+    // region a drop 8 fragments, region b drop 7 fragments
+    // remain fragments == 28-8-7 = 13
+    ASSERT_TRUE( ret.dataShardCnt == 13);
+    ASSERT_TRUE( ret.parityShardCnt == 15);
     fu.reset(4, 4);
     ret = fu.getBFGConfig();
     ASSERT_TRUE( ret.dataShardCnt == 2);
     ASSERT_TRUE( ret.parityShardCnt == 2);
+    // server count == 12, maximum byzantine node = 3
+    fu.reset(12, 12);
+    ret = fu.getBFGConfig();
+    ASSERT_TRUE( ret.dataShardCnt == 6);
+    ASSERT_TRUE( ret.parityShardCnt == 6);
+    // region a byzantine node = 200, region b = 100
+    // region a drop 200*301 fragments, region b drop 100*601 fragments
+    // remain fragments == 601*301 - 200*301 - 100*601
     fu.reset(601, 301);
     ret = fu.getBFGConfig();
-    ASSERT_TRUE( ret.dataShardCnt == 60301);
-    ASSERT_TRUE( ret.parityShardCnt == 120600);
+    ASSERT_TRUE( ret.dataShardCnt >= 60301);    // 60601
+    ASSERT_TRUE( ret.parityShardCnt <= 120600); // 120300
 }

@@ -72,7 +72,11 @@ namespace peer::v2 {
         [[nodiscard]] auto getBFGConfig() const {
             BlockFragmentGenerator::Config cfg;
             // If not divisible, take the remainder down
-            cfg.parityShardCnt = static_cast<int>((2.0 * _totalFragments) / 3);
+            // local region Byzantine max server count
+            auto localByzantine = (_localServerCount-1) / 3;
+            auto remoteByzantine = (_remoteServerCount-1) / 3;
+            // maximum drop fragments
+            cfg.parityShardCnt = remoteByzantine*_remoteFPS + localByzantine*_localFPS;
             cfg.dataShardCnt = _totalFragments - cfg.parityShardCnt;
             return cfg;
         }

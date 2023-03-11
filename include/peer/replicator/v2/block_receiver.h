@@ -258,12 +258,21 @@ namespace peer::v2 {
         void setValidateFunc(ValidateFunc func) { _validateCallback = std::move(func); }
 
         // passive object version
-        void passiveStart(proto::BlockNumber startAt) { _ringBuf.clearBelow<false>(startAt); }
+        bool passiveStart(proto::BlockNumber startAt) {
+            if (!_fragmentRepeater || !_remoteFragmentReceiver || !_bfg) {
+                return false;
+            }
+            _ringBuf.clearBelow<false>(startAt);
+            return true;
+        }
 
         // active object version
-        void activeStart(proto::BlockNumber startAt) {
-            passiveStart(startAt);
+        bool activeStart(proto::BlockNumber startAt) {
+            if (!passiveStart(startAt)) {
+                return false;
+            }
             _thread = std::make_unique<std::thread>(run, this);
+            return true;
         }
 
         // block may be nullptr;

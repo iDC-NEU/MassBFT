@@ -84,6 +84,7 @@ namespace util {
         // just create a sub server
         static bool NewSubscribeServer(int port) {
             if (globalControlService == nullptr) {
+                LOG(ERROR) << "GlobalControlService is not inited!";
                 return false;
             }
             return globalControlService->newConnection(port);
@@ -94,6 +95,7 @@ namespace util {
                 PutSubscribeServer(port);
             };
             if (globalControlService == nullptr) {
+                LOG(ERROR) << "GlobalControlService is not inited!";
                 return nullptr;
             }
             return {globalControlService->getReliableZmqServer(port), deleter};
@@ -101,6 +103,7 @@ namespace util {
 
         static bool DestroySubscribeServer(int port) {
             if (globalControlService == nullptr) {
+                LOG(ERROR) << "GlobalControlService is not inited!";
                 return false;
             }
             return globalControlService->dropConnection(port);
@@ -310,6 +313,7 @@ namespace util {
                 }
                 usleep(timeout_ms*1000);
             }
+            LOG(ERROR) << "Failed to connect to remote server!";
             return nullptr;
         }
 

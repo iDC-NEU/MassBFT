@@ -66,8 +66,6 @@ TEST_F(BlockSenderTestV2, IntrgrateTest4_4) {
         regionNodesCount[it.first] = (int)it.second.size();
     }
     // we use ret.first to init bfg
-    auto bfgWp = std::make_shared<util::thread_pool_light>();
-    // init bfg
     auto ret = peer::v2::FragmentUtil::GenerateAllConfig(regionNodesCount, 0, 0);
 
     std::vector<peer::BlockFragmentGenerator::Config> bfgConfigList;
@@ -75,6 +73,7 @@ TEST_F(BlockSenderTestV2, IntrgrateTest4_4) {
     for (auto& it: ret.first) {
         bfgConfigList.push_back(it.second);
     }
+    auto bfgWp = std::make_shared<util::thread_pool_light>();
     auto bfg = std::make_shared<peer::BlockFragmentGenerator>(bfgConfigList, bfgWp.get());
 
     std::unordered_map<int, peer::BlockFragmentGenerator> bfgMap;

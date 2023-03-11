@@ -20,15 +20,23 @@ namespace util {
         constexpr static const auto HELLO_MESSAGE = "hello!";
 
         ~ReliableZmqServer() {
-            receiver.reset();
+            shutdown();
             bthread_join(hello_tid, nullptr);
         }
 
         inline std::optional<zmq::message_t> receive() {
+            if (firstInvokeReceive) {
+                firstInvokeReceive = false;
+                return waitReady();
+            }
             return receiver->receive();
         }
 
-        void shutdown() { receiver->shutdown(); }
+        void shutdown() {
+            receivedHello.reset(1);
+            receivedHello.signal(1);
+            receiver->shutdown();
+        }
 
         // When receive garbage, try this one
         inline std::optional<zmq::message_t> waitReady() {
@@ -120,6 +128,7 @@ namespace util {
         // if receive hello from remote client, isReady=true
         bthread_t hello_tid;
         std::atomic<bool> isReady;
+        bool firstInvokeReceive = true;
         bthread::CountdownEvent receivedHello;
         std::unique_ptr<ZMQInstance> receiver;
 

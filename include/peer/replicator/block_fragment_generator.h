@@ -60,7 +60,7 @@ namespace peer {
             // support concurrent validation
             // This func will throw runtime error
             // WARNING: THE CALLER MUST KEEP THE RAW FRAGMENT UNTIL GENERATED, std::string_view raw
-            bool validateAndDeserializeFragments(const pmt::HashString& root, std::string_view raw, int start, int end) {
+            [[nodiscard]] bool validateAndDeserializeFragments(const pmt::HashString& root, std::string_view raw, int start, int end) {
                 if (start<0 || start>=end || end>fragmentCnt) {
                     LOG(ERROR) << "index out of range!";
                     return false;
@@ -170,7 +170,7 @@ namespace peer {
             // No concurrent support, the caller must ensure ALL validateAndDeserializeFragments call is finished.
             // WARNING: EC hold the return value, it is not safe to use EC until you finished using the returned message
             // NOTE: bufferOut size is AT LEAST larger than the actualMessageSize
-            bool regenerateMessage(int actualMessageSize, std::string& bufferOut) {
+            [[nodiscard]] bool regenerateMessage(int actualMessageSize, std::string& bufferOut) {
                 // Calculate thr fragment len deterministically, using the actualMessageSize and instanceCount
                 const auto fragmentLen = actualMessageSize % _ecConfig.instanceCount ? actualMessageSize / _ecConfig.instanceCount + 1: actualMessageSize / _ecConfig.instanceCount;
                 std::vector<std::vector<std::string_view>> svListPartialView(_ecConfig.instanceCount);
@@ -439,7 +439,7 @@ namespace peer {
 
         // The caller must ensure the total acquire instance is smaller than the remain instance!
         // Or there may be a deadlock!
-        std::shared_ptr<Context> getEmptyContext(const Config& cfg) {
+        [[nodiscard]] std::shared_ptr<Context> getEmptyContext(const Config& cfg) {
             auto x = cfg.dataShardCnt - 1;
             auto y = cfg.parityShardCnt - 1;
             if (ecMap.x() < x+1 ||ecMap.y() < y+1) {

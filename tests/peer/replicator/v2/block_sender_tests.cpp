@@ -76,14 +76,14 @@ TEST_F(BlockSenderTestV2, IntrgrateTest4_4) {
     auto bfgWp = std::make_shared<util::thread_pool_light>();
     auto bfg = std::make_shared<peer::BlockFragmentGenerator>(bfgConfigList, bfgWp.get());
 
-    std::unordered_map<int, peer::BlockFragmentGenerator> bfgMap;
     // init senders, local_region==0
     auto bsWp = std::make_shared<util::thread_pool_light>();
     for (int i = 0; i < 4; i++) {
         // ret.first is redundant
         ret = peer::v2::FragmentUtil::GenerateAllConfig(regionNodesCount, 0, i);
         auto sender = peer::v2::MRBlockSender::NewMRBlockSender(configMap, ret.second, 0, bsWp);
-        ASSERT_TRUE(sender != nullptr) << "start sender failed";sender->setStorage(storageList);
+        ASSERT_TRUE(sender != nullptr) << "start sender failed";
+        sender->setStorage(storageList);
         sender->setBFGWithConfig(bfg, ret.first);
         ASSERT_TRUE(sender->checkAndStart(0)) << "start sender failed";
         servers[i] = std::move(sender);

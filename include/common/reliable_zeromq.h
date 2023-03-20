@@ -33,9 +33,9 @@ namespace util {
         }
 
         void shutdown() {
+            receiver->shutdown();
             receivedHello.reset(1);
             receivedHello.signal(1);
-            receiver->shutdown();
         }
 
         // When receive garbage, try this one

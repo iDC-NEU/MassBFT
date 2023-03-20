@@ -207,7 +207,8 @@ namespace peer::v2 {
                 // init sender
                 auto sender = BlockSender::NewBlockSender(regionsFragmentConfig.at(it.first), getZMQConfigById);
                 if (sender == nullptr) {
-                    return nullptr;
+                    LOG(WARNING) << "Sender failed to connect to remote address, id: " << it.first;
+                    continue;
                 }
                 mrBlockSender->_senderMap[it.first] = std::move(sender);
             }
@@ -236,7 +237,8 @@ namespace peer::v2 {
                 const FragmentUtil::BFGConfigType& bfgCfgList) {
             for (auto& it: bfgCfgList) {
                 if (!_senderMap.contains(it.first)) {
-                    return false;
+                    LOG(WARNING) << "Sender id: " << it.first << " not found!";
+                    continue;
                 }
                 _senderMap[it.first]->setBFGConfig(it.second);
                 _senderMap[it.first]->setBFG(bfgInstance);

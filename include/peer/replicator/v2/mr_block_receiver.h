@@ -158,7 +158,6 @@ namespace peer::v2 {
             std::unique_ptr<MRBlockReceiver> br(new MRBlockReceiver());
             br->localRegionId = localNodeConfig->groupId;
             // Init regions
-            auto regionCount = regionConfig.size();
             auto localRegionId = localNodeConfig->groupId;
             for (const auto& it : regionConfig) {
                 if (it.first == localRegionId) {

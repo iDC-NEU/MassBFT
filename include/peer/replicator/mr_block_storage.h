@@ -51,8 +51,7 @@ namespace peer {
                 return nullptr;
             }
             std::shared_ptr<proto::Block> block = nullptr;
-            blockStorage[regionId].if_contains(blockId, [&block](
-                    const RegionStorage::value_type &v) { block = v.second.block; });
+            blockStorage[regionId].if_contains(blockId, [&block](const RegionStorage::value_type &v) { block = v.second.block; });
             return block;
         }
 

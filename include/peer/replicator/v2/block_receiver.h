@@ -47,7 +47,7 @@ namespace peer::v2 {
 
         virtual ~FragmentReceiver() {
             // close the zmq instance to unblock local receiver thread.
-            _sub->shutdown();
+            if (_sub) { _sub->shutdown(); }
             // join the event loop
             if (_thread) { _thread->join(); }
         }

@@ -21,6 +21,7 @@ protected:
     };
 
     void TearDown() override {
+        sleep(1);
         util::MetaRpcServer::Stop();
     };
 
@@ -107,8 +108,49 @@ protected:
         }
         callback(nodes, bccsp, storage, matrix);
     }
-};
 
+    static void StartCrashTest(bool senderCrash, bool receiverCrash) {
+        StartTest([&](const auto& nodes, auto& bccsp, auto& storage, auto& matrix) ->void {
+            CHECK(nodes.at(2).size() == 11);
+            if (senderCrash) {
+                // tear down a sender node
+                matrix(0, 0).reset();
+            }
+            if (receiverCrash) {
+                // tear down 3 receiver nodes
+                matrix(2, 0).reset();
+                matrix(2, 1).reset();
+                matrix(2, 2).reset();
+            }
+            // region 0 send block to other regions
+            auto blockForRo = CreateMockBlock(0, 0, 4, bccsp);
+            for (int j = (senderCrash ? 1 : 0); j < (int)nodes.at(0).size(); j++) {
+                storage(0, j)->insertBlock(0, blockForRo);
+                storage(0, j)->onReceivedNewBlock(0, blockForRo->header.number);
+            }
+            std::string blockForRoRaw;
+            blockForRo->serializeToString(&blockForRoRaw);
+            // region 2 can still generate message
+            for (int j = (receiverCrash ? 3 : 0); j < (int) nodes.at(1).size(); j++) {
+                storage(2, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
+                auto ret = storage(2, j)->getBlock(0, blockForRo->header.number);
+                ASSERT_TRUE(ret != nullptr);
+                std::string retRaw;
+                ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
+                ASSERT_TRUE(retRaw == blockForRoRaw);
+            }
+            // region 1 must be alright
+            for (int j = 0; j < (int) nodes.at(1).size(); j++) {
+                storage(1, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
+                auto ret = storage(1, j)->getBlock(0, blockForRo->header.number);
+                ASSERT_TRUE(ret != nullptr);
+                std::string retRaw;
+                ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
+                ASSERT_TRUE(retRaw == blockForRoRaw);
+            }
+        });
+    }
+};
 
 TEST_F(ReplicatorTest, TestInitialize) {
     auto bccsp = CreateBCCSP();
@@ -119,51 +161,64 @@ TEST_F(ReplicatorTest, TestInitialize) {
     auto startAt = GenerateStartAt();
     ASSERT_TRUE(replicator->startReceiver(startAt));
     ASSERT_TRUE(replicator->startSender(startAt[0]));
-    sleep(1);
 }
 
 TEST_F(ReplicatorTest, TestSendNoError) {
-    StartTest([](const auto& nodes, auto& bccsp, auto& storage, auto&) ->void {
-        // region 0 send block to other regions
-        auto blockForRo = CreateMockBlock(0, 0, 4, bccsp);
-        for (int j =0; j<(int)nodes.at(0).size(); j++) {
-            storage(0, j)->insertBlock(0, blockForRo);
-            storage(0, j)->onReceivedNewBlock(0, blockForRo->header.number);
-        }
-        std::string blockForRoRaw;
-        blockForRo->serializeToString(&blockForRoRaw);
-        for (int i = 1; i < (int)nodes.size(); i++) {
-            for (int j = 0; j < (int) nodes.at(i).size(); j++) {
-                storage(i, j)->waitForNewBlock((int)blockForRo->header.number, nullptr);
-                auto ret = storage(i, j)->getBlock(0, blockForRo->header.number);
-                std::string retRaw;
-                ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
-                ASSERT_TRUE(retRaw == blockForRoRaw);
-            }
-        }
-    });
+    StartCrashTest(false, false);
 }
 
-TEST_F(ReplicatorTest, TestSendError) {
+TEST_F(ReplicatorTest, TestSenderCrash) {
+    StartCrashTest(true, false);
+}
+
+TEST_F(ReplicatorTest, TestReceiverCrash) {
+    StartCrashTest(false, true);
+}
+
+TEST_F(ReplicatorTest, TestSenderAndReceiverCrash) {
+    StartCrashTest(true, true);
+}
+
+TEST_F(ReplicatorTest, TestSenderByzantineWithReceiverCrash) {
     StartTest([](const auto& nodes, auto& bccsp, auto& storage, auto& matrix) ->void {
-        // tear down a node
-        matrix(0, nodes.at(0).size()-1).reset();
-        // region 0 send block to other regions
+        CHECK(nodes.at(2).size() == 11);
+        // tear down 3 receiver nodes
+        matrix(2, 10).reset();
+        matrix(2, 9).reset();
+        matrix(2, 8).reset();
+
+        // Byzantine sender, no signature
+        auto fakeBlock = CreateMockBlock(0, 0, 0, bccsp);
+        fakeBlock->header.previousHash = {"fakeHash"};
+        storage(0, (int)nodes.at(0).size()-1)->insertBlock(0, fakeBlock);
+        storage(0, (int)nodes.at(0).size()-1)->onReceivedNewBlock(0, fakeBlock->header.number);
+
+        // Honest nodes in region 0 send block to other regions
         auto blockForRo = CreateMockBlock(0, 0, 4, bccsp);
         for (int j =0; j<(int)nodes.at(0).size()-1; j++) {
             storage(0, j)->insertBlock(0, blockForRo);
             storage(0, j)->onReceivedNewBlock(0, blockForRo->header.number);
         }
+
         std::string blockForRoRaw;
         blockForRo->serializeToString(&blockForRoRaw);
-        for (int i = 1; i < (int)nodes.size(); i++) {
-            for (int j = 0; j < (int) nodes.at(i).size(); j++) {
-                storage(i, j)->waitForNewBlock((int)blockForRo->header.number, nullptr);
-                auto ret = storage(i, j)->getBlock(0, blockForRo->header.number);
-                std::string retRaw;
-                ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
-                ASSERT_TRUE(retRaw == blockForRoRaw);
-            }
+        // region 2 can still generate message
+        for (int j = 0; j < 8; j++) {
+            storage(2, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
+            auto ret = storage(2, j)->getBlock(0, blockForRo->header.number);
+            ASSERT_TRUE(ret != nullptr);
+            std::string retRaw;
+            ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
+            ASSERT_TRUE(retRaw == blockForRoRaw);
+        }
+        // region 1 must be alright
+        for (int j = 0; j < (int) nodes.at(1).size(); j++) {
+            storage(1, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
+            auto ret = storage(1, j)->getBlock(0, blockForRo->header.number);
+            ASSERT_TRUE(ret != nullptr);
+            std::string retRaw;
+            ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
+            ASSERT_TRUE(retRaw == blockForRoRaw);
         }
     });
 }

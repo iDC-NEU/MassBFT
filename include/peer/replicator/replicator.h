@@ -179,9 +179,9 @@ namespace peer {
 
             std::vector<peer::BlockFragmentGenerator::Config> bfgConfigList;
             for (auto& it: _localFragmentCfg.first) { // for receivers
+                it.second.concurrency = _regionNodesCount[it.first];
                 bfgConfigList.push_back(it.second);
             }
-            bfgConfigList.push_back(_localFragmentCfg.first[nodeId]); // for senders
 
             _bfgAndBCCSPThreadPool = std::make_shared<util::thread_pool_light>();
             _bfg = std::make_shared<peer::BlockFragmentGenerator>(bfgConfigList, _bfgAndBCCSPThreadPool.get());

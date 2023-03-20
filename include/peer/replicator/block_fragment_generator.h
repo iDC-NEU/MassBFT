@@ -394,6 +394,7 @@ namespace peer {
             CHECK(wpForMTAndEC != nullptr) << "Thread pool unset, can not start bfg";
             int max_x = 0, max_y = 0;
             for (const auto& cfg: cfgList) {
+                CHECK(cfg.dataShardCnt > 0 && cfg.parityShardCnt > 0) << "Shard input error!";
                 if (cfg.dataShardCnt > max_x) {
                     max_x = cfg.dataShardCnt;
                 }

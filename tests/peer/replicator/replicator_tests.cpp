@@ -12,11 +12,11 @@ class ReplicatorTest : public ::testing::Test {
 public:
     ReplicatorTest() {
         util::OpenSSLSHA256::initCrypto();
-        util::ReliableZmqServer::AddRPCService();
     }
 
 protected:
     void SetUp() override {
+        util::ReliableZmqServer::AddRPCService();
         util::MetaRpcServer::Start();
     };
 
@@ -40,7 +40,7 @@ protected:
         for(int i=0; i<5; i++) {
             ret[1].push_back(createNode(i, 1));
         }
-        for(int i=0; i<6; i++) {
+        for(int i=0; i<11; i++) {
             ret[2].push_back(createNode(i, 2));
         }
         return ret;
@@ -80,12 +80,16 @@ protected:
         return block;
     }
 
-    static void StartTest(bool crash = false) {
+    static void StartTest(const std::function<void(
+            const std::unordered_map<int, std::vector<util::NodeConfigPtr>>& nodes,
+            std::shared_ptr<util::BCCSP>& bccsp,
+            util::Matrix2D<std::shared_ptr<peer::MRBlockStorage>>& storage,
+            util::Matrix2D<std::unique_ptr<peer::Replicator>>& replicators)>& callback) {
         auto bccsp = CreateBCCSP();
         auto nodes = GenerateNodesMap();
         auto startAt = GenerateStartAt();
-        util::Matrix2D<std::unique_ptr<peer::Replicator>> matrix(3, 6);
-        util::Matrix2D<std::shared_ptr<peer::MRBlockStorage>> storage(3, 6);
+        util::Matrix2D<std::unique_ptr<peer::Replicator>> matrix(3, 31);
+        util::Matrix2D<std::shared_ptr<peer::MRBlockStorage>> storage(3, 31);
         for (int i=0; i<(int)nodes.size(); i++) {
             for (int j =0; j<(int)nodes[i].size(); j++) {
                 auto replicator = std::make_unique<peer::Replicator>(nodes, nodes[i][j]);
@@ -101,26 +105,7 @@ protected:
                 ASSERT_TRUE(matrix(i, j)->startSender(startAt[0]));
             }
         }
-        // -------------INIT COMPLETE-------------
-        // region 0 send block to other regions
-        // no error version
-        auto blockForRo = CreateMockBlock(0, 0, 4, bccsp);
-        for (int j =0; j<(int)nodes[0].size(); j++) {
-            storage(0, j)->insertBlock(0, blockForRo);
-            storage(0, j)->onReceivedNewBlock(0, blockForRo->header.number);
-        }
-
-        std::string blockForRoRaw;
-        blockForRo->serializeToString(&blockForRoRaw);
-        for (int i = 1; i < (int)nodes.size(); i++) {
-            for (int j = 0; j < (int) nodes[i].size(); j++) {
-                storage(i, j)->waitForNewBlock((int)blockForRo->header.number, nullptr);
-                auto ret = storage(i, j)->getBlock(0, blockForRo->header.number);
-                std::string retRaw;
-                ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
-                ASSERT_TRUE(retRaw == blockForRoRaw);
-            }
-        }
+        callback(nodes, bccsp, storage, matrix);
     }
 };
 
@@ -134,8 +119,51 @@ TEST_F(ReplicatorTest, TestInitialize) {
     auto startAt = GenerateStartAt();
     ASSERT_TRUE(replicator->startReceiver(startAt));
     ASSERT_TRUE(replicator->startSender(startAt[0]));
+    sleep(1);
 }
 
 TEST_F(ReplicatorTest, TestSendNoError) {
-    StartTest(false);
+    StartTest([](const auto& nodes, auto& bccsp, auto& storage, auto&) ->void {
+        // region 0 send block to other regions
+        auto blockForRo = CreateMockBlock(0, 0, 4, bccsp);
+        for (int j =0; j<(int)nodes.at(0).size(); j++) {
+            storage(0, j)->insertBlock(0, blockForRo);
+            storage(0, j)->onReceivedNewBlock(0, blockForRo->header.number);
+        }
+        std::string blockForRoRaw;
+        blockForRo->serializeToString(&blockForRoRaw);
+        for (int i = 1; i < (int)nodes.size(); i++) {
+            for (int j = 0; j < (int) nodes.at(i).size(); j++) {
+                storage(i, j)->waitForNewBlock((int)blockForRo->header.number, nullptr);
+                auto ret = storage(i, j)->getBlock(0, blockForRo->header.number);
+                std::string retRaw;
+                ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
+                ASSERT_TRUE(retRaw == blockForRoRaw);
+            }
+        }
+    });
+}
+
+TEST_F(ReplicatorTest, TestSendError) {
+    StartTest([](const auto& nodes, auto& bccsp, auto& storage, auto& matrix) ->void {
+        // tear down a node
+        matrix(0, nodes.at(0).size()-1).reset();
+        // region 0 send block to other regions
+        auto blockForRo = CreateMockBlock(0, 0, 4, bccsp);
+        for (int j =0; j<(int)nodes.at(0).size()-1; j++) {
+            storage(0, j)->insertBlock(0, blockForRo);
+            storage(0, j)->onReceivedNewBlock(0, blockForRo->header.number);
+        }
+        std::string blockForRoRaw;
+        blockForRo->serializeToString(&blockForRoRaw);
+        for (int i = 1; i < (int)nodes.size(); i++) {
+            for (int j = 0; j < (int) nodes.at(i).size(); j++) {
+                storage(i, j)->waitForNewBlock((int)blockForRo->header.number, nullptr);
+                auto ret = storage(i, j)->getBlock(0, blockForRo->header.number);
+                std::string retRaw;
+                ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
+                ASSERT_TRUE(retRaw == blockForRoRaw);
+            }
+        }
+    });
 }

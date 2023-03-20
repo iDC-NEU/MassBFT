@@ -10,6 +10,7 @@
 #include "brpc/channel.h"
 #include "bthread/countdown_event.h"
 #include "proto/zeromq.pb.h"
+#include <thread>
 #include <memory>
 #include <shared_mutex>
 
@@ -21,7 +22,7 @@ namespace util {
 
         ~ReliableZmqServer() {
             shutdown();
-            bthread_join(hello_tid, nullptr);
+            if (_helloThread) { _helloThread->join(); }
         }
 
         inline std::optional<zmq::message_t> receive() {
@@ -53,7 +54,7 @@ namespace util {
         }
 
     protected:
-        ReliableZmqServer() : hello_tid(0), isReady(false) { }
+        ReliableZmqServer() : isReady(false) { }
 
         template<std::array addrType=std::to_array("tcp")>
         int initServer(int port) {
@@ -61,9 +62,7 @@ namespace util {
             if (receiver == nullptr) {
                 return -1;
             }
-            if (bthread_start_background(&hello_tid, &BTHREAD_ATTR_NORMAL, wait_hello, this) != 0) {
-                return -1;
-            }
+            _helloThread = std::make_unique<std::thread>(wait_hello, this);
             return 0;
         }
 
@@ -129,7 +128,7 @@ namespace util {
 
     private:
         // if receive hello from remote client, isReady=true
-        bthread_t hello_tid;
+        std::unique_ptr<std::thread> _helloThread;
         std::atomic<bool> isReady;
         bool firstInvokeReceive = true;
         bthread::CountdownEvent receivedHello;

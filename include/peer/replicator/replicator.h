@@ -55,7 +55,6 @@ namespace peer {
             initPortsConfig(portOffset);
             initBFG();
             initStorage();
-            auto& groupId = _localNodeConfig->groupId;
             if (!initMRBlockReceiver()) {
                 return false;
             }

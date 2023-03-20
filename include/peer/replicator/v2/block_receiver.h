@@ -107,7 +107,7 @@ namespace peer::v2 {
     // one FragmentRepeater (as local region server, broadcast remote fragments)
     class BlockReceiver {
     protected:
-        constexpr static const auto DEQUEUE_TIMEOUT_US = 1000*1000;     // 1 sec
+        constexpr static const auto DEQUEUE_TIMEOUT_US = 1000*100;     // 100 ms
 
         template<class T, int cap, int mask=cap-1>
         class Buffer {

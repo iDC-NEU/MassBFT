@@ -8,10 +8,13 @@
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
+#include "common/property.h"
 
 class WorkerImplTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        util::Properties::InitProperties();
+        util::Properties::GetProperties()->setDefaultChaincodeName("transfer");
     };
 
     void TearDown() override {

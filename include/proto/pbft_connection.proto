@@ -1,0 +1,24 @@
+syntax = "proto2";
+
+package util;
+
+option java_package = "bftsmart.proto";
+
+option java_multiple_files = true;
+
+option cc_generic_services = true;
+
+message RPCRequest {
+  required int32 localId = 1;
+  optional int32 sequence = 2;
+  required bytes payload = 3;
+};
+
+message RPCResponse {
+  required bool success = 1;
+  optional bytes payload = 2;
+};
+
+service RPCService {
+  rpc verifyProposal(RPCRequest) returns (RPCResponse);
+};

@@ -11,11 +11,11 @@
 
 namespace peer::consensus {
 
-    class MockRPCService : public util::RPCService {
+    class MockRPCService : public proto::RPCService {
     public:
         void requestProposal(google::protobuf::RpcController*,
-                             const ::util::RPCRequest* request,
-                             ::util::RPCResponse* response,
+                             const proto::RPCRequest* request,
+                             proto::RPCResponse* response,
                              ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_payload(request->payload() + " success!");
@@ -24,8 +24,8 @@ namespace peer::consensus {
         }
 
         void verifyProposal(google::protobuf::RpcController*,
-                            const ::util::RPCRequest* request,
-                            ::util::RPCResponse* response,
+                            const proto::RPCRequest* request,
+                            proto::RPCResponse* response,
                             ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_payload(request->payload() + " success!");
@@ -35,8 +35,8 @@ namespace peer::consensus {
 
         // Not used yet
         void signProposal(google::protobuf::RpcController*,
-                            const ::util::RPCRequest* request,
-                            ::util::RPCResponse* response,
+                            const proto::RPCRequest* request,
+                          proto::RPCResponse* response,
                             ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             std::lock_guard guard2(mutex);
@@ -52,14 +52,14 @@ namespace peer::consensus {
         }
 
         void deliver(google::protobuf::RpcController*,
-                     const ::util::DeliverRequest* request,
-                     ::util::RPCResponse* response,
+                     const proto::DeliverRequest* request,
+                     proto::RPCResponse* response,
                      ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             std::lock_guard guard2(mutex);
             response->set_payload("deliver success!");
             for (int i=0; i<request->contents_size(); i++) {
-                util::ConsensusMessage cm;
+                proto::ConsensusMessage cm;
                 auto& rawCm = request->contents(i);
                 auto& rawSignature = request->signatures(i);
                 cm.ParseFromString(rawCm);
@@ -76,14 +76,20 @@ namespace peer::consensus {
                     }
                 }
             }
+            // unwrap the content
+            proto::Proposal proposal;
+            CHECK(proposal.ParseFromString(request->proposevalue()));
+            proto::TOMMessage tomMessage;
+            CHECK(tomMessage.ParseFromString(proposal.message()));
+            // LOG(INFO) << tomMessage.content();
 
             response->set_success(true);
         }
         std::mutex mutex;
 
         void leaderStart(google::protobuf::RpcController*,
-                         const ::util::RPCRequest* request,
-                         ::util::RPCResponse* response,
+                         const proto::RPCRequest* request,
+                         proto::RPCResponse* response,
                          ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_payload(request->payload() + " success!");
@@ -92,8 +98,8 @@ namespace peer::consensus {
         }
 
         void leaderStop(google::protobuf::RpcController*,
-                        const ::util::RPCRequest* request,
-                        ::util::RPCResponse* response,
+                        const proto::RPCRequest* request,
+                        proto::RPCResponse* response,
                         ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_payload(request->payload() + " success!");

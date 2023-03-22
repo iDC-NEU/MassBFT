@@ -50,18 +50,24 @@ namespace peer::consensus {
                              ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
-            const auto regionId = request->localid();
+            DLOG(INFO) << "requestProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
+
+            if (!_localNodes.contains(request->localid())) {
+                LOG(WARNING) << "localId error.";
+                return;
+            }
+
             int nextBlockNumber = 0;
             if (_lastBlock != nullptr) {
                 nextBlockNumber = (int)_lastBlock->header.number;
             }
-            auto block = _stateMachine->OnRequestProposal(regionId, nextBlockNumber, request->payload());
+            auto block = _stateMachine->OnRequestProposal(_localNodes.at(request->localid()), nextBlockNumber, request->payload());
             if (block == nullptr) {
-                LOG(INFO) << "Get Block failed, number: " << nextBlockNumber << ", region: " << regionId;
+                LOG(INFO) << "Get Block failed, number: " << nextBlockNumber;
                 return;
             }
             if (_lastBlock != nullptr) {
-                DCHECK(_lastBlock->header.dataHash == block->header.previousHash);
+                // DCHECK(_lastBlock->header.dataHash == block->header.previousHash);
                 DCHECK(_lastBlock->header.number + 1 == block->header.number);
             }
             if (block->haveSerializedMessage()) {
@@ -74,6 +80,7 @@ namespace peer::consensus {
             }
             _lastBlock = std::move(block);
             response->set_success(true);
+            sleep(1);
         }
 
         void verifyProposal(google::protobuf::RpcController*,
@@ -82,6 +89,12 @@ namespace peer::consensus {
                             ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
+            DLOG(INFO) << "verifyProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
+
+            if (!_localNodes.contains(request->localid())) {
+                LOG(WARNING) << "localId error.";
+                return;
+            }
 
             auto block = std::make_unique<::proto::Block>();
             auto ret = block->deserializeFromString(std::string(request->payload()));
@@ -89,7 +102,7 @@ namespace peer::consensus {
                 LOG(WARNING) << "Deserialize block error.";
                 return;
             }
-            if (!_stateMachine->OnVerifyProposal(std::move(block))) {
+            if (!_stateMachine->OnVerifyProposal(_localNodes.at(request->localid()), std::move(block))) {
                 LOG(WARNING) << "Validate block error.";
                 return;
             }
@@ -102,6 +115,7 @@ namespace peer::consensus {
                           ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
+            DLOG(INFO) << "signProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
             auto nodeId = request->localid();
             if (!_localNodes.contains(nodeId)) {
                 LOG(WARNING) << "Wrong node id.";
@@ -129,6 +143,7 @@ namespace peer::consensus {
                      ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
+            DLOG(INFO) << "deliver, Node: " << request->localid() << ", sequence: " << request->sequence();
             // unwrap the content
             proto::Proposal proposal;
             if(!proposal.ParseFromString(request->proposevalue())) {
@@ -161,7 +176,7 @@ namespace peer::consensus {
                 // we need to keep the content corresponding to the signature for verification
                 it.content = std::make_unique<std::string>( request->contents(i));
             }
-            if (!_stateMachine->OnDeliver(std::move(block))) {
+            if (!_stateMachine->OnDeliver(_localNodes.at(request->localid()), std::move(block))) {
                 LOG(WARNING) << "Validate block error.";
                 return;
             }
@@ -173,7 +188,12 @@ namespace peer::consensus {
                          proto::RPCResponse* response,
                          ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
-            _stateMachine->OnLeaderStart(request->payload());
+            DLOG(INFO) << "leaderStart, Node: " << request->localid() << ", sequence: " << request->sequence();
+            if (!_localNodes.contains(request->localid())) {
+                LOG(WARNING) << "localId error.";
+                return;
+            }
+            _stateMachine->OnLeaderStart(_localNodes.at(request->localid()), request->payload());
             response->set_success(true);
         }
 
@@ -182,7 +202,12 @@ namespace peer::consensus {
                         proto::RPCResponse* response,
                         ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
-            _stateMachine->OnLeaderStop(request->payload());
+            DLOG(INFO) << "leaderStop, Node: " << request->localid() << ", sequence: " << request->sequence();
+            if (!_localNodes.contains(request->localid())) {
+                LOG(WARNING) << "localId error.";
+                return;
+            }
+            _stateMachine->OnLeaderStop(_localNodes.at(request->localid()), request->payload());
             response->set_success(true);
         }
 

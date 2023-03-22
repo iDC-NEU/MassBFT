@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "peer/replicator/mr_block_storage.h"
+#include "peer/storage/mr_block_storage.h"
 #include "peer/replicator/block_fragment_generator.h"
 #include "peer/replicator/v2/fragment_util.h"
 

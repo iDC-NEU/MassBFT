@@ -5,7 +5,7 @@
 #pragma once
 
 #include "peer/replicator/v2/block_receiver.h"
-#include "peer/replicator/mr_block_storage.h"
+#include "peer/storage/mr_block_storage.h"
 
 #include "common/thread_pool_light.h"
 #include "common/bccsp.h"

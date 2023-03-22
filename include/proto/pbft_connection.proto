@@ -11,7 +11,15 @@ option cc_generic_services = true;
 message RPCRequest {
   required int32 localId = 1;
   optional int32 sequence = 2;
-  required bytes payload = 3;
+  required bytes payload = 4;
+};
+
+message DeliverRequest {
+  required int32 localId = 1;
+  optional int32 sequence = 2;
+  optional int32 leaderId = 3;
+  repeated bytes contents = 4;
+  repeated bytes signatures = 5;
 };
 
 message RPCResponse {
@@ -20,5 +28,12 @@ message RPCResponse {
 };
 
 service RPCService {
+  // call by the leader, RPCResponse return the payload
+  rpc requestProposal(RPCRequest) returns (RPCResponse);
+  rpc signProposal(RPCRequest) returns (RPCResponse);
   rpc verifyProposal(RPCRequest) returns (RPCResponse);
+  rpc deliver(DeliverRequest) returns (RPCResponse);
+  rpc leaderStart(RPCRequest) returns (RPCResponse);
+  // request of leaderStop contains the new leader
+  rpc leaderStop(RPCRequest) returns (RPCResponse);
 };

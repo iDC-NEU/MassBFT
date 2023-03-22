@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package util;
+
+option java_package = "bftsmart.proto";
+
+option java_multiple_files = true;
+
+message ConsensusMessage {
+  int32 sender = 1;
+  int32 number = 2;
+  int32 epoch = 3;
+  int32 paxosType = 4;
+  optional bytes value = 5;
+}
+
+// ConsensusMessage member variable: value
+message Proposal {
+  int64 timestamp = 1;
+  int32 numberOfNonce = 2;
+  optional int64 seed = 3;
+  bytes message = 4;
+}
+
+// Proposal member variable: message
+message TOMMessage {
+  int32 sender = 1;
+  int32 viewId = 2;
+  int32 type = 3;
+  int32 session = 4;
+  int32 sequence = 5;
+  int32 operationId = 6;
+  int32 replyServer = 7;
+  optional bytes content = 8;  // the actual payload
+}

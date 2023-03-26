@@ -118,11 +118,13 @@ TEST_F(ConsensusReplicatorTest, TestWithPBFTService) {
     util::DefaultRpcServer<9512>::Start();
     util::DefaultRpcServer<9513>::Start();
     sleep(30);
-    for (auto& it: stateMachines) {
-        // insert some user request batches
-        auto child = dynamic_cast<peer::consensus::ContentReplicator*>(it.get());
-        ASSERT_TRUE(child != nullptr);
-        prepareBatches(child, 200);
+    for (int i=0; i<200000; i++) {
+        for (auto& it: stateMachines) {
+            // insert some user request batches
+            auto child = dynamic_cast<peer::consensus::ContentReplicator*>(it.get());
+            ASSERT_TRUE(child != nullptr);
+            prepareBatches(child, 1);
+        }
     }
     sleep(3600);
 }

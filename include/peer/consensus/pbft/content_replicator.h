@@ -249,19 +249,19 @@ namespace peer::consensus {
         void OnLeaderStart(::util::NodeConfigPtr localNode, int sequence) override {
             std::unique_lock lock(_isLeaderMutex);
             _proposedLastBlock = _deliveredLastBlock;
-            _leaderSequence = sequence;
+            _isLeader = true;
         }
 
         void OnLeaderStop(::util::NodeConfigPtr localNode, int sequence) override {
             std::unique_lock lock(_isLeaderMutex);
             _proposedLastBlock = nullptr;
-            _leaderSequence = -1;
+            _isLeader = false;
         }
 
         // Call by the leader only
         std::optional<std::string> OnRequestProposal(::util::NodeConfigPtr localNode, int sequence, const std::string& context) override {
             std::shared_lock lock(_isLeaderMutex);
-            if (_leaderSequence == -1 || _leaderSequence > sequence) {
+            if (!_isLeader) {
                 return std::nullopt;
             }
             std::shared_ptr<::proto::Block> block;
@@ -334,12 +334,12 @@ namespace peer::consensus {
     private:
         const double _verifyProposalTimeout; // in second
         // Check if the node is leader
-        int _leaderSequence = -1;
         std::shared_mutex _isLeaderMutex;
+        bool _isLeader = false;
         std::unique_ptr<ContentSender> _sender;
         std::unique_ptr<ContentReceiver> _receiver;
         // Used when the node become follower, receive txn batch from leader, using zeromq
-        std::pair<butil::atomic<int>*, util::MyFlatHashMap<proto::HashString, std::shared_ptr<proto::Block>>> _cache;
+        std::pair<butil::atomic<int>*, util::MyFlatHashMap<proto::HashString, std::shared_ptr<proto::Block>, std::mutex>> _cache;
         // Used when the node become leader, receive txn batch from user and enqueue to queue
         moodycamel::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>> _requestBatchQueue;
         // Set by OnRequestProposal or OnVerifyProposal

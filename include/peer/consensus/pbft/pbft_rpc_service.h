@@ -71,12 +71,6 @@ namespace peer::consensus {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
             DLOG(INFO) << "verifyProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
-            if (_lastVerifiedSequence >= request->sequence()) {
-                LOG(WARNING) << "skip verified sequence.";
-                response->set_success(true);
-                return;
-            }
-            _lastVerifiedSequence = request->sequence();
 
             if (!_localNodes.contains(request->localid())) {
                 LOG(WARNING) << "localId error.";
@@ -185,6 +179,5 @@ namespace peer::consensus {
         std::unordered_map<int, ::util::NodeConfigPtr> _localNodes;
         std::shared_ptr<util::BCCSP> _bccsp;
         std::shared_ptr<PBFTStateMachine> _stateMachine;
-        int _lastVerifiedSequence = -1;
     };
 }

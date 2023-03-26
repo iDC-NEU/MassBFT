@@ -6,6 +6,7 @@
 #define NBP_PHMAP_H
 
 #include "gtl/phmap.hpp"
+#include "common/crypto.h"
 
 namespace util {
     template<class K, class V, class Mutex=gtl::NullMutex, size_t N=4>
@@ -21,6 +22,15 @@ namespace util {
             gtl::priv::hash_default_eq<K>,
             gtl::priv::Allocator<gtl::priv::Pair<const K, V>>,
             N, Mutex>;
+}
+
+namespace std {
+    template <>
+    struct hash<util::OpenSSLSHA256::digestType> {
+        size_t operator()(const util::OpenSSLSHA256::digestType& k) const {
+            return *reinterpret_cast<const size_t*>(k.data());
+        }
+    };
 }
 
 #endif //NBP_PHMAP_H

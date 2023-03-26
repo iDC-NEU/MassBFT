@@ -85,7 +85,11 @@ namespace proto {
             storage = std::make_shared<std::string>(std::move(*m));
         }
 
-        std::shared_ptr<const std::string> getSerializedMessage() {
+        std::shared_ptr<std::string> getSerializedMessage() {
+            return storage;
+        }
+
+        [[nodiscard]] std::shared_ptr<const std::string> getSerializedMessage() const {
             return storage;
         }
 
@@ -101,7 +105,7 @@ namespace proto {
         }
 
     protected:
-        std::shared_ptr<const std::string> storage;
+        std::shared_ptr<std::string> storage;
     };
 
     class Envelop : public DeserializeStorage {

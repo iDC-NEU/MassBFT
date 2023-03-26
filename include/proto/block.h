@@ -30,6 +30,25 @@ namespace proto {
             constexpr static auto serialize(auto &archive, Header &h) {
                 return archive(h.number, h.previousHash, h.dataHash);
             }
+
+            bool serializeToString(std::string* buf, int pos = 0) const {
+                zpp::bits::out out(*buf);
+                out.reset(pos);
+                if(failure(out(*this))) {
+                    return false;
+                }
+                return true;
+            }
+
+            bool deserializeFromString(const std::string& buf, int pos = 0) {
+                auto in = zpp::bits::in(buf);
+                in.reset(pos);
+                if(failure(in(*this))) {
+                    return false;
+                }
+                return true;
+            }
+
         };
 
         // a vector of transaction

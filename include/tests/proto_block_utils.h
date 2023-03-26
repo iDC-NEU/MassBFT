@@ -17,7 +17,7 @@ namespace tests {
             b.header.previousHash = {"previousHash"};
             b.header.number = 10;
             std::vector<std::unique_ptr<proto::TxReadWriteSet>> rwSets;
-            for(int i=0; i<20; i++) {
+            for(int i=0; i<2000; i++) {
                 std::unique_ptr<proto::TxReadWriteSet> rwSet(new proto::TxReadWriteSet({"test rw set"}));
                 std::unique_ptr<proto::KV> read(new proto::KV("key1", "value1"));
                 rwSet->getReads().push_back(std::move(read));

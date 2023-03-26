@@ -91,10 +91,10 @@ namespace util {
 
         // Zero copy is only available for sender
         template<class CT=std::string>
-        requires requires (CT x) { static_cast<void *>(x.data()); x.size(); CT(std::forward<CT>(x)); }
         auto send(CT&& msg) {
-            auto* container = new CT(std::forward<CT>(msg));
-            zmq::message_t zmqMsg(static_cast<void *>(container->data()), container->size(), freeBufferCallback<CT>, nullptr);
+            using CTNoCVR = std::remove_cvref<CT>::type;
+            auto* container = new CTNoCVR(std::forward<CT>(msg));
+            zmq::message_t zmqMsg(static_cast<void *>(container->data()), container->size(), freeBufferCallback<CTNoCVR>, nullptr);
             return sendInternal(zmqMsg);
         }
 

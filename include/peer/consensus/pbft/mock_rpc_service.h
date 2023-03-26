@@ -13,6 +13,14 @@ namespace peer::consensus {
 
     class MockRPCService : public proto::RPCService {
     public:
+        bool checkAndStart() {
+            if (util::MetaRpcServer::AddService(this, []{ }) != 0) {
+                LOG(ERROR) << "Fail to add globalControlService!";
+                return false;
+            }
+            return true;
+        }
+
         void requestProposal(google::protobuf::RpcController*,
                              const proto::RPCRequest* request,
                              proto::RPCResponse* response,
@@ -106,23 +114,5 @@ namespace peer::consensus {
             LOG(INFO) << "receive a leaderStop, id: " << request->localid() << ", sequence: " << request->sequence();
             response->set_success(true);
         }
-    };
-
-    class MockRPCServer {
-    public:
-        static int AddRPCService() {
-            auto* service = new MockRPCService();
-            // Add services into server. Notice the second parameter, because the
-            // service is put on stack, we don't want server to delete it, otherwise use brpc::SERVER_OWNS_SERVICE.
-            if (util::MetaRpcServer::AddService(service, []{ globalControlService = nullptr; }) != 0) {
-                LOG(ERROR) << "Fail to add globalControlService!";
-                return -1;
-            }
-            globalControlService = service;
-            return 0;
-        }
-
-        // globalControlServer own globalControlService
-        inline static MockRPCService* globalControlService = nullptr;
     };
 }

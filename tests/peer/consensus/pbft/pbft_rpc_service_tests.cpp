@@ -2,11 +2,12 @@
 // Created by user on 23-3-21.
 //
 
-#include "gtest/gtest.h"
-#include "glog/logging.h"
-#include "peer/consensus/pbft/pbft_rpc_server.h"
+#include "peer/consensus/pbft/mock_rpc_service.h"
+#include "peer/consensus/pbft/pbft_rpc_service.h"
 #include "tests/proto_block_utils.h"
 
+#include "gtest/gtest.h"
+#include "glog/logging.h"
 
 class MockPBFTStateMachine : public peer::consensus::PBFTStateMachine {
 public:
@@ -45,7 +46,7 @@ private:
 };
 
 
-class PBFTRPCServerTest : public ::testing::Test {
+class PBFTRPCServiceTest : public ::testing::Test {
 protected:
     void SetUp() override {
         init();
@@ -75,10 +76,18 @@ protected:
     std::shared_ptr<MockPBFTStateMachine> stateMachine;
 };
 
-TEST_F(PBFTRPCServerTest, TestStartServer) {
+TEST_F(PBFTRPCServiceTest, TestPBFTRPCService) {
     util::OpenSSLED25519::initCrypto();
     auto service = std::make_unique<peer::consensus::PBFTRPCService>();
     CHECK(service->checkAndStart(localNodes, bccsp, stateMachine));
+    util::MetaRpcServer::Start();
+    sleep(3600);
+}
+
+TEST_F(PBFTRPCServiceTest, TestServiceInterface) {
+    util::OpenSSLED25519::initCrypto();
+    auto service = std::make_unique<peer::consensus::MockRPCService>();
+    CHECK(service->checkAndStart());
     util::MetaRpcServer::Start();
     sleep(3600);
 }

@@ -57,7 +57,7 @@ protected:
     std::vector<std::shared_ptr<peer::consensus::PBFTStateMachine>> stateMachines;
 };
 
-TEST_F(ConsensusReplicatorTest, TestOnRequestProposal) {
+TEST_F(ConsensusReplicatorTest, TestStateMachineNormalCase) {
     auto& sm = stateMachines.front();
     auto& nodeConfig = localNodes.front()->nodeConfig;
     // Leader is not starting

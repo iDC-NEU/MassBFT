@@ -86,7 +86,7 @@ namespace peer::consensus {
 
     class ContentReplicator: public PBFTStateMachine {
     public:
-        ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId, double timeout=0.2)
+        ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId, double timeout=0.5)
                 : _verifyProposalTimeout(timeout) {
             _sender = std::make_unique<ContentSender>(targetNodes, localId);
             _receiver = std::make_unique<ContentReceiver>(targetNodes[localId]->port);
@@ -174,6 +174,7 @@ namespace peer::consensus {
                 return;
             }
             // add block to cache
+            // LOG(INFO) << "Follower store a block, hash: " << util::OpenSSLSHA256::toString(*digest);
             storeCachedBlock(std::move(block));
         }
 
@@ -206,8 +207,11 @@ namespace peer::consensus {
             if (!header.deserializeFromString(serializedHeader)) {
                 return false;
             }
-            if (_lastBlock != nullptr &&
-                (_lastBlock->header.dataHash != header.previousHash || header.number != _lastBlock->header.number + 1)) {
+            if (_deliveredLastBlock != nullptr && (_deliveredLastBlock->header.dataHash != header.previousHash ||
+                                                   header.number != _deliveredLastBlock->header.number + 1)) {
+                LOG(ERROR) << "Expect number: " << _deliveredLastBlock->header.number + 1 << ", got: " << header.number;
+                LOG(ERROR) << "Expect prevHash: " << util::OpenSSLSHA256::toString(_deliveredLastBlock->header.dataHash)
+                           << ", got: " << util::OpenSSLSHA256::toString(header.previousHash);
                 return false;
             }
             // Find the target block in block pool (wait timed),
@@ -229,7 +233,7 @@ namespace peer::consensus {
                 return false;
             }
             auto block = eraseCachedBlock(header.dataHash);
-            CHECK(block != nullptr) << "Block mut be not null!";
+            CHECK(block != nullptr) << "Block mut be not null!" << util::OpenSSLSHA256::toString(header.dataHash);
             block->metadata.consensusSignatures = std::move(signatures);
             // local consensus complete
             if (_storage != nullptr) {
@@ -238,17 +242,19 @@ namespace peer::consensus {
                 _storage->onReceivedNewBlock(localNode->groupId, header.number);
                 _storage->onReceivedNewBlock();
             }
-            _lastBlock = std::move(block);
+            _deliveredLastBlock = std::move(block);
             return true;
         }
 
         void OnLeaderStart(::util::NodeConfigPtr localNode, int sequence) override {
             std::unique_lock lock(_isLeaderMutex);
+            _proposedLastBlock = _deliveredLastBlock;
             _leaderSequence = sequence;
         }
 
         void OnLeaderStop(::util::NodeConfigPtr localNode, int sequence) override {
             std::unique_lock lock(_isLeaderMutex);
+            _proposedLastBlock = nullptr;
             _leaderSequence = -1;
         }
 
@@ -263,10 +269,12 @@ namespace peer::consensus {
             if (block == nullptr) {
                 return std::nullopt;
             }
-            if (_lastBlock != nullptr) {
-                block->header.previousHash = _lastBlock->header.dataHash;
-                block->header.number = _lastBlock->header.number + 1;
+            if (_proposedLastBlock != nullptr) {
+                block->header.previousHash = _proposedLastBlock->header.dataHash;
+                block->header.number = _proposedLastBlock->header.number + 1;
             }
+            _proposedLastBlock = block;
+            // LOG(INFO) << "request proposal, block number: " << block->header.number;
             auto serializedBlock = block->getSerializedMessage();
             proto::Block::PosList pos;
             if (serializedBlock == nullptr) {   // create new serialized block
@@ -283,6 +291,7 @@ namespace peer::consensus {
             }
             _sender->send(*serializedBlock);
             // add block to cache (as leader)
+            // LOG(INFO) << "Leader store a block, hash: " << util::OpenSSLSHA256::toString(block->header.dataHash);
             storeCachedBlock(std::move(block));
             // Sign the serialized block header is enough, return the header only
             return serializedBlock->substr(pos.headerPos, pos.bodyPos-pos.headerPos);
@@ -310,7 +319,7 @@ namespace peer::consensus {
         }
 
         void storeCachedBlock(std::shared_ptr<proto::Block> block) {
-            _cache.second[block->header.dataHash] = std::move(block);
+            _cache.second.insert_or_assign(block->header.dataHash, std::move(block));
             _cache.first->fetch_add(1, std::memory_order_release);
             bthread::butex_wake_all(_cache.first);
         }
@@ -334,7 +343,8 @@ namespace peer::consensus {
         // Used when the node become leader, receive txn batch from user and enqueue to queue
         moodycamel::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>> _requestBatchQueue;
         // Set by OnRequestProposal or OnVerifyProposal
-        std::shared_ptr<::proto::Block> _lastBlock;
+        std::shared_ptr<::proto::Block> _deliveredLastBlock;
+        std::shared_ptr<::proto::Block> _proposedLastBlock;
         // BCCSP and thread pool
         std::shared_ptr<util::BCCSP> _bccsp;
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;

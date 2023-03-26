@@ -24,6 +24,7 @@ namespace peer::consensus {
 
         PBFTRPCService(PBFTRPCService&&) = delete;
 
+        template<class ServerClass=util::MetaRpcServer>
         bool checkAndStart(std::unordered_map<int, ::util::NodeConfigPtr> localNodes
                 , std::shared_ptr<util::BCCSP> bccsp
                 , std::shared_ptr<PBFTStateMachine> stateMachine) {
@@ -34,7 +35,7 @@ namespace peer::consensus {
                 LOG(ERROR) << "Fail to start globalControlService!";
                 return false;
             }
-            if (util::MetaRpcServer::AddService(this, []{ }) != 0) {
+            if (ServerClass::AddService(this, []{ }) != 0) {
                 LOG(ERROR) << "Fail to add globalControlService!";
                 return false;
             }
@@ -70,6 +71,12 @@ namespace peer::consensus {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
             DLOG(INFO) << "verifyProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
+            if (_lastVerifiedSequence >= request->sequence()) {
+                LOG(WARNING) << "skip verified sequence.";
+                response->set_success(true);
+                return;
+            }
+            _lastVerifiedSequence = request->sequence();
 
             if (!_localNodes.contains(request->localid())) {
                 LOG(WARNING) << "localId error.";
@@ -80,6 +87,7 @@ namespace peer::consensus {
                 LOG(WARNING) << "Validate block error.";
                 return;
             }
+            // DLOG(INFO) << "verifyProposal finished, Node: " << request->localid() << ", sequence: " << request->sequence();
             response->set_success(true);
         }
 
@@ -140,6 +148,7 @@ namespace peer::consensus {
                 LOG(WARNING) << "Validate block error.";
                 return;
             }
+            // DLOG(INFO) << "deliver finished, Node: " << request->localid() << ", sequence: " << request->sequence();
             response->set_success(true);
         }
 
@@ -176,5 +185,6 @@ namespace peer::consensus {
         std::unordered_map<int, ::util::NodeConfigPtr> _localNodes;
         std::shared_ptr<util::BCCSP> _bccsp;
         std::shared_ptr<PBFTStateMachine> _stateMachine;
+        int _lastVerifiedSequence = -1;
     };
 }

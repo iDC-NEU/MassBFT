@@ -3,6 +3,7 @@
 //
 
 #include "peer/consensus/pbft/content_replicator.h"
+#include "peer/consensus/pbft/pbft_rpc_service.h"
 #include "tests/proto_block_utils.h"
 
 #include "gtest/gtest.h"
@@ -42,13 +43,23 @@ protected:
                 std::make_shared<std::string>()};
         auto key = bccsp->GetKey(ski);
         CHECK(key->Private());
-        std::string payload("payload for an envelop");
+        std::string payload("payload for an envelop" + std::to_string(rand()));
         auto ret = key->Sign(payload.data(), payload.size());
         CHECK(ret != std::nullopt);
         sig.digest = *ret;
         envelop->setPayload(std::move(payload));
         envelop->setSignature(std::move(sig));
         return envelop;
+    }
+
+    void prepareBatches(peer::consensus::ContentReplicator* sm, int count) {
+        for (int round =0; round<count; round++) {
+            std::vector<std::unique_ptr<proto::Envelop>> batch;
+            for (int i=0; i<200; i++) { // assume 4 nodes
+                batch.push_back(createSignedEnvelop(i%4));
+            }
+            sm->pushUnorderedBlock(std::move(batch));
+        }
     }
 
     std::vector<std::shared_ptr<util::ZMQInstanceConfig>> localNodes;
@@ -71,13 +82,7 @@ TEST_F(ConsensusReplicatorTest, TestStateMachineNormalCase) {
     // insert some user request batches
     auto child = dynamic_cast<peer::consensus::ContentReplicator*>(sm.get());
     ASSERT_TRUE(child != nullptr);
-    for (int round =0; round<10; round++) {
-        std::vector<std::unique_ptr<proto::Envelop>> batch;
-        for (int i=0; i<200; i++) { // assume 4 nodes
-            batch.push_back(createSignedEnvelop(i%4));
-        }
-        child->pushUnorderedBlock(std::move(batch));
-    }
+    prepareBatches(child, 10);
     // start the loader and request some batches
     sm->OnLeaderStart(nodeConfig, 12);
     auto serializedBlockHeader = sm->OnRequestProposal(nodeConfig, 12, "placeholder");
@@ -91,4 +96,33 @@ TEST_F(ConsensusReplicatorTest, TestStateMachineNormalCase) {
     for (int i=0; i<(int)stateMachines.size(); i++) {
         stateMachines[i]->OnDeliver(localNodes[i]->nodeConfig, *serializedBlockHeader, {});
     }
+}
+
+
+TEST_F(ConsensusReplicatorTest, TestWithPBFTService) {
+    util::OpenSSLED25519::initCrypto();
+    std::unordered_map<int, ::util::NodeConfigPtr> nodes;
+    for (auto& it: localNodes) {
+        nodes[it->nodeConfig->nodeId] = it->nodeConfig;
+    }
+    auto service0 = std::make_unique<peer::consensus::PBFTRPCService>();
+    auto service1 = std::make_unique<peer::consensus::PBFTRPCService>();
+    auto service2 = std::make_unique<peer::consensus::PBFTRPCService>();
+    auto service3 = std::make_unique<peer::consensus::PBFTRPCService>();
+    CHECK(service0->checkAndStart<util::DefaultRpcServer<9510>>(nodes, bccsp, stateMachines[0]));
+    CHECK(service1->checkAndStart<util::DefaultRpcServer<9511>>(nodes, bccsp, stateMachines[1]));
+    CHECK(service2->checkAndStart<util::DefaultRpcServer<9512>>(nodes, bccsp, stateMachines[2]));
+    CHECK(service3->checkAndStart<util::DefaultRpcServer<9513>>(nodes, bccsp, stateMachines[3]));
+    util::DefaultRpcServer<9510>::Start();
+    util::DefaultRpcServer<9511>::Start();
+    util::DefaultRpcServer<9512>::Start();
+    util::DefaultRpcServer<9513>::Start();
+    sleep(30);
+    for (auto& it: stateMachines) {
+        // insert some user request batches
+        auto child = dynamic_cast<peer::consensus::ContentReplicator*>(it.get());
+        ASSERT_TRUE(child != nullptr);
+        prepareBatches(child, 200);
+    }
+    sleep(3600);
 }

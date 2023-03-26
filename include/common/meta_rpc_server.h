@@ -8,7 +8,8 @@
 #include <memory>
 
 namespace util {
-    class MetaRpcServer {
+    template<int port=9500>
+    class DefaultRpcServer {
     public:
         // Add services into server. Notice the second parameter, because the
         // service is put on stack, we don't want server to delete it, otherwise use brpc::SERVER_OWNS_SERVICE.
@@ -27,7 +28,6 @@ namespace util {
             return 0;
         }
 
-        template<int port=9500>
         static int Start() {
             std::lock_guard guard(mutex);
             if (!globalControlServer) {
@@ -54,4 +54,6 @@ namespace util {
         inline static std::unique_ptr<brpc::Server> globalControlServer = nullptr;
         inline static std::vector<std::function<void()>> onStopList;
     };
+
+    using MetaRpcServer = DefaultRpcServer<>;
 }

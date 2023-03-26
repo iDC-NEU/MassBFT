@@ -74,7 +74,7 @@ namespace peer::consensus {
                 if (cm.sender() == 0) {
                     static auto validator = util::OpenSSLED25519::NewFromPemString("-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAGZvKfw6NtY6G4iUOV3M6xbl4uEc3ZD2HrtlTuzp04Hg=\n-----END PUBLIC KEY-----", "");
                     if(!validator) {
-                        ASSERT_TRUE(false) << "validator init error";
+                        CHECK(false) << "validator init error";
                     }
                     util::OpenSSLED25519::digestType md;
                     CHECK(rawSignature.size() == md.size());

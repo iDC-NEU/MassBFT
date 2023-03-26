@@ -10,31 +10,34 @@
 
 class MockPBFTStateMachine : public peer::consensus::PBFTStateMachine {
 public:
+    [[nodiscard]] std::optional<::util::OpenSSLED25519::digestType> OnSignMessage(const ::util::NodeConfigPtr&, const std::string&) const override {
+        return std::nullopt;
+    }
     // Call by followers only
-    bool OnVerifyProposal(::util::NodeConfigPtr localNode, std::unique_ptr<::proto::Block> block) override {
-        LOG(INFO) << "OnVerifyProposal, Block number: " << block->header.number;
+    bool OnVerifyProposal(::util::NodeConfigPtr, const std::string&) override {
         return true;
     }
 
-    bool OnDeliver(::util::NodeConfigPtr localNode, std::unique_ptr<::proto::Block> block) override {
-        LOG(INFO) << "OnDeliver, Block number: " << block->header.number;
+    bool OnDeliver(::util::NodeConfigPtr,
+                   const std::string&,
+                   std::vector<::proto::SignatureString>) override {
         return true;
     }
 
-    void OnLeaderStart(::util::NodeConfigPtr localNode, const std::string& context) override {
-
+    void OnLeaderStart(::util::NodeConfigPtr, int) override {
     }
 
-    void OnLeaderStop(::util::NodeConfigPtr localNode, const std::string& context) override {
-
+    void OnLeaderStop(::util::NodeConfigPtr, int) override {
     }
 
     // Call by the leader only
-    std::shared_ptr<::proto::Block> OnRequestProposal(::util::NodeConfigPtr localNode, int blockNumber, const std::string& context) override {
+    std::optional<std::string> OnRequestProposal(::util::NodeConfigPtr, int, const std::string&) override {
         auto block = tests::ProtoBlockUtils::CreateDemoBlock();
         block->header.number = nextBlockNumber;
         nextBlockNumber++;
-        return block;
+        std::string buf;
+        block->header.serializeToString(&buf);
+        return buf;
     }
 
 private:

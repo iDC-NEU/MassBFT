@@ -26,12 +26,10 @@ namespace peer::consensus {
 
         bool checkAndStart(std::unordered_map<int, ::util::NodeConfigPtr> localNodes
                 , std::shared_ptr<util::BCCSP> bccsp
-                , std::shared_ptr<PBFTStateMachine> stateMachine
-                , std::shared_ptr<::proto::Block> lastBlock=nullptr) {
+                , std::shared_ptr<PBFTStateMachine> stateMachine) {
             _localNodes = std::move(localNodes);
             _bccsp = std::move(bccsp);
             _stateMachine = std::move(stateMachine);
-            _lastBlock = std::move(lastBlock);
             if (_localNodes.empty() || !_bccsp || !_stateMachine) {
                 LOG(ERROR) << "Fail to start globalControlService!";
                 return false;
@@ -56,31 +54,13 @@ namespace peer::consensus {
                 LOG(WARNING) << "localId error.";
                 return;
             }
-
-            int nextBlockNumber = 0;
-            if (_lastBlock != nullptr) {
-                nextBlockNumber = (int)_lastBlock->header.number;
-            }
-            auto block = _stateMachine->OnRequestProposal(_localNodes.at(request->localid()), nextBlockNumber, request->payload());
-            if (block == nullptr) {
-                LOG(INFO) << "Get Block failed, number: " << nextBlockNumber;
+            auto blockHeader = _stateMachine->OnRequestProposal(_localNodes.at(request->localid()), request->sequence(), request->payload());
+            if (blockHeader == std::nullopt) {
+                LOG(WARNING) << "get serialized block header error.";
                 return;
             }
-            if (_lastBlock != nullptr) {
-                // DCHECK(_lastBlock->header.dataHash == block->header.previousHash);
-                DCHECK(_lastBlock->header.number + 1 == block->header.number);
-            }
-            if (block->haveSerializedMessage()) {
-                LOG(WARNING) << "Using cached message, please ensure the message is newest.";
-                response->set_payload(*block->getSerializedMessage());
-            } else {
-                std::string serializedMessage;
-                block->serializeToString(&serializedMessage);
-                response->set_payload(std::move(serializedMessage));
-            }
-            _lastBlock = std::move(block);
+            response->set_payload(std::move(*blockHeader));
             response->set_success(true);
-            sleep(1);
         }
 
         void verifyProposal(google::protobuf::RpcController*,
@@ -96,13 +76,7 @@ namespace peer::consensus {
                 return;
             }
 
-            auto block = std::make_unique<::proto::Block>();
-            auto ret = block->deserializeFromString(std::string(request->payload()));
-            if (!ret.valid) {
-                LOG(WARNING) << "Deserialize block error.";
-                return;
-            }
-            if (!_stateMachine->OnVerifyProposal(_localNodes.at(request->localid()), std::move(block))) {
+            if (!_stateMachine->OnVerifyProposal(_localNodes.at(request->localid()), request->payload())) {
                 LOG(WARNING) << "Validate block error.";
                 return;
             }
@@ -121,17 +95,9 @@ namespace peer::consensus {
                 LOG(WARNING) << "Wrong node id.";
                 return;
             }
-            // Get the private key of this node
-            const auto key = _bccsp->GetKey(_localNodes[nodeId]->ski);
-            if (key == nullptr || !key->Private()) {
-                LOG(WARNING) << "Can not load key.";
-                return;
-            }
-            // sign the message with the private key
-            auto ret = key->Sign(request->payload().data(), request->payload().size());
+            auto ret = _stateMachine->OnSignMessage(_localNodes.at(request->localid()), request->payload());
             if (ret == std::nullopt) {
-                LOG(WARNING) << "Sign data failed.";
-                return;
+                response->set_success(false);
             }
             response->set_payload(ret->data(), ret->size());
             response->set_success(true);
@@ -156,16 +122,10 @@ namespace peer::consensus {
                 return;
             }
 
-            auto block = std::make_unique<::proto::Block>();
-            auto ret = block->deserializeFromString(std::string(tomMessage.content()));
-            if (!ret.valid) {
-                LOG(WARNING) << "Deserialize block error.";
-                return;
-            }
+            std::vector<::proto::SignatureString> consensusSignatures(request->contents_size());
             // append signatures
-            block->metadata.consensusSignatures.resize(request->contents_size());
             for (int i=0; i<request->contents_size(); i++) {
-                auto& it = block->metadata.consensusSignatures[i];
+                auto& it = consensusSignatures[i];
                 std::memcpy(it.digest.data(), request->signatures(i).data(), it.digest.size());
                 if (!_localNodes.contains(request->localid())) {
                     LOG(WARNING) << "Signatures contains error.";
@@ -176,7 +136,7 @@ namespace peer::consensus {
                 // we need to keep the content corresponding to the signature for verification
                 it.content = std::make_unique<std::string>( request->contents(i));
             }
-            if (!_stateMachine->OnDeliver(_localNodes.at(request->localid()), std::move(block))) {
+            if (!_stateMachine->OnDeliver(_localNodes.at(request->localid()), tomMessage.content(), std::move(consensusSignatures))) {
                 LOG(WARNING) << "Validate block error.";
                 return;
             }
@@ -193,7 +153,7 @@ namespace peer::consensus {
                 LOG(WARNING) << "localId error.";
                 return;
             }
-            _stateMachine->OnLeaderStart(_localNodes.at(request->localid()), request->payload());
+            _stateMachine->OnLeaderStart(_localNodes.at(request->localid()), request->sequence());
             response->set_success(true);
         }
 
@@ -207,14 +167,13 @@ namespace peer::consensus {
                 LOG(WARNING) << "localId error.";
                 return;
             }
-            _stateMachine->OnLeaderStop(_localNodes.at(request->localid()), request->payload());
+            _stateMachine->OnLeaderStop(_localNodes.at(request->localid()), request->sequence());
             response->set_success(true);
         }
 
     private:
         // key: node id, value: node ski
         std::unordered_map<int, ::util::NodeConfigPtr> _localNodes;
-        std::shared_ptr<::proto::Block> _lastBlock;
         std::shared_ptr<util::BCCSP> _bccsp;
         std::shared_ptr<PBFTStateMachine> _stateMachine;
     };

@@ -5,9 +5,7 @@
 #pragma once
 
 #include "peer/consensus/pbft/pbft_state_machine.h"
-#include "peer/storage/mr_block_storage.h"
 #include "proto/block.h"
-
 #include "common/zeromq.h"
 #include "common/property.h"
 #include "common/bccsp.h"
@@ -101,8 +99,9 @@ namespace peer::consensus {
             _threadPoolForBCCSP = std::move(threadPool);
         }
 
-        void setStorage(auto storage) { _storage = std::move(storage); }
+        void setDeliverCallback(auto deliverCallback) { _deliverCallback = std::move(deliverCallback); }
 
+        // Start the zeromq sender and receiver threads
         bool checkAndStart() {
             return _receiver->checkAndStart();
         }
@@ -236,11 +235,8 @@ namespace peer::consensus {
             CHECK(block != nullptr) << "Block mut be not null!" << util::OpenSSLSHA256::toString(header.dataHash);
             block->metadata.consensusSignatures = std::move(signatures);
             // local consensus complete
-            if (_storage != nullptr) {
-                _storage->insertBlock(localNode->groupId, block);
-                // wake up all consumer
-                _storage->onReceivedNewBlock(localNode->groupId, header.number);
-                _storage->onReceivedNewBlock();
+            if (_deliverCallback != nullptr) {
+                _deliverCallback(block, std::move(localNode));
             }
             _deliveredLastBlock = std::move(block);
             return true;
@@ -348,7 +344,7 @@ namespace peer::consensus {
         // BCCSP and thread pool
         std::shared_ptr<util::BCCSP> _bccsp;
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;
-        // Block storage, for saving blocks
-        std::shared_ptr<MRBlockStorage> _storage;
+        // For saving delivered blocks
+        std::function<bool(std::shared_ptr<::proto::Block> block, ::util::NodeConfigPtr localNode)> _deliverCallback;
     };
 }

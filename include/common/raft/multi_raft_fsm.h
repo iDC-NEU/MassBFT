@@ -82,13 +82,14 @@ namespace util::raft {
         int stop(const braft::PeerId &peer) {
             bthread::CountdownEvent cond;
             braft::Node *node = remove_node(peer);
-            if (node) {
-                node->shutdown(NEW_CLOSURE(&cond));
-                cond.wait();
-                node->join();
+            if (!node) {    // node does not exist
+                return -1;
             }
+            node->shutdown(NEW_CLOSURE(&cond));
+            cond.wait();
+            node->join();
             delete node;
-            return node ? 0 : -1;
+            return 0;
         }
 
         void stop_all() {
@@ -211,7 +212,7 @@ namespace util::raft {
         mutable std::shared_mutex _mutex;
         struct raft_instance {
             braft::Node* node{};
-            SingleRaftFSM* fsm{};
+            SingleRaftFSM* fsm{};   // owns by node, do not need to free memory
             std::unique_ptr<braft::NodeOptions> options;
         };
         std::map<braft::PeerId, raft_instance> _instances;

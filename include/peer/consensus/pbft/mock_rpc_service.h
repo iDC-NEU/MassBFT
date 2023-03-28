@@ -100,17 +100,15 @@ namespace peer::consensus {
                          proto::RPCResponse* response,
                          ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
-            response->set_payload(request->payload() + " success!");
             LOG(INFO) << "receive a leaderStart, id: " << request->localid() << ", sequence: " << request->sequence();
             response->set_success(true);
         }
 
-        void leaderStop(google::protobuf::RpcController*,
-                        const proto::RPCRequest* request,
-                        proto::RPCResponse* response,
-                        ::google::protobuf::Closure* done) override {
+        void leaderChange(google::protobuf::RpcController*,
+                          const proto::LeaderChangeRequest* request,
+                          proto::RPCResponse* response,
+                          ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
-            response->set_payload(request->payload() + " success!");
             LOG(INFO) << "receive a leaderStop, id: " << request->localid() << ", sequence: " << request->sequence();
             response->set_success(true);
         }

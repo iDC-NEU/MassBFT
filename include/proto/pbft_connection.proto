@@ -11,7 +11,7 @@ option cc_generic_services = true;
 message RPCRequest {
   required int32 localId = 1;
   optional int32 sequence = 2;
-  required bytes payload = 4;
+  required bytes payload = 3;
 };
 
 message DeliverRequest {
@@ -21,6 +21,12 @@ message DeliverRequest {
   required bytes proposeValue = 4;  // Proposal type, contains the actual proposeValue
   repeated bytes contents = 5;  // ConsensusMessage type, contains the proposeValueHash
   repeated bytes signatures = 6;
+};
+
+message LeaderChangeRequest {
+  required int32 localId = 1;
+  required int32 sequence = 2;
+  required int32 newLeaderId = 3;
 };
 
 message RPCResponse {
@@ -36,5 +42,5 @@ service RPCService {
   rpc deliver(DeliverRequest) returns (RPCResponse);
   rpc leaderStart(RPCRequest) returns (RPCResponse);
   // request of leaderStop contains the new leader
-  rpc leaderStop(RPCRequest) returns (RPCResponse);
+  rpc leaderChange(LeaderChangeRequest) returns (RPCResponse);
 };

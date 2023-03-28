@@ -28,7 +28,7 @@ public:
     void OnLeaderStart(::util::NodeConfigPtr, int) override {
     }
 
-    void OnLeaderStop(::util::NodeConfigPtr, int) override {
+    void OnLeaderChange(::util::NodeConfigPtr, ::util::NodeConfigPtr, int) override {
     }
 
     // Call by the leader only

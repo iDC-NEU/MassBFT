@@ -78,7 +78,7 @@ TEST_F(ConsensusReplicatorTest, TestStateMachineNormalCase) {
     // Wrong sequence
     ret = sm->OnRequestProposal(nodeConfig, 5, "placeholder");
     ASSERT_TRUE(ret == std::nullopt);
-    sm->OnLeaderStop(nodeConfig, 11);
+    sm->OnLeaderChange(nodeConfig, localNodes[1]->nodeConfig, 11);
     // insert some user request batches
     auto child = dynamic_cast<peer::consensus::ContentReplicator*>(sm.get());
     ASSERT_TRUE(child != nullptr);
@@ -117,7 +117,6 @@ TEST_F(ConsensusReplicatorTest, TestWithPBFTService) {
     util::DefaultRpcServer<9511>::Start();
     util::DefaultRpcServer<9512>::Start();
     util::DefaultRpcServer<9513>::Start();
-    sleep(30);
     for (int i=0; i<200000; i++) {
         for (auto& it: stateMachines) {
             // insert some user request batches

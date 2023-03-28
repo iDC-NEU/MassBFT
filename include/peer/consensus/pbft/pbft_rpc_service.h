@@ -160,17 +160,19 @@ namespace peer::consensus {
             response->set_success(true);
         }
 
-        void leaderStop(google::protobuf::RpcController*,
-                        const proto::RPCRequest* request,
-                        proto::RPCResponse* response,
-                        ::google::protobuf::Closure* done) override {
+        void leaderChange(google::protobuf::RpcController*,
+                          const proto::LeaderChangeRequest* request,
+                          proto::RPCResponse* response,
+                          ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
-            DLOG(INFO) << "leaderStop, Node: " << request->localid() << ", sequence: " << request->sequence();
-            if (!_localNodes.contains(request->localid())) {
-                LOG(WARNING) << "localId error.";
+            DLOG(INFO) << "leaderChanged, LocalNode: " << request->localid()
+                       << ", NewLeader: " << request->newleaderid()
+                       << ", sequence: " << request->sequence();
+            if (!_localNodes.contains(request->localid()) || !_localNodes.contains(request->newleaderid())) {
+                LOG(WARNING) << "localId or newLeaderId error.";
                 return;
             }
-            _stateMachine->OnLeaderStop(_localNodes.at(request->localid()), request->sequence());
+            _stateMachine->OnLeaderChange(_localNodes.at(request->localid()), _localNodes.at(request->newleaderid()), request->sequence());
             response->set_success(true);
         }
 

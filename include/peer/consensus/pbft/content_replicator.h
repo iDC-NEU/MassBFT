@@ -248,7 +248,7 @@ namespace peer::consensus {
             _isLeader = true;
         }
 
-        void OnLeaderStop(::util::NodeConfigPtr localNode, int sequence) override {
+        void OnLeaderChange(::util::NodeConfigPtr localNode, ::util::NodeConfigPtr newLeaderNode, int sequence) override {
             std::unique_lock lock(_isLeaderMutex);
             _proposedLastBlock = nullptr;
             _isLeader = false;

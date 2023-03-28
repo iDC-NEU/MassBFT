@@ -25,7 +25,7 @@ namespace peer::consensus {
 
         virtual void OnLeaderStart(::util::NodeConfigPtr localNode, int sequence) = 0;
 
-        virtual void OnLeaderStop(::util::NodeConfigPtr localNode, int sequence) = 0;
+        virtual void OnLeaderChange(::util::NodeConfigPtr localNode, ::util::NodeConfigPtr newLeaderNode, int sequence) = 0;
 
         virtual std::optional<std::string> OnRequestProposal(::util::NodeConfigPtr localNode, int sequence, const std::string& context) = 0;
     };

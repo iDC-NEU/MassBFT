@@ -7,11 +7,11 @@
 #include "common/zeromq.h"
 #include "common/timer.h"
 #include "common/thread_pool_light.h"
+#include "common/concurrent_queue.h"
 #include "proto/user_request.h"
 
 #include "bthread/butex.h"
 #include "bthread/countdown_event.h"
-#include "blockingconcurrentqueue.h"
 
 namespace peer::consensus {
     // RequestCollector is used to collect requests from local users.
@@ -45,10 +45,14 @@ namespace peer::consensus {
             }
         }
 
-        // if you want to process the batched envelop
-        void setBatchCallback(auto callback) { _batchCallback = std::move(callback); }
+        // If you want to process the batched envelop
+        // The callback function may change at runtime
+        void setBatchCallback(auto callback) {
+            std::lock_guard guard(_batchCallbackMutex);
+            _batchCallback = std::move(callback);
+        }
 
-        // if you want to validate an envelop in place
+        // If you want to validate an envelop in place
         void setValidateCallback(auto callback, std::shared_ptr<util::thread_pool_light> threadPool) {
             _validateCallback = std::move(callback);
             _threadPoolForBCCSP = std::move(threadPool);
@@ -100,6 +104,7 @@ namespace peer::consensus {
                     continue;   // We can not pass empty batch to replicator
                 }
                 unorderedRequests.resize(ret);
+                std::lock_guard guard(_batchCallbackMutex);
                 if (_batchCallback != nullptr) {
                     if (!_batchCallback(std::move(unorderedRequests))) {
                         LOG(WARNING) << "Batch call back return false!";
@@ -114,10 +119,12 @@ namespace peer::consensus {
         std::atomic<bool> _tearDownSignal;
         std::unique_ptr<std::thread> _collectorThread;
         std::unique_ptr<std::thread> _batchingThread;
-        moodycamel::BlockingConcurrentQueue<std::unique_ptr<proto::Envelop>> _requestsQueue;
+        // the size of the queue is 5000 (5000 cached requests)
+        util::BlockingConcurrentQueue<std::unique_ptr<proto::Envelop>, 5000> _requestsQueue;
         // Receiving requests from local clients (as a server)
         std::shared_ptr<util::ZMQInstance> _subscriber;
         // Call this function when forming a request batch
+        std::mutex _batchCallbackMutex;
         std::function<bool(std::vector<std::unique_ptr<proto::Envelop>> unorderedRequests)> _batchCallback;
         std::function<bool(const proto::Envelop& envelop)> _validateCallback;
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;

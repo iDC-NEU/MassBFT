@@ -5,11 +5,11 @@
 #ifndef NBP_RAFT_LOG_H
 #define NBP_RAFT_LOG_H
 
+#include "common/concurrent_queue.h"
 #include <vector>
 #include <mutex>
 #include <shared_mutex>
 #include <butil/iobuf.h>
-#include "blockingconcurrentqueue.h"
 
 namespace util::raft {
     template<class T=butil::IOBuf>
@@ -57,7 +57,7 @@ namespace util::raft {
 
     private:
         mutable std::shared_mutex mutex;
-        moodycamel::BlockingConcurrentQueue<T> queue;
+        util::BlockingConcurrentQueue<T> queue;
         std::vector<T> logs;
     };
 }

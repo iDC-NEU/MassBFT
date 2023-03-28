@@ -7,9 +7,9 @@
 #include "peer/replicator/block_fragment_generator.h"
 #include "common/reliable_zeromq.h"
 #include "common/property.h"
+#include "common/concurrent_queue.h"
 #include "proto/fragment.h"
 
-#include "blockingconcurrentqueue.h"
 #include <memory>
 #include <thread>
 #include <utility>
@@ -387,7 +387,7 @@ namespace peer::v2 {
     private:
         // For active object, tid and message queue
         std::unique_ptr<std::thread> _thread;
-        moodycamel::BlockingConcurrentQueue<std::unique_ptr<std::string>> _activeBlockResultQueue;
+        util::BlockingConcurrentQueue<std::unique_ptr<std::string>, 100> _activeBlockResultQueue;
         // signal to alert if the system is shutdown
         volatile bool _tearDownSignal = false;
         // bfg and the remote region fragment config

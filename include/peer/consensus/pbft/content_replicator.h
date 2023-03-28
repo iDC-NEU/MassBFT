@@ -12,10 +12,10 @@
 #include "common/phmap.h"
 #include "common/timer.h"
 #include "common/thread_pool_light.h"
+#include "common/concurrent_queue.h"
 
 #include "bthread/butex.h"
 #include "bthread/countdown_event.h"
-#include "blockingconcurrentqueue.h"
 
 namespace peer::consensus {
     class ContentReceiver {
@@ -99,8 +99,14 @@ namespace peer::consensus {
             _threadPoolForBCCSP = std::move(threadPool);
         }
 
+        [[nodiscard]] auto getThreadPoolForBCCSP() const { return _threadPoolForBCCSP; }
+
         // This handle is called when the consensus of the block in local region is completed
-        void setDeliverCallback(auto deliverCallback) { _deliverCallback = std::move(deliverCallback); }
+        void setDeliverCallback(auto callback) { _deliverCallback = std::move(callback); }
+
+        // This function is called when the master node changes, thread safe
+        // leader may become itself, newLeaderNode is empty when the master node is itself
+        void setLeaderChangeCallback(auto callback) { _leaderChangeCallback = std::move(callback); }
 
         // Start the zeromq sender and receiver threads
         bool checkAndStart() {
@@ -195,6 +201,7 @@ namespace peer::consensus {
             storeCachedBlock(std::move(block));
         }
 
+    public:
         [[nodiscard]] bool validateUserRequest(const proto::Envelop& envelop) const {
             auto& payload = envelop.getPayload();
             auto& signature = envelop.getSignature();
@@ -264,12 +271,18 @@ namespace peer::consensus {
             std::unique_lock lock(_isLeaderMutex);
             _proposedLastBlock = _deliveredLastBlock;
             _isLeader = true;
+            if (_leaderChangeCallback) {
+                _leaderChangeCallback(std::move(localNode), nullptr, sequence);
+            }
         }
 
         void OnLeaderChange(::util::NodeConfigPtr localNode, ::util::NodeConfigPtr newLeaderNode, int sequence) override {
             std::unique_lock lock(_isLeaderMutex);
             _proposedLastBlock = nullptr;
             _isLeader = false;
+            if (_leaderChangeCallback) {
+                _leaderChangeCallback(std::move(localNode), std::move(newLeaderNode), sequence);
+            }
         }
 
         // Call by the leader only
@@ -356,7 +369,7 @@ namespace peer::consensus {
         // Used when the node become follower, receive txn batch from leader, using zeromq
         std::pair<butil::atomic<int>*, util::MyFlatHashMap<proto::HashString, std::shared_ptr<proto::Block>, std::mutex>> _cache;
         // Used when the node become leader, receive txn batch from user and enqueue to queue
-        moodycamel::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>> _requestBatchQueue;
+        util::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>, 5> _requestBatchQueue;
         // Set by OnRequestProposal or OnVerifyProposal
         std::shared_ptr<::proto::Block> _deliveredLastBlock;
         std::shared_ptr<::proto::Block> _proposedLastBlock;
@@ -365,5 +378,7 @@ namespace peer::consensus {
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;
         // For saving delivered blocks
         std::function<bool(std::shared_ptr<::proto::Block> block, ::util::NodeConfigPtr localNode)> _deliverCallback;
+        // This Function is called inside a lock, thus thread safe
+        std::function<void(::util::NodeConfigPtr localNode, ::util::NodeConfigPtr newLeaderNode, int sequence)> _leaderChangeCallback;
     };
 }

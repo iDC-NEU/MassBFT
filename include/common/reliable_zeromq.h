@@ -34,7 +34,7 @@ namespace util {
         }
 
         void shutdown() {
-            receiver->shutdown();
+            if (receiver) { receiver->shutdown(); }
             receivedHello.reset(1);
             receivedHello.signal(1);
         }

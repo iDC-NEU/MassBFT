@@ -22,12 +22,11 @@ namespace peer::consensus {
         struct Config {
             int timeoutMs;
             int maxBatchSize;
-            int port;
         };
 
-        explicit RequestCollector(const Config& config)
+        explicit RequestCollector(const Config& config, int port)
                 : _batchConfig(config), _tearDownSignal(false) {
-            _subscriber = util::ZMQInstance::NewServer<zmq::socket_type::sub>(_batchConfig.port);
+            _subscriber = util::ZMQInstance::NewServer<zmq::socket_type::sub>(port);
         }
 
         RequestCollector(const RequestCollector&) = delete;

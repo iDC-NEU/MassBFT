@@ -2,7 +2,7 @@
 // Created by user on 23-3-21.
 //
 
-#include "peer/consensus/pbft/content_replicator.h"
+#include "peer/consensus/pbft/local/content_replicator.h"
 #include "peer/consensus/pbft/pbft_rpc_service.h"
 #include "tests/proto_block_utils.h"
 

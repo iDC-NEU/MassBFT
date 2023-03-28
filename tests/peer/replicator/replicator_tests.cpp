@@ -27,23 +27,9 @@ protected:
 
     static std::unordered_map<int, std::vector<util::NodeConfigPtr>> GenerateNodesMap() {
         auto ret = std::unordered_map<int, std::vector<util::NodeConfigPtr>>();
-        auto createNode = [](int nodeId, int groupId) {
-            auto node = std::make_shared<util::NodeConfig>();
-            node->nodeId = nodeId;
-            node->groupId = groupId;
-            node->ip = "127.0.0.1";
-            node->ski = std::to_string(nodeId) + "_" + std::to_string(groupId);
-            return node;
-        };
-        for(int i=0; i<4; i++) {
-            ret[0].push_back(createNode(i, 0));
-        }
-        for(int i=0; i<5; i++) {
-            ret[1].push_back(createNode(i, 1));
-        }
-        for(int i=0; i<11; i++) {
-            ret[2].push_back(createNode(i, 2));
-        }
+        ret[0] = tests::ProtoBlockUtils::GenerateNodesConfig(0, 4);
+        ret[1] = tests::ProtoBlockUtils::GenerateNodesConfig(1, 5);
+        ret[2] = tests::ProtoBlockUtils::GenerateNodesConfig(2, 11);
         return ret;
     }
 

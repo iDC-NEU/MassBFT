@@ -2,7 +2,7 @@
 // Created by user on 23-3-28.
 //
 
-#include "peer/consensus/pbft/request_collector.h"
+#include "peer/consensus/pbft/local/request_collector.h"
 
 #include "tests/proto_block_utils.h"
 #include "gtest/gtest.h"
@@ -11,7 +11,6 @@
 class RequestCollectorTest : public ::testing::Test {
 public:
     RequestCollectorTest() {
-        config.port = 51200;
         config.timeoutMs = 100;
         config.maxBatchSize = 10;
     }
@@ -27,7 +26,7 @@ protected:
 };
 
 TEST_F(RequestCollectorTest, TestNormalCase) {
-    peer::consensus::RequestCollector collector(config);
+    peer::consensus::RequestCollector collector(config, 51200);
 
     int totalRequests = 0;
     int totalBatches = 0;

@@ -50,21 +50,31 @@ namespace tests {
             return realBlock;
         }
 
-        using Config = util::ZMQInstanceConfig;
-        using ConfigPtr = std::shared_ptr<util::ZMQInstanceConfig>;
-
-        static std::vector<ConfigPtr> GenerateNodesConfig(int groupId, int count, int portOffset) {
-            std::vector<ConfigPtr> nodesConfig;
+        static std::vector<std::shared_ptr<util::ZMQInstanceConfig>> GenerateNodesConfig(int groupId, int count, int portOffset) {
+            std::vector<std::shared_ptr<util::ZMQInstanceConfig>> nodesConfig;
             for (int i = 0; i < count; i++) {
-                auto cfg = std::make_shared<Config>();
+                auto cfg = std::make_shared<util::ZMQInstanceConfig>();
                 auto nodeCfg = std::make_shared<util::NodeConfig>();
                 nodeCfg->groupId = groupId;
                 nodeCfg->nodeId = i;
+                nodeCfg->ip = "127.0.0.1";
                 nodeCfg->ski = std::to_string(groupId) + "_" + std::to_string(i);
                 cfg->nodeConfig = std::move(nodeCfg);
-                cfg->addr() = "127.0.0.1";
                 cfg->port = 51200 + portOffset + i;
                 nodesConfig.push_back(std::move(cfg));
+            }
+            return nodesConfig;
+        }
+
+        static std::vector<std::shared_ptr<util::NodeConfig>> GenerateNodesConfig(int groupId, int count) {
+            std::vector<std::shared_ptr<util::NodeConfig>> nodesConfig;
+            for (int i = 0; i < count; i++) {
+                auto nodeCfg = std::make_shared<util::NodeConfig>();
+                nodeCfg->groupId = groupId;
+                nodeCfg->nodeId = i;
+                nodeCfg->ip = "127.0.0.1";
+                nodeCfg->ski = std::to_string(groupId) + "_" + std::to_string(i);
+                nodesConfig.push_back(std::move(nodeCfg));
             }
             return nodesConfig;
         }

@@ -8,12 +8,22 @@ CPMAddPackage(
         OPTIONS "CXXOPTS_BUILD_EXAMPLES NO" "CXXOPTS_BUILD_TESTS NO" "CXXOPTS_ENABLE_INSTALL YES"
 )
 
-# ---- Create standalone executable ----
+# ---- Create ycsb standalone executable ----
 
-file(GLOB sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ycsb/*.cpp)
+file(GLOB ycsb_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ycsb/*.cpp)
 
-add_executable(${PROJECT_NAME}_ycsb ${sources})
+add_executable(${PROJECT_NAME}_ycsb ${ycsb_sources})
 
 set_target_properties(${PROJECT_NAME}_ycsb PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "NBP_ycsb")
 
 target_link_libraries(${PROJECT_NAME}_ycsb NBP cxxopts ${COMMON_DEPENDENCIES})
+
+# ---- Create peer standalone executable ----
+
+file(GLOB peer_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/peer/*.cpp)
+
+add_executable(${PROJECT_NAME}_peer ${peer_sources})
+
+set_target_properties(${PROJECT_NAME}_peer PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "NBP_peer")
+
+target_link_libraries(${PROJECT_NAME}_peer NBP cxxopts ${COMMON_DEPENDENCIES})

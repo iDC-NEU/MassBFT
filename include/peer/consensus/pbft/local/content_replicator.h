@@ -84,6 +84,8 @@ namespace peer::consensus {
 
     class ContentReplicator: public PBFTStateMachine {
     public:
+        // In order to separate the payload from the consensus,
+        // the local cluster needs to establish a set of zmq ports, which are stored in targetNodes
         ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId, int64_t timeoutMs=100)
                 : _verifyProposalTimeout(timeoutMs) {
             _sender = std::make_unique<ContentSender>(targetNodes, localId);

@@ -99,6 +99,7 @@ namespace peer::consensus {
             _threadPoolForBCCSP = std::move(threadPool);
         }
 
+        // This handle is called when the consensus of the block in local region is completed
         void setDeliverCallback(auto deliverCallback) { _deliverCallback = std::move(deliverCallback); }
 
         // Start the zeromq sender and receiver threads
@@ -106,9 +107,25 @@ namespace peer::consensus {
             return _receiver->checkAndStart();
         }
 
+        // If the user request has been verified before (pessimistic verification),
+        // there is no need to re-verify here, otherwise the user signature needs to be verified
+        template<bool validated>
         bool pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>>&& batch) {
             std::shared_ptr<::proto::Block> block(new proto::Block);
             block->body.userRequests = std::move(batch);
+            if (validated) {
+                auto rawBlock = std::make_unique<std::string>();
+                auto pos = block->serializeToString(rawBlock.get());
+                auto ret = util::OpenSSLSHA256::generateDigest(rawBlock->data()+pos.bodyPos, pos.execResultPos-pos.bodyPos);
+                if (ret == std::nullopt) {
+                    LOG(WARNING) << "Signature generate failed.";
+                    return false;
+                }
+                block->header.dataHash = *ret;
+                block->setSerializedMessage(std::move(rawBlock));
+                _requestBatchQueue.enqueue(std::move(block));
+                return true;
+            }
             // thread pool validate user requests
             bool success = true;
             auto numRoutines = (int)_threadPoolForBCCSP->get_thread_count();
@@ -142,6 +159,7 @@ namespace peer::consensus {
         }
 
     protected:
+        // As a slave node, need to verify the block before can endorse the block.
         void validateUnorderedBlock(zmq::message_t&& raw) {
             std::shared_ptr<::proto::Block> block(new proto::Block);
             auto pos = block->deserializeFromString(raw.to_string());

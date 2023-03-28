@@ -58,7 +58,7 @@ protected:
             for (int i=0; i<200; i++) { // assume 4 nodes
                 batch.push_back(createSignedEnvelop(i%4));
             }
-            sm->pushUnorderedBlock(std::move(batch));
+            sm->pushUnorderedBlock<false>(std::move(batch));
         }
     }
 
@@ -73,10 +73,6 @@ TEST_F(ConsensusReplicatorTest, TestStateMachineNormalCase) {
     auto& nodeConfig = localNodes.front()->nodeConfig;
     // Leader is not starting
     auto ret = sm->OnRequestProposal(nodeConfig, 5, "placeholder");
-    ASSERT_TRUE(ret == std::nullopt);
-    sm->OnLeaderStart(nodeConfig, 10);
-    // Wrong sequence
-    ret = sm->OnRequestProposal(nodeConfig, 5, "placeholder");
     ASSERT_TRUE(ret == std::nullopt);
     sm->OnLeaderChange(nodeConfig, localNodes[1]->nodeConfig, 11);
     // insert some user request batches

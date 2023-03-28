@@ -156,9 +156,9 @@ namespace proto {
             zpp::bits::out out(*buf);
             out.reset(pos);
             if(failure(out(*this))) {
-                return true;
+                return false;
             }
-            return false;
+            return true;
         }
 
     private:

@@ -68,5 +68,16 @@ namespace tests {
             }
             return nodesConfig;
         }
+
+        static std::unique_ptr<proto::Envelop> CreateMockEnvelop(int nonce = 0) {
+            proto::SignatureString sig5 = {"ski" + std::to_string(nonce),
+                                           std::make_shared<std::string>("public key" + std::to_string(nonce)),
+                                           {"sig"}};
+            std::unique_ptr<proto::Envelop> envelop(new proto::Envelop());
+            envelop->setSignature(std::move(sig5));
+            std::string payload("payload for sig" + std::to_string(nonce));
+            envelop->setPayload(std::move(payload));
+            return envelop;
+        }
     };
 }

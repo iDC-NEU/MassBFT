@@ -84,8 +84,8 @@ namespace peer::consensus {
 
     class ContentReplicator: public PBFTStateMachine {
     public:
-        ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId, double timeout=0.5)
-                : _verifyProposalTimeout(timeout) {
+        ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId, int64_t timeoutMs=100)
+                : _verifyProposalTimeout(timeoutMs) {
             _sender = std::make_unique<ContentSender>(targetNodes, localId);
             _receiver = std::make_unique<ContentReceiver>(targetNodes[localId]->port);
             _receiver->setCallback([this](auto&& raw){ this->validateUnorderedBlock(std::forward<decltype(raw)>(raw)); });
@@ -296,17 +296,18 @@ namespace peer::consensus {
     protected:
         // returned block may be nullptr
         std::shared_ptr<proto::Block> loadCachedBlock(const proto::HashString& hash) {
-            util::Timer timer;
+            int64_t endTime = util::Timer::time_now_ms() + _verifyProposalTimeout;
             while(true) {
-                auto span = _verifyProposalTimeout - timer.end();
+                auto span = endTime - util::Timer::time_now_ms();
                 if (span < 0) {
+                    LOG(ERROR) << "Can not get the block in specific timeout!";
                     return nullptr;
                 }
-                auto timeout = butil::milliseconds_to_timespec((int64_t)span*1000);
                 auto currentBlockCount = _cache.first->load(std::memory_order_acquire);
                 std::shared_ptr<proto::Block> block = nullptr;
                 _cache.second.if_contains(hash, [&block](const auto& v) { block = v.second; });
                 if (block == nullptr) {
+                    auto timeout = butil::milliseconds_to_timespec(span);
                     bthread::butex_wait(_cache.first, currentBlockCount, &timeout);
                     continue;
                 }
@@ -328,7 +329,7 @@ namespace peer::consensus {
         }
 
     private:
-        const double _verifyProposalTimeout; // in second
+        const int64_t _verifyProposalTimeout; // ms
         // Check if the node is leader
         std::shared_mutex _isLeaderMutex;
         bool _isLeader = false;

@@ -2,48 +2,49 @@
 // Created by peng on 11/6/22.
 //
 
-#ifndef NEUCHAIN_PLUS_TIMER_H
-#define NEUCHAIN_PLUS_TIMER_H
+#pragma once
 
 #include <chrono>
+#include <thread>
+
 namespace util {
     class Timer {
     public:
-        Timer() :startTime{Clock::now()} { }
+        Timer() { start(); }
 
-        inline void start() { startTime = Clock::now(); }
+        inline void start() { startTime = std::chrono::system_clock::now(); }
 
         inline double end() {
-            auto t = Clock::now();
-            auto span = std::chrono::duration_cast<Duration>(t - startTime);
+            auto now = std::chrono::system_clock::now();
+            auto span = std::chrono::duration_cast<Duration>(now - startTime);
             return span.count();
         }
+        inline int64_t end_ns() {
+            auto now = std::chrono::system_clock::now();
+            auto span = std::chrono::duration_cast<std::chrono::nanoseconds>(now - startTime).count();
+            return span;
+        }
 
-        static inline void sleep_ns(time_t t) {
-            timespec req{};
-            req.tv_sec = t / 1000000000;
-            req.tv_nsec = t - req.tv_sec * 1000000000;
-            nanosleep(&req, nullptr);
+        static inline void sleep_ns(int64_t t) {
+            std::this_thread::sleep_for(std::chrono::nanoseconds(t));
         }
 
         static inline void sleep_sec(double t) {
-            if (t <= 0) {
-                return;
-            }
-            timespec req{};
-            req.tv_sec = static_cast<int>(t);
-            req.tv_nsec = static_cast<int64_t>(1e9 * (t - (double)req.tv_sec));
-            nanosleep(&req, nullptr);
+            if (t <= 0) { return; }
+            uint64_t span = static_cast<int64_t>(t * 1000 * 1000 * 1000);
+            std::this_thread::sleep_for(std::chrono::nanoseconds(span));
         }
 
-        static inline time_t time_now_ns() {
-            timespec ts{};
-            clock_gettime(CLOCK_REALTIME, &ts);
-            return (ts.tv_sec*1000000000 + ts.tv_nsec);
+        static inline int64_t time_now_ns() {
+            auto now = std::chrono::system_clock::now();
+            auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+            return ns;
         }
 
-        static inline double span_sec(time_t previous, time_t now = time_now_ns()) {
-            return static_cast<double>(now - previous) / 1e9;
+        static inline int64_t time_now_ms() {
+            auto now = std::chrono::system_clock::now();
+            auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+            return ns;
         }
 
     private:
@@ -53,4 +54,3 @@ namespace util {
     };
 }
 
-#endif //NEUCHAIN_PLUS_TIMER_H

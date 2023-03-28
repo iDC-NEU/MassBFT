@@ -140,6 +140,27 @@ namespace proto {
             return archive(e._payloadSV, e._signature);
         }
 
+        bool deserializeFromString(int pos = 0) {
+            if (this->storage == nullptr) {
+                return false;
+            }
+            auto in = zpp::bits::in(*(this->storage));
+            in.reset(pos);
+            if(failure(in(*this))) {
+                return false;
+            }
+            return true;
+        }
+
+        bool serializeToString(std::string *buf, int pos = 0) {
+            zpp::bits::out out(*buf);
+            out.reset(pos);
+            if(failure(out(*this))) {
+                return true;
+            }
+            return false;
+        }
+
     private:
         std::string_view _payloadSV;
         std::string _payload;

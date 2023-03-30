@@ -209,7 +209,7 @@ namespace peer::consensus {
             auto& signature = envelop.getSignature();
             const auto key = _bccsp->GetKey(signature.ski);
             if (key == nullptr) {
-                LOG(WARNING) << "Can not load key.";
+                LOG(WARNING) << "Can not load key, ski: " << signature.ski;
                 return false;
             }
             return key->Verify(signature.digest, payload.data(), payload.size());

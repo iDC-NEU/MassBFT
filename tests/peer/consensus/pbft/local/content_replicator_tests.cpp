@@ -101,30 +101,15 @@ TEST_F(ConsensusReplicatorTest, TestWithPBFTService) {
     for (auto& it: localNodes) {
         nodes[it->nodeConfig->nodeId] = it->nodeConfig;
     }
-    auto service0 = std::make_unique<peer::consensus::PBFTRPCService>();
-    auto service1 = std::make_unique<peer::consensus::PBFTRPCService>();
-    auto service2 = std::make_unique<peer::consensus::PBFTRPCService>();
-    auto service3 = std::make_unique<peer::consensus::PBFTRPCService>();
-    CHECK(service0->checkAndStart(nodes, bccsp, stateMachines[0]));
-    CHECK(service1->checkAndStart(nodes, bccsp, stateMachines[1]));
-    CHECK(service2->checkAndStart(nodes, bccsp, stateMachines[2]));
-    CHECK(service3->checkAndStart(nodes, bccsp, stateMachines[3]));
-    if (util::DefaultRpcServer::AddService(service0.release(), 9510) != 0) {
-        CHECK(false) << "Fail to add globalControlService!";
+    for (int i=0; i<4; i++) {
+        auto service = std::make_unique<peer::consensus::PBFTRPCService>();
+        CHECK(service->checkAndStart(nodes, bccsp, stateMachines[i]));
+        if (util::DefaultRpcServer::AddService(service.release(), 9510 + i) != 0) {
+            CHECK(false) << "Fail to add globalControlService!";
+        }
+        util::DefaultRpcServer::Start(9510 + i);
     }
-    if (util::DefaultRpcServer::AddService(service1.release(), 9511) != 0) {
-        CHECK(false) << "Fail to add globalControlService!";
-    }
-    if (util::DefaultRpcServer::AddService(service2.release(), 9512) != 0) {
-        CHECK(false) << "Fail to add globalControlService!";
-    }
-    if (util::DefaultRpcServer::AddService(service3.release(), 9513) != 0) {
-        CHECK(false) << "Fail to add globalControlService!";
-    }
-    util::DefaultRpcServer::Start(9510);
-    util::DefaultRpcServer::Start(9511);
-    util::DefaultRpcServer::Start(9512);
-    util::DefaultRpcServer::Start(9513);
+    sleep(25);
     for (int i=0; i<200000; i++) {
         for (auto& it: stateMachines) {
             // insert some user request batches

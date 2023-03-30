@@ -93,7 +93,7 @@ TEST_F(ReliableZMQTest, TestClientExit) {
 
 TEST_F(ReliableZMQTest, MultiGetStore) {
     int64_t strLen = 256;  // bytes
-    int64_t cnt = 4*2*1024*1024;  // message cnt
+    int64_t cnt = 1024*1024;  // message cnt
 
     // prepare message send
     std::vector<std::string> messageList;

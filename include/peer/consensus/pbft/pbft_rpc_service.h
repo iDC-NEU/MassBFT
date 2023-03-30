@@ -24,7 +24,6 @@ namespace peer::consensus {
 
         PBFTRPCService(PBFTRPCService&&) = delete;
 
-        template<class ServerClass=util::MetaRpcServer>
         bool checkAndStart(std::vector<std::shared_ptr<util::NodeConfig>> localNodes
                 , std::shared_ptr<util::BCCSP> bccsp
                 , std::shared_ptr<PBFTStateMachine> stateMachine) {
@@ -33,10 +32,6 @@ namespace peer::consensus {
             _stateMachine = std::move(stateMachine);
             if (_localNodes.empty() || !_bccsp || !_stateMachine) {
                 LOG(ERROR) << "Fail to start globalControlService!";
-                return false;
-            }
-            if (ServerClass::AddService(this, []{ }) != 0) {
-                LOG(ERROR) << "Fail to add globalControlService!";
                 return false;
             }
             return true;

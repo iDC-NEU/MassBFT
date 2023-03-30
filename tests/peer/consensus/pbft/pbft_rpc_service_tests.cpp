@@ -80,6 +80,9 @@ TEST_F(PBFTRPCServiceTest, TestPBFTRPCService) {
     util::OpenSSLED25519::initCrypto();
     auto service = std::make_unique<peer::consensus::PBFTRPCService>();
     CHECK(service->checkAndStart(localNodes, bccsp, stateMachine));
+    if (util::MetaRpcServer::AddService(service.release()) != 0) {
+        CHECK(false) << "Fail to add globalControlService!";
+    }
     util::MetaRpcServer::Start();
     sleep(3600);
 }

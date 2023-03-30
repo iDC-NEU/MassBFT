@@ -30,9 +30,10 @@ public:
             auto key = bccsp->generateED25519Key(it->nodeConfig->ski, false);
             CHECK(key != nullptr);
         }
-        storage = std::make_shared<peer::MRBlockStorage>(3);   // 3 regions
         for (int i=0; i<4; i++) {
-            auto controller = peer::consensus::LocalPBFTController<false>::NewPBFTController(nodesConfig, i, portsConfig[i], bccsp, threadPool, storage, {1000, 250});
+            auto storage = std::make_shared<peer::MRBlockStorage>(3);   // 3 regions
+            storageList.push_back(storage);
+            auto controller = peer::consensus::LocalPBFTController<false>::NewPBFTController(nodesConfig, i, portsConfig[i], bccsp, threadPool, storage, {100, 200});
             CHECK(controller != nullptr) << "init controller error!";
             controllerList.push_back(std::move(controller));
         }
@@ -68,20 +69,22 @@ protected:
     std::vector<std::unique_ptr<peer::v2::ZMQPortUtil>> portsConfig;
     std::shared_ptr<util::BCCSP> bccsp;
     std::shared_ptr<util::thread_pool_light> threadPool;
-    std::shared_ptr<peer::MRBlockStorage> storage;
+    std::vector<std::shared_ptr<peer::MRBlockStorage>> storageList;
     std::vector<std::unique_ptr<peer::consensus::LocalPBFTController<false>>> controllerList;
 };
 
 TEST_F(LocalPBFTControllerTest, TestCreate) {
-    auto client0 = util::ZMQInstance::NewClient<zmq::socket_type::pub>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[0]);
-    auto client1 = util::ZMQInstance::NewClient<zmq::socket_type::pub>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[1]);
-    util::Timer::sleep_sec(25);
-    for (int i=0; i<200000; i++) {
+    auto client0 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[0]);
+    auto client1 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[1]);
+    auto client2 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[2]);
+    util::Timer::sleep_sec(25);  // wait for all zmq instance ready
+    for (int i=0; i<200 * 100; i++) {
         auto envelop = createSignedEnvelop(i%4);
         std::string buf;
         CHECK(envelop->serializeToString(&buf));
         client0->send(buf);
         client1->send(buf);
+        client2->send(buf);
     }
-    util::Timer::sleep_sec(3600);
+    sleep(3600);
 }

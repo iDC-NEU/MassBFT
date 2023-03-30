@@ -26,7 +26,7 @@ namespace peer::consensus {
 
         explicit RequestCollector(const Config& config, int port)
                 : _batchConfig(config), _tearDownSignal(false) {
-            _subscriber = util::ZMQInstance::NewServer<zmq::socket_type::sub>(port);
+            _subscriber = util::ZMQInstance::NewServer<zmq::socket_type::pull>(port);
         }
 
         RequestCollector(const RequestCollector&) = delete;
@@ -47,8 +47,12 @@ namespace peer::consensus {
         // If you want to process the batched envelop
         // The callback function may change at runtime
         void setBatchCallback(auto callback) {
-            std::lock_guard guard(_batchCallbackMutex);
+            std::unique_lock guard(_batchCallbackMutex);
             _batchCallback = std::move(callback);
+        }
+        auto getBatchCallback() const {
+            std::unique_lock guard(_batchCallbackMutex);
+            return _batchCallback;
         }
 
         // If you want to validate an envelop in place
@@ -58,6 +62,9 @@ namespace peer::consensus {
         }
 
         void start() {
+            if (_collectorThread || _batchingThread) {
+                return; // already started
+            }
             if (_validateCallback == nullptr || _validateCallback == nullptr) {
                 _collectorThread = std::make_unique<std::thread>(&RequestCollector::collectorFunction<false>, this);
             } else {
@@ -86,10 +93,14 @@ namespace peer::consensus {
                         if (!_validateCallback(*e)) {
                             return; // validate error
                         }
-                        _requestsQueue.enqueue(std::unique_ptr<proto::Envelop>(e));
+                        if (!_requestsQueue.enqueue(std::unique_ptr<proto::Envelop>(e))) {
+                            CHECK(false) << "Queue max size achieve!";
+                        }
                     });
                 } else {
-                    _requestsQueue.enqueue(std::move(envelop));
+                    if (!_requestsQueue.enqueue(std::move(envelop))) {
+                        CHECK(false) << "Queue max size achieve!";
+                    }
                 }
             }
         }
@@ -98,17 +109,36 @@ namespace peer::consensus {
             pthread_setname_np(pthread_self(), "usr_req_proc");
             while(!_tearDownSignal.load(std::memory_order_relaxed)) {
                 auto unorderedRequests = std::vector<std::unique_ptr<proto::Envelop>>(_batchConfig.maxBatchSize);
-                auto ret = _requestsQueue.wait_dequeue_bulk_timed(unorderedRequests.begin(), _batchConfig.maxBatchSize, _batchConfig.timeoutMs*1000);
-                if (ret == 0) {
-                    continue;   // We can not pass empty batch to replicator
-                }
-                unorderedRequests.resize(ret);
-                std::lock_guard guard(_batchCallbackMutex);
-                if (_batchCallback != nullptr) {
-                    if (!_batchCallback(std::move(unorderedRequests))) {
-                        LOG(WARNING) << "Batch call back return false!";
-                        continue;
+                auto timer = util::Timer();
+                auto timeLeftUs = _batchConfig.timeoutMs * 1000;
+                auto currentBatchSize = 0;
+                while (true) {
+                    auto ret = _requestsQueue.wait_dequeue_bulk_timed(unorderedRequests.begin() + currentBatchSize,
+                                                                      _batchConfig.maxBatchSize - currentBatchSize,
+                                                                      timeLeftUs);
+                    currentBatchSize += (int)ret;
+                    if (currentBatchSize == 0) {   // We can not pass empty batch to replicator
+                        timer.start();
+                        continue;  // reset timer and retry
                     }
+                    if (currentBatchSize == _batchConfig.maxBatchSize) {
+                        break;  // batch is full
+                    }
+                    timeLeftUs = _batchConfig.timeoutMs * 1000 - static_cast<int>(timer.end_ns() / 1000);
+                    if (timeLeftUs <= 0) {
+                        break;  // timeout and batch is not empty
+                    }
+                }
+                unorderedRequests.resize(currentBatchSize);
+                DLOG(INFO) << "Batch a block, size: " << currentBatchSize;
+                auto callback = getBatchCallback();
+                if (callback == nullptr) {
+                    LOG(WARNING) << "Batch call back is not set yet!";
+                    continue;
+                }
+                if (!callback(std::move(unorderedRequests))) {
+                    LOG(WARNING) << "Batch call back return false!";
+                    continue;
                 }
             }
         }
@@ -119,11 +149,12 @@ namespace peer::consensus {
         std::unique_ptr<std::thread> _collectorThread;
         std::unique_ptr<std::thread> _batchingThread;
         // the size of the queue is 5000 (5000 cached requests)
-        util::BlockingConcurrentQueue<std::unique_ptr<proto::Envelop>, 5000> _requestsQueue;
+        // TODO: consider limit the size of the queue
+        util::BlockingConcurrentQueue<std::unique_ptr<proto::Envelop>> _requestsQueue;
         // Receiving requests from local clients (as a server)
         std::shared_ptr<util::ZMQInstance> _subscriber;
         // Call this function when forming a request batch
-        std::mutex _batchCallbackMutex;
+        mutable std::mutex _batchCallbackMutex;
         std::function<bool(std::vector<std::unique_ptr<proto::Envelop>> unorderedRequests)> _batchCallback;
         std::function<bool(const proto::Envelop& envelop)> _validateCallback;
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;

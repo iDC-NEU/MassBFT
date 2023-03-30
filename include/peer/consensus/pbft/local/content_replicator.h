@@ -131,7 +131,9 @@ namespace peer::consensus {
                 }
                 block->header.dataHash = *ret;
                 block->setSerializedMessage(std::move(rawBlock));
-                _requestBatchQueue.enqueue(std::move(block));
+                if (!_requestBatchQueue.enqueue(std::move(block))) {
+                    CHECK(false) << "Queue max size achieve!";
+                }
                 return true;
             }
             // thread pool validate user requests
@@ -162,7 +164,9 @@ namespace peer::consensus {
             block->header.dataHash = *ret;
             block->setSerializedMessage(std::move(rawBlock));
             // Block number and previous data hash are set in OnRequestProposal as leader
-            _requestBatchQueue.enqueue(std::move(block));
+            if (!_requestBatchQueue.enqueue(std::move(block))) {
+                CHECK(false) << "Queue max size achieve!";
+            }
             return true;
         }
 
@@ -371,7 +375,8 @@ namespace peer::consensus {
         // Used when the node become follower, receive txn batch from leader, using zeromq
         std::pair<butil::atomic<int>*, util::MyFlatHashMap<proto::HashString, std::shared_ptr<proto::Block>, std::mutex>> _cache;
         // Used when the node become leader, receive txn batch from user and enqueue to queue
-        util::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>, 5> _requestBatchQueue;
+        // TODO: consider limit the size of the queue
+        util::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>> _requestBatchQueue;
         // Set by OnRequestProposal or OnVerifyProposal
         std::shared_ptr<::proto::Block> _deliveredLastBlock;
         std::shared_ptr<::proto::Block> _proposedLastBlock;

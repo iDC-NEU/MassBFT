@@ -22,7 +22,7 @@ namespace peer::consensus {
                 const std::shared_ptr<util::BCCSP>& bccsp,
                 std::shared_ptr<util::thread_pool_light> threadPoolForBCCSP,
                 std::shared_ptr<peer::MRBlockStorage> storage,
-                const RequestCollector::Config& batchConfig = {1000, 2500}) {
+                const RequestCollector::Config& batchConfig) {
             // generate the corresponding zmq configs
             std::vector<std::shared_ptr<util::ZMQInstanceConfig>> payloadZMQConfigs;
             if (!peer::v2::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,
@@ -49,7 +49,6 @@ namespace peer::consensus {
                                             std::move(collectorZMQConfigs)));
             // When the system is just started, all user requests received will be discarded
             // because the primary node is not determined. Thus, no need to call OnBecomeFollower(nullptr);
-            controller->_collector->start();
             if (!controller->_replicator->checkAndStart()) {
                 LOG(ERROR) << "Replicator service start failed!";
                 return nullptr;
@@ -123,6 +122,7 @@ namespace peer::consensus {
     protected:
         // When the node becomes the leader, it starts to receive messages from users
         void OnBecomeLeader() {
+            _collector->start();
             _collector->setBatchCallback([this](auto&& item) {
                 return _replicator->pushUnorderedBlock<eagerValidate>(std::forward<decltype(item)>(item));
             });

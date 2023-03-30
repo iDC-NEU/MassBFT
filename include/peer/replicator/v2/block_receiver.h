@@ -308,7 +308,9 @@ namespace peer::v2 {
                 if (ret == nullptr) {
                     continue;
                 }
-                receiver->_activeBlockResultQueue.enqueue(std::move(ret));
+                if (!receiver->_activeBlockResultQueue.enqueue(std::move(ret))) {
+                    CHECK(false) << "Queue max size achieve!";
+                }
                 nextBlockNumber++;
             }
             return nullptr;
@@ -387,7 +389,8 @@ namespace peer::v2 {
     private:
         // For active object, tid and message queue
         std::unique_ptr<std::thread> _thread;
-        util::BlockingConcurrentQueue<std::unique_ptr<std::string>, 100> _activeBlockResultQueue;
+        // TODO: consider limit the size of the queue
+        util::BlockingConcurrentQueue<std::unique_ptr<std::string>> _activeBlockResultQueue;
         // signal to alert if the system is shutdown
         volatile bool _tearDownSignal = false;
         // bfg and the remote region fragment config

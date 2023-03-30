@@ -97,7 +97,7 @@ TEST_F(ConsensusReplicatorTest, TestStateMachineNormalCase) {
 
 TEST_F(ConsensusReplicatorTest, TestWithPBFTService) {
     util::OpenSSLED25519::initCrypto();
-    std::unordered_map<int, ::util::NodeConfigPtr> nodes;
+    std::vector<::util::NodeConfigPtr> nodes(localNodes.size());
     for (auto& it: localNodes) {
         nodes[it->nodeConfig->nodeId] = it->nodeConfig;
     }
@@ -105,14 +105,14 @@ TEST_F(ConsensusReplicatorTest, TestWithPBFTService) {
     auto service1 = std::make_unique<peer::consensus::PBFTRPCService>();
     auto service2 = std::make_unique<peer::consensus::PBFTRPCService>();
     auto service3 = std::make_unique<peer::consensus::PBFTRPCService>();
-    CHECK(service0->checkAndStart<util::DefaultRpcServer<9510>>(nodes, bccsp, stateMachines[0]));
-    CHECK(service1->checkAndStart<util::DefaultRpcServer<9511>>(nodes, bccsp, stateMachines[1]));
-    CHECK(service2->checkAndStart<util::DefaultRpcServer<9512>>(nodes, bccsp, stateMachines[2]));
-    CHECK(service3->checkAndStart<util::DefaultRpcServer<9513>>(nodes, bccsp, stateMachines[3]));
-    util::DefaultRpcServer<9510>::Start();
-    util::DefaultRpcServer<9511>::Start();
-    util::DefaultRpcServer<9512>::Start();
-    util::DefaultRpcServer<9513>::Start();
+    CHECK(service0->checkAndStart<util::DefaultRpcServer>(nodes, bccsp, stateMachines[0]));
+    CHECK(service1->checkAndStart<util::DefaultRpcServer>(nodes, bccsp, stateMachines[1]));
+    CHECK(service2->checkAndStart<util::DefaultRpcServer>(nodes, bccsp, stateMachines[2]));
+    CHECK(service3->checkAndStart<util::DefaultRpcServer>(nodes, bccsp, stateMachines[3]));
+    util::DefaultRpcServer::Start(9510);
+    util::DefaultRpcServer::Start(9511);
+    util::DefaultRpcServer::Start(9512);
+    util::DefaultRpcServer::Start(9513);
     for (int i=0; i<200000; i++) {
         for (auto& it: stateMachines) {
             // insert some user request batches

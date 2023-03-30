@@ -25,7 +25,7 @@ namespace peer::consensus {
         PBFTRPCService(PBFTRPCService&&) = delete;
 
         template<class ServerClass=util::MetaRpcServer>
-        bool checkAndStart(std::unordered_map<int, ::util::NodeConfigPtr> localNodes
+        bool checkAndStart(std::vector<std::shared_ptr<util::NodeConfig>> localNodes
                 , std::shared_ptr<util::BCCSP> bccsp
                 , std::shared_ptr<PBFTStateMachine> stateMachine) {
             _localNodes = std::move(localNodes);
@@ -51,7 +51,7 @@ namespace peer::consensus {
             response->set_success(false);
             DLOG(INFO) << "requestProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
 
-            if (!_localNodes.contains(request->localid())) {
+            if ((int)_localNodes.size() <= request->localid()) {
                 LOG(WARNING) << "localId error.";
                 return;
             }
@@ -72,7 +72,7 @@ namespace peer::consensus {
             response->set_success(false);
             DLOG(INFO) << "verifyProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
 
-            if (!_localNodes.contains(request->localid())) {
+            if ((int)_localNodes.size() <= request->localid()) {
                 LOG(WARNING) << "localId error.";
                 return;
             }
@@ -93,7 +93,7 @@ namespace peer::consensus {
             response->set_success(false);
             DLOG(INFO) << "signProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
             auto nodeId = request->localid();
-            if (!_localNodes.contains(nodeId)) {
+            if ((int)_localNodes.size() <= nodeId) {
                 LOG(WARNING) << "Wrong node id.";
                 return;
             }
@@ -129,7 +129,7 @@ namespace peer::consensus {
             for (int i=0; i<request->contents_size(); i++) {
                 auto& it = consensusSignatures[i];
                 std::memcpy(it.digest.data(), request->signatures(i).data(), it.digest.size());
-                if (!_localNodes.contains(request->localid())) {
+                if ((int)_localNodes.size() <= request->localid()) {
                     LOG(WARNING) << "Signatures contains error.";
                     return;
                 }
@@ -152,7 +152,7 @@ namespace peer::consensus {
                          ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             DLOG(INFO) << "leaderStart, Node: " << request->localid() << ", sequence: " << request->sequence();
-            if (!_localNodes.contains(request->localid())) {
+            if ((int)_localNodes.size() <= request->localid()) {
                 LOG(WARNING) << "localId error.";
                 return;
             }
@@ -168,7 +168,7 @@ namespace peer::consensus {
             DLOG(INFO) << "leaderChanged, LocalNode: " << request->localid()
                        << ", NewLeader: " << request->newleaderid()
                        << ", sequence: " << request->sequence();
-            if (!_localNodes.contains(request->localid()) || !_localNodes.contains(request->newleaderid())) {
+            if ((int)_localNodes.size() <= request->localid() || (int)_localNodes.size() <= request->newleaderid()) {
                 LOG(WARNING) << "localId or newLeaderId error.";
                 return;
             }
@@ -178,7 +178,7 @@ namespace peer::consensus {
 
     private:
         // key: node id, value: node ski
-        std::unordered_map<int, ::util::NodeConfigPtr> _localNodes;
+        std::vector<std::shared_ptr<util::NodeConfig>> _localNodes;
         std::shared_ptr<util::BCCSP> _bccsp;
         std::shared_ptr<PBFTStateMachine> _stateMachine;
     };

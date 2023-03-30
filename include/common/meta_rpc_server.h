@@ -8,7 +8,6 @@
 #include <memory>
 
 namespace util {
-    template<int port=9500>
     class DefaultRpcServer {
     public:
         // Add services into server. Notice the second parameter, because the
@@ -28,7 +27,7 @@ namespace util {
             return 0;
         }
 
-        static int Start() {
+        static int Start(int port=9500) {
             std::lock_guard guard(mutex);
             if (!globalControlServer) {
                 return -1;
@@ -55,5 +54,5 @@ namespace util {
         inline static std::vector<std::function<void()>> onStopList;
     };
 
-    using MetaRpcServer = DefaultRpcServer<>;
+    using MetaRpcServer = DefaultRpcServer;
 }

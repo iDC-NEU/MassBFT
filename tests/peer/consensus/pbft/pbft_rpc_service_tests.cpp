@@ -66,12 +66,12 @@ protected:
             cfg->ip = "127.0.0.1";
             auto key = bccsp->generateED25519Key(cfg->ski, false);
             CHECK(key != nullptr);
-            localNodes[i] = std::move(cfg);
+            localNodes.push_back(std::move(cfg));
         }
         stateMachine = std::make_shared<MockPBFTStateMachine>();
     }
 
-    std::unordered_map<int, ::util::NodeConfigPtr> localNodes;
+    std::vector<::util::NodeConfigPtr> localNodes;
     std::shared_ptr<util::BCCSP> bccsp;
     std::shared_ptr<MockPBFTStateMachine> stateMachine;
 };

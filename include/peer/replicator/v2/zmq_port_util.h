@@ -42,16 +42,18 @@ namespace peer::v2 {
                     clientToServerPorts.resize(totalNodes);
                     userRequestCollectorPorts.resize(totalNodes);
                     bftPayloadSeparationPorts.resize(totalNodes);
+                    bftRpcPorts.resize(totalNodes);
                     for (int j=0; j<totalNodes; j++) {
                         // Iterate through nodes in local region
                         serverToServerPorts[j] = realPortOffset++;
                         clientToServerPorts[j] = realPortOffset++;
                         userRequestCollectorPorts[j] = realPortOffset++;
                         bftPayloadSeparationPorts[j] = realPortOffset++;
+                        bftRpcPorts[j] = realPortOffset++;
                     }
                     continue;
                 }
-                realPortOffset += 4*totalNodes;
+                realPortOffset += 5*totalNodes;
             }
             // Allocate rfr ports and fr ports
             for (int i=0; i<regionId; i++) {
@@ -103,6 +105,8 @@ namespace peer::v2 {
 
         [[nodiscard]] inline const auto& getBFTPayloadSeparationPorts() const { return bftPayloadSeparationPorts; }
 
+        [[nodiscard]] inline const auto& getBFTRpcPorts() const { return bftRpcPorts; }
+
         static bool WrapPortWithConfig(const std::vector<std::shared_ptr<util::NodeConfig>>& nodes,
                                        const std::vector<int>& ports,
                                        std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& zmqInstances) {
@@ -128,6 +132,8 @@ namespace peer::v2 {
         std::vector<int> userRequestCollectorPorts;
         // The port used to separate the pbft consensus message from the real content
         std::vector<int> bftPayloadSeparationPorts;
+        // The port used to connect the peer with the bft instance
+        std::vector<int> bftRpcPorts;
         // broadcast in the local zone, key region id, value port (as ZMQServer)
         std::vector<int> frPorts;
         // receive from crossRegionSender, key region id, value port (as ReliableZmqServer)

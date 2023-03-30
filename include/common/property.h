@@ -20,7 +20,7 @@ namespace util {
 
     struct ZMQInstanceConfig {
         util::NodeConfigPtr nodeConfig;
-        std::string& addr() {
+        [[nodiscard]] std::string& addr() const {
             DCHECK(nodeConfig != nullptr) << "nodeConfig unset!";
             return nodeConfig->ip;
         }

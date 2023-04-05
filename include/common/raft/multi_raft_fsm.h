@@ -2,8 +2,7 @@
 // Created by peng on 2/13/23.
 //
 
-#ifndef NBP_MULTI_RAFT_FSM_H
-#define NBP_MULTI_RAFT_FSM_H
+#pragma once
 
 #include "common/raft/raft_fsm.h"
 #include "common/raft/node_closure.h"
@@ -30,7 +29,7 @@ namespace util::raft {
 
         // start a new raft group, return 0 on success
         // note: peers must include local peer
-        int start(const std::vector<braft::PeerId>& peers, int local_peer_index, braft::Closure *leader_start_closure = nullptr) {
+        int start(const std::vector<braft::PeerId>& peers, int local_peer_index, SingleRaftFSM *fsm = nullptr) {
             // index is not out of range
             if (local_peer_index >= (int)peers.size() || local_peer_index < 0) {
                 LOG(WARNING) << "init_node failed, peers index out of range.";
@@ -49,10 +48,10 @@ namespace util::raft {
 
             options->initial_conf = braft::Configuration(peers);
 
-            auto* fsm = new SingleRaftFSM(local_peer.addr);
-            if (leader_start_closure) {
-                fsm->set_on_leader_start_closure(leader_start_closure);
+            if (fsm == nullptr) {
+                fsm = new SingleRaftFSM();
             }
+            fsm->set_address(local_peer.addr);
             options->fsm = fsm;
             options->node_owns_fsm = true;
             butil::string_printf(&options->log_uri, "local://./data/%s/log", local_peer.to_string().c_str());
@@ -219,5 +218,3 @@ namespace util::raft {
 
     };
 }
-
-#endif //NBP_MULTI_RAFT_FSM_H

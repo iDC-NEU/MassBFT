@@ -20,5 +20,5 @@ protected:
 
 // TODO: test the cluster
 TEST_F(FSMTest, IntrgrateTest) {
-    util::raft::SingleRaftFSM fsm(butil::EndPoint{});
+    util::raft::SingleRaftFSM fsm;
 }

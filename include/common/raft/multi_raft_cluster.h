@@ -18,7 +18,7 @@ namespace util::raft {
             stop_all();
         }
 
-        int start_raft_group(const std::vector<braft::PeerId> &peers, braft::Closure *leader_start_closure = nullptr) {
+        int start_raft_group(const std::vector<braft::PeerId> &peers, SingleRaftFSM *singleRaftFsm = nullptr) {
             for (const auto& peer: peers) {
                 if (_serverMap[peer.addr] == nullptr) {
                     std::unique_ptr<brpc::Server> server(new brpc::Server());
@@ -32,7 +32,7 @@ namespace util::raft {
             }
             for (int i=0; i<(int)peers.size(); i++) {
                 auto& fsm = _stateMachines[peers[i].addr];
-                if (int ret = fsm->start(peers, i, leader_start_closure); ret != 0) {
+                if (int ret = fsm->start(peers, i, singleRaftFsm); ret != 0) {
                     LOG(ERROR) << "Fail to init fsm";
                     return ret;
                 }

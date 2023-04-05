@@ -2,8 +2,7 @@
 // Created by peng on 2/10/23.
 //
 
-#ifndef NBP_RAFT_FSM_H
-#define NBP_RAFT_FSM_H
+#pragma once
 
 #include "braft/node.h"
 #include "braft/enum.pb.h"
@@ -18,31 +17,24 @@ namespace util::raft {
     class SingleRaftFSM : public ::braft::StateMachine {
     public:
         // address_: the local endpoint
-        explicit SingleRaftFSM(const butil::EndPoint& address_)
-                : address(address_)
+        explicit SingleRaftFSM()
+                : address()
                 , logs()
                 , applied_index(0)
                 , snapshot_index(0)
                 , _on_start_following_times(0)
                 , _on_stop_following_times(0)
-                , _leader_term(-1)
-                , _on_leader_start_closure(nullptr) {
+                , _leader_term(-1) {
 
         }
 
-        // The closure is invoked only once when the node become leader
-        void set_on_leader_start_closure(::braft::Closure* closure) {
-            _on_leader_start_closure = closure;
+        // called by multi raft fsm
+        void set_address(const butil::EndPoint& addr) {
+            address = addr;
         }
 
         void on_leader_start(int64_t term) override {
             _leader_term = term;
-            if (_on_leader_start_closure) {
-                LOG(INFO) << "addr " << address << " before leader start closure";
-                _on_leader_start_closure->Run();
-                LOG(INFO) << "addr " << address << " after leader start closure";
-                _on_leader_start_closure = nullptr;
-            }
             LOG(INFO) << "addr " << address << " becomes leader";
         }
 
@@ -154,8 +146,6 @@ namespace util::raft {
         int64_t _on_start_following_times;
         int64_t _on_stop_following_times;
         volatile int64_t _leader_term;
-        ::braft::Closure* _on_leader_start_closure;
     };
 
 }
-#endif //NBP_RAFT_FSM_H

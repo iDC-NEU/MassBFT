@@ -29,6 +29,10 @@ namespace util {
             std::this_thread::sleep_for(std::chrono::nanoseconds(t));
         }
 
+        static inline void sleep_ms(int64_t t) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(t));
+        }
+
         static inline void sleep_sec(double t) {
             if (t <= 0) { return; }
             uint64_t span = static_cast<int64_t>(t * 1000 * 1000 * 1000);

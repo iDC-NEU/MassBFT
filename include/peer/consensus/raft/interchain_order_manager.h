@@ -53,16 +53,19 @@ namespace peer::consensus {
             // after we collect ALL decisions, we calculate depends and depended
             std::unordered_map<int, int> depends;
             std::unordered_map<int, std::unordered_set<int>> depended;
+
             // after depends is empty, finished=true, and clear depended recursively.
             inline bool resolvedDependencies() const {
                 return depends.empty() && !finishedVectorClock.empty();
             }
+
             inline bool calculatedFinalVC() const {
                 return !finishedVectorClock.empty();
             }
         };
 
         struct Chain {
+            int lastFinished = -1;
             std::unordered_map<int, std::unique_ptr<Cell>> blocks;
         };
 
@@ -99,6 +102,8 @@ namespace peer::consensus {
             if (cell->finishedVectorClock.empty()) {
                 return false;   // vector clock merged error
             }
+            // LOG(INFO) << cell->subChainId << " " << cell->blockNumber << " " << cell->finishedVectorClock[0]
+            //           << " " << cell->finishedVectorClock[1] << " " << cell->finishedVectorClock[2];
             // calculate depends list
             for (const auto& it: cell->finishedVectorClock) {
                 if (it.second == -1) {  // in it.first sub chain, current cell depend on nothing
@@ -112,9 +117,6 @@ namespace peer::consensus {
                     CHECK(rhs->blockNumber == cell->blockNumber - 1) << "Block number check failed, indicating a bug.";
                 }
                 //----CHECK CELL END----
-                if (DeterministicCompareCells(cell, rhs)) {
-                    continue;   // rhs > cell
-                }
                 if (rhs->resolvedDependencies()) {
                     continue;   // rhs is finished
                 }
@@ -145,6 +147,9 @@ namespace peer::consensus {
             if (!cell->resolvedDependencies()) {
                 return true;    // not all depends block are solved
             }
+            if (cell->blockNumber <= chains.at(cell->subChainId).lastFinished) {
+                return true;    // repeated calls
+            }
             // We are able to determine the order of the block among the sub chains
             for (const auto& chainId: cell->depended) {
                 for (const auto& blockNumber: chainId.second) {
@@ -164,6 +169,8 @@ namespace peer::consensus {
                 }
             }
             cell->depended.clear();
+            CHECK(chains.at(cell->subChainId).lastFinished == cell->blockNumber - 1);
+            chains.at(cell->subChainId).lastFinished = cell->blockNumber;
             // cell is finished, call the callback function
             if (callback != nullptr) {
                 callback(cell);
@@ -195,7 +202,7 @@ namespace peer::consensus {
         }
 
         // return true when lhs < rhs;
-        static inline bool DeterministicCompareCells(Cell* lhs, Cell* rhs) {
+        static inline bool DeterministicCompareCells(const Cell* lhs, const Cell* rhs) {
             // compare vector clock
             for (const auto& it: lhs->finishedVectorClock) {
                 auto ret = rhs->finishedVectorClock.find(it.first);

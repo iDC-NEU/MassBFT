@@ -77,7 +77,7 @@ TEST_F(LocalPBFTControllerTest, TestCreate) {
     auto client0 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[0]);
     auto client1 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[1]);
     auto client2 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[2]);
-    util::Timer::sleep_sec(25);  // wait for all zmq instance ready
+    util::Timer::sleep_sec(60);  // wait for all zmq instance ready
     for (int i=0; i<200 * 100; i++) {
         auto envelop = createSignedEnvelop(i%4);
         std::string buf;

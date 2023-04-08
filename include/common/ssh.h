@@ -10,8 +10,26 @@
 
 struct ssh_session_struct;
 struct ssh_channel_struct;
+struct sftp_session_struct;
 
 namespace util {
+    class SFTPSession{
+    public:
+        static std::unique_ptr<SFTPSession> NewSFTPSession(ssh_session_struct* session);
+
+        ~SFTPSession();
+
+        SFTPSession(const SFTPSession&) = delete;
+
+        SFTPSession(SFTPSession&&) = delete;
+
+    protected:
+        SFTPSession() = default;
+    private:
+        sftp_session_struct* _sftp{};
+
+    };
+
     class SSHChannel {
     public:
         static std::unique_ptr<SSHChannel> NewSSHChannel(ssh_session_struct* session);

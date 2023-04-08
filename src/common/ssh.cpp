@@ -4,7 +4,42 @@
 
 #include "common/ssh.h"
 #include <libssh/libssh.h>
+#include <libssh/sftp.h>
 #include "glog/logging.h"
+
+
+std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session_struct* session){
+    //open SFTPSession
+    auto sftp = sftp_new(session);
+    if(sftp == nullptr){
+        LOG(ERROR) << "Error allocating SFTP session: %s\n" << ssh_get_error(session);
+        return nullptr;
+    }
+    //TODO: logERROR sftp errors according to ssh_get_error()
+
+    // Assign value
+    std::unique_ptr<util::SFTPSession> sftpSession(new util::SFTPSession);
+
+    // SFTP protocol initialization
+    auto ret = sftp_init(sftp);
+    if (ret != SSH_OK)
+    {
+        LOG(ERROR) << "Error initializing SFTP session: code %d.\n" << sftp_get_error(sftp);
+        //TODO: logERROR sftp errors according to ssh_get_error()
+        sftp_free(sftp);
+        return nullptr;
+    }
+
+    return sftpSession;
+}
+
+util::SFTPSession::~SFTPSession() {
+    // close SFTPSession
+    if(_sftp != nullptr){
+        sftp_free(_sftp);
+    }
+
+}
 
 std::unique_ptr<util::SSHChannel> util::SSHChannel::NewSSHChannel(ssh_session_struct *session) {
     auto channel = ssh_channel_new(session);
@@ -20,6 +55,7 @@ std::unique_ptr<util::SSHChannel> util::SSHChannel::NewSSHChannel(ssh_session_st
     }
     return sshChannel;
 }
+
 
 util::SSHChannel::~SSHChannel() {
     if (_channel == nullptr) {

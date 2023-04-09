@@ -5,6 +5,8 @@
 #include "common/ssh.h"
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include "glog/logging.h"
 
 
@@ -15,7 +17,6 @@ std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session
         LOG(ERROR) << "Error allocating SFTP session: %s\n" << ssh_get_error(session);
         return nullptr;
     }
-    //TODO: logERROR sftp errors according to ssh_get_error()
 
     // Assign value
     std::unique_ptr<util::SFTPSession> sftpSession(new util::SFTPSession);
@@ -24,8 +25,13 @@ std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session
     auto ret = sftp_init(sftp);
     if (ret != SSH_OK)
     {
-        LOG(ERROR) << "Error initializing SFTP session: code %d.\n" << sftp_get_error(sftp);
-        //TODO: logERROR sftp errors according to ssh_get_error()
+        int sftp_error = sftp_get_error(sftp);
+        LOG(ERROR) << "Error initializing SFTP session: code %d.\n" << sftp_error;
+
+        // analyze sftpError
+        //TODO: does the log error in this function right?
+        sftpSession -> analyzeSftpError(sftp_error);
+
         sftp_free(sftp);
         return nullptr;
     }
@@ -38,7 +44,89 @@ util::SFTPSession::~SFTPSession() {
     if(_sftp != nullptr){
         sftp_free(_sftp);
     }
+}
 
+void util::SFTPSession::analyzeSftpError(int sftp_error){
+    // analyze the sftpError type when it occurs
+    switch (sftp_error) {
+        case SSH_FX_OK:
+            // no error
+            //TODO: does this situation need sftp_free()?
+            break;
+
+        case SSH_FX_EOF:
+            LOG(ERROR) << " end-of-file encountered. " ;
+
+        case SSH_FX_NO_SUCH_FILE:
+            LOG(ERROR) << " file dos not exist. " ;
+
+        case SSH_FX_PERMISSION_DENIED:
+            LOG(ERROR) << " permission denied. " ;
+
+        case SSH_FX_FAILURE:
+            LOG(ERROR) << " generic failure. " ;
+
+        case SSH_FX_BAD_MESSAGE:
+            LOG(ERROR) << "garbage received from server. ";
+
+        case SSH_FX_NO_CONNECTION:
+            LOG(ERROR) << "no connection has been set up. ";
+
+        case SSH_FX_CONNECTION_LOST:
+            LOG(ERROR) << "there was a connection, but we lost it. ";
+
+        case SSH_FX_OP_UNSUPPORTED:
+            LOG(ERROR) << " operation not supported by libssh yet. ";
+
+        case SSH_FX_INVALID_HANDLE:
+            LOG(ERROR) << " invalid file handle. ";
+
+        case SSH_FX_NO_SUCH_PATH:
+            LOG(ERROR) << " no such file or directory path exists. ";
+
+        case SSH_FX_FILE_ALREADY_EXISTS:
+            LOG(ERROR) << " an attempt to create an already existing file or directory has been made. ";
+
+        case SSH_FX_WRITE_PROTECT:
+            LOG(ERROR) << " write-protected filesystem. ";
+
+        case SSH_FX_NO_MEDIA:
+            LOG(ERROR) << "  no media was in remote drive. ";
+
+    };
+}
+
+int util::SFTPSession::writeConfig(ssh_session_struct *session, sftp_session_struct *sftp, const char* read_path,const char* write_path) {
+    // write .config from read_path to write_path(/tmp)
+    int access_type = O_CREAT;
+    sftp_file file;
+    const char *helloworld = "Hello, World!\n";
+    int length = strlen(helloworld);
+    int ret, nwritten;
+
+
+    file = sftp_open(sftp, write_path,access_type, S_IRWXU);
+    if (file == nullptr)
+    {
+        LOG(ERROR) << "Can't open file for writing: %s\n" << ssh_get_error(session);
+        return SSH_ERROR;
+    }
+
+    nwritten = sftp_write(file, helloworld, length);
+    if (nwritten != length)
+    {
+        LOG(ERROR) << "Can't write data to file: %s\n" << ssh_get_error(session);
+        sftp_close(file);
+        return SSH_ERROR;
+    }
+
+    ret = sftp_close(file);
+    if (ret != SSH_OK){
+        LOG(ERROR) << "Can't close the written file: %s\n" << ssh_get_error(session);
+        return ret;
+    }
+
+    return SSH_OK;
 }
 
 std::unique_ptr<util::SSHChannel> util::SSHChannel::NewSSHChannel(ssh_session_struct *session) {

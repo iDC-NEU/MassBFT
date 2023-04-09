@@ -23,8 +23,13 @@ namespace util {
 
         SFTPSession(SFTPSession&&) = delete;
 
+        void analyzeSftpError(int sftp_error);    // analyze the sftpError type when it occurs
+
+        int writeConfig(ssh_session_struct* session, sftp_session_struct* sftp, const char* read_path, const char* write_path);   // write .config from read_path to write_path(/tmp)
+
     protected:
         SFTPSession() = default;
+
     private:
         sftp_session_struct* _sftp{};
 

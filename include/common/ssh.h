@@ -29,8 +29,6 @@ namespace util {
 
         int writeConfig(std::string config_string, const char* write_path);   // write .config from read_path to write_path(/tmp)
 
-        void setSession(ssh_session_struct* session){ _session = session; };  //TODO:可以这么写么？
-
     protected:
         SFTPSession() = default;
 

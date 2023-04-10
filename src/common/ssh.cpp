@@ -25,7 +25,7 @@ std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session
     std::unique_ptr<util::SFTPSession> sftpSession(new util::SFTPSession);
 
     //TODO: assign value of session to sftp->_session, is this right?
-    sftpSession->setSession(session);
+    sftpSession->_session = session;
     sftpSession->_sftp = sftp;
 
     // SFTP protocol initialization

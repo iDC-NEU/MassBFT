@@ -27,13 +27,16 @@ namespace util {
 
         std:: string readConfig(const char* read_path);    // read .config file to char*
 
-        int writeConfig(ssh_session_struct* session, sftp_session_struct* sftp, const char* read_path, const char* write_path);   // write .config from read_path to write_path(/tmp)
+        int writeConfig(std::string config_string, const char* write_path);   // write .config from read_path to write_path(/tmp)
+
+        void setSession(ssh_session_struct* session){ _session = session; };  //TODO:可以这么写么？
 
     protected:
         SFTPSession() = default;
 
     private:
         sftp_session_struct* _sftp{};
+        ssh_session_struct* _session{};
 
     };
 
@@ -78,6 +81,8 @@ namespace util {
         [[nodiscard]] auto getIp() const { return _ip; }
 
         auto createChannel() { return SSHChannel::NewSSHChannel(this->_session); }
+
+        auto createSFTPSession(){ return SFTPSession::NewSFTPSession(this->_session); }
 
     protected:
         SSHSession() = default;

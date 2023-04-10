@@ -7,6 +7,8 @@
 #include <libssh/sftp.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <string.h>
+#include <fstream>
 #include "glog/logging.h"
 
 
@@ -96,12 +98,38 @@ void util::SFTPSession::analyzeSftpError(int sftp_error){
     };
 }
 
+std::string util::SFTPSession::readConfig(const char *read_path) {
+    // read .config file to char*
+    std::string config_string;
+    std::ifstream read_file;
+    read_file.open(read_path,std::ios::in);
+
+    if(!read_file.is_open()){
+        LOG(ERROR) << "cannot open the config file. ";
+        read_file.close();
+        return NULL;
+    }
+
+    std::string strLine;
+    while(std::getline(read_file,strLine)) {
+        if (!strLine.empty() && !strLine.starts_with('#')){
+            config_string += strLine;
+            config_string += "\n";
+        }else{
+            break;
+        }
+    }
+    return config_string;
+}
+
 int util::SFTPSession::writeConfig(ssh_session_struct *session, sftp_session_struct *sftp, const char* read_path,const char* write_path) {
     // write .config from read_path to write_path(/tmp)
     int access_type = O_CREAT;
     sftp_file file;
-    const char *helloworld = "Hello, World!\n";
-    int length = strlen(helloworld);
+
+    std::string config_string = readConfig(read_path);
+
+    int length = strlen(config_string.data());
     int ret, nwritten;
 
 
@@ -112,7 +140,9 @@ int util::SFTPSession::writeConfig(ssh_session_struct *session, sftp_session_str
         return SSH_ERROR;
     }
 
-    nwritten = sftp_write(file, helloworld, length);
+    //TODO:convert to protobuf
+
+    nwritten = sftp_write(file, config_string.data(), length);
     if (nwritten != length)
     {
         LOG(ERROR) << "Can't write data to file: %s\n" << ssh_get_error(session);

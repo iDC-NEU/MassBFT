@@ -25,6 +25,8 @@ namespace util {
 
         void analyzeSftpError(int sftp_error);    // analyze the sftpError type when it occurs
 
+        std:: string readConfig(const char* read_path);    // read .config file to char*
+
         int writeConfig(ssh_session_struct* session, sftp_session_struct* sftp, const char* read_path, const char* write_path);   // write .config from read_path to write_path(/tmp)
 
     protected:

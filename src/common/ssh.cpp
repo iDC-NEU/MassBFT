@@ -15,6 +15,7 @@
 std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session_struct* session){
     //open SFTPSession
     auto sftp = sftp_new(session);
+
     if(sftp == nullptr){
         LOG(ERROR) << "Error allocating SFTP session: %s\n" << ssh_get_error(session);
         return nullptr;
@@ -22,6 +23,10 @@ std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session
 
     // Assign value
     std::unique_ptr<util::SFTPSession> sftpSession(new util::SFTPSession);
+
+    //TODO: assign value of session to sftp->_session, is this right?
+    sftpSession->setSession(session);
+    sftpSession->_sftp = sftp;
 
     // SFTP protocol initialization
     auto ret = sftp_init(sftp);
@@ -112,9 +117,12 @@ std::string util::SFTPSession::readConfig(const char *read_path) {
 
     std::string strLine;
     while(std::getline(read_file,strLine)) {
-        if (!strLine.empty() && !strLine.starts_with('#')){
-            config_string += strLine;
-            config_string += "\n";
+        if (!strLine.empty()){
+            if(!strLine.starts_with("#")){
+                config_string.append(strLine);
+                config_string.append("\n");
+            }
+            continue;
         }else{
             break;
         }
@@ -122,22 +130,20 @@ std::string util::SFTPSession::readConfig(const char *read_path) {
     return config_string;
 }
 
-int util::SFTPSession::writeConfig(ssh_session_struct *session, sftp_session_struct *sftp, const char* read_path,const char* write_path) {
+int util::SFTPSession::writeConfig(std::string config_string, const char* write_path) {
     // write .config from read_path to write_path(/tmp)
-    int access_type = O_CREAT;
+    int access_type = O_WRONLY | O_CREAT | O_TRUNC;
     sftp_file file;
-
-    std::string config_string = readConfig(read_path);
 
     int length = strlen(config_string.data());
     int ret, nwritten;
 
-
-    file = sftp_open(sftp, write_path,access_type, S_IRWXU);
+    file = sftp_open(this->_sftp, write_path,access_type, S_IRWXU);
     if (file == nullptr)
     {
-        LOG(ERROR) << "Can't open file for writing: %s\n" << ssh_get_error(session);
-        return SSH_ERROR;
+        LOG(ERROR) << "Can't open file for writing: %s\n" << ssh_get_error(this->_session);
+        // return SSH_ERROR;
+        return false;
     }
 
     //TODO:convert to protobuf
@@ -145,18 +151,21 @@ int util::SFTPSession::writeConfig(ssh_session_struct *session, sftp_session_str
     nwritten = sftp_write(file, config_string.data(), length);
     if (nwritten != length)
     {
-        LOG(ERROR) << "Can't write data to file: %s\n" << ssh_get_error(session);
+        LOG(ERROR) << "Can't write data to file: %s\n" << ssh_get_error(this->_session);
         sftp_close(file);
-        return SSH_ERROR;
+        // return SSH_ERROR;
+        return false;
     }
 
     ret = sftp_close(file);
     if (ret != SSH_OK){
-        LOG(ERROR) << "Can't close the written file: %s\n" << ssh_get_error(session);
-        return ret;
+        LOG(ERROR) << "Can't close the written file: %s\n" << ssh_get_error(this->_session);
+        // return ret;
+        return false;
     }
 
-    return SSH_OK;
+    // return SSH_OK;
+    return true;
 }
 
 std::unique_ptr<util::SSHChannel> util::SSHChannel::NewSSHChannel(ssh_session_struct *session) {

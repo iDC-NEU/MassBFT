@@ -122,9 +122,6 @@ std::string util::SFTPSession::readConfig(const char *read_path) {
                 config_string.append(strLine);
                 config_string.append("\n");
             }
-            continue;
-        }else{
-            break;
         }
     }
     return config_string;

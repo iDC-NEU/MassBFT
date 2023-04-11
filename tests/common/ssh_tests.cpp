@@ -27,14 +27,20 @@ TEST_F(SSHTest, IntrgrateTest) {
     // create sftp_session
     auto sftp = session->createSFTPSession();
     ASSERT_TRUE(sftp != nullptr);
-    auto config_str = sftp->readConfig("/home/user/nc_bft/config/hosts.config");
-    ASSERT_TRUE(config_str.data());
-    ret = sftp->writeConfig(config_str, "/tmp/hosts.config");
+    auto hosts_config = sftp->readConfig("/home/user/nc_bft/config/hosts.config");
+    ASSERT_TRUE(hosts_config.data());
+    ret = sftp->writeConfig(hosts_config, "/tmp/hosts.config");
+    ASSERT_TRUE(ret);
+    auto system_config = sftp->readConfig("/home/user/nc_bft/config/system.config");
+    ASSERT_TRUE(system_config.data());
+    ret = sftp->writeConfig(system_config, "/tmp/system.config");
     ASSERT_TRUE(ret);
 
 
     std::string out, err;
-    ret = channel->execute("ls -l");
+//    ret = channel->execute("cp -r /home/user/nc_bft/config /tmp");
+//    ASSERT_TRUE(ret);
+    ret = channel->execute("/home/user/.jdks/openjdk-20/bin/java -Dlogback.configurationFile=/home/user/nc_bft/config/logback.xml -classpath /home/user/nc_bft/nc_bft.jar bftsmart.demo.neuchainplus.NeuChainServer 0");
     ASSERT_TRUE(ret);
     auto cb = [](std::string_view sv) {
         if (sv.empty()) {

@@ -21,34 +21,41 @@ TEST_F(SSHTest, IntrgrateTest) {
     ASSERT_TRUE(session != nullptr);
     auto ret = session->connect("user", "123456");
     ASSERT_TRUE(ret);
-    auto channel = session->createChannel();
-    ASSERT_TRUE(channel != nullptr);
+    std::string runningPath = "/home/user/nc_bft/";
+    auto hostConfigPath = "/tmp/hosts.config";
+    for (int i=0; i<4; i++) {
+        auto remoteFilePath = runningPath + "hosts_" + std::to_string(i) + ".config";
+        auto it = session->createSFTPSession();
+        ASSERT_TRUE(it->putFile(remoteFilePath, true, hostConfigPath));
+    }
 
-    // create sftp_session
-    auto sftp = session->createSFTPSession();
-    ASSERT_TRUE(sftp != nullptr);
-    auto hosts_config = sftp->readConfig("/home/user/nc_bft/config/hosts.config");
-    ASSERT_TRUE(hosts_config.data());
-    ret = sftp->writeConfig(hosts_config, "/tmp/hosts.config");
-    ASSERT_TRUE(ret);
-    auto system_config = sftp->readConfig("/home/user/nc_bft/config/system.config");
-    ASSERT_TRUE(system_config.data());
-    ret = sftp->writeConfig(system_config, "/tmp/system.config");
-    ASSERT_TRUE(ret);
+    std::vector<std::unique_ptr<util::SSHChannel>> channelList(4);
+    for (auto& it: channelList) {
+        it = session->createChannel();
+        ASSERT_TRUE(it != nullptr);
+    }
 
+    std::string jvmPath = "/home/user/.jdks/openjdk-20/bin/java ";
+    std::string jvmOption = "-Dlogback.configurationFile=./config/logback.xml ";
+    std::string classPath = "-classpath ./nc_bft.jar ";
 
-    std::string out, err;
-//    ret = channel->execute("cp -r /home/user/nc_bft/config /tmp");
-//    ASSERT_TRUE(ret);
-    ret = channel->execute("/home/user/.jdks/openjdk-20/bin/java -Dlogback.configurationFile=/home/user/nc_bft/config/logback.xml -classpath /home/user/nc_bft/nc_bft.jar bftsmart.demo.neuchainplus.NeuChainServer 0");
-    ASSERT_TRUE(ret);
     auto cb = [](std::string_view sv) {
         if (sv.empty()) {
-            return false;
+            return true;
         }
         LOG(INFO) << sv;
         return true;
     };
-    channel->read(out, false, cb);
-    channel->read(err, true, cb);
+
+    for (int i=0; i<(int)channelList.size(); i++) {
+        channelList[i]->execute("cd " + runningPath + "&&" + jvmPath.append(jvmOption).append(classPath) + "bftsmart.demo.neuchainplus.NeuChainServer " + std::to_string(i));
+    }
+    std::string out, error;
+    channelList[0]->read(out, false, cb);
+    channelList[0]->read(error, true, cb);
+    sleep(3600);
+}
+
+TEST_F(SSHTest, StopExecuteTest) {
+
 }

@@ -7,13 +7,14 @@
 #include <utility>
 #include <memory>
 #include <functional>
+#include <optional>
 
 struct ssh_session_struct;
 struct ssh_channel_struct;
 struct sftp_session_struct;
 
 namespace util {
-    class SFTPSession{
+    class SFTPSession {
     public:
         static std::unique_ptr<SFTPSession> NewSFTPSession(ssh_session_struct* session);
 
@@ -23,11 +24,21 @@ namespace util {
 
         SFTPSession(SFTPSession&&) = delete;
 
-        void analyzeSftpError(int sftp_error);    // analyze the sftpError type when it occurs
+        void printError() const;
 
-        std:: string readConfig(const char* read_path);    // read .config file to char*
+        // remoteFilePath: if you want to store the file in remote working path please set with "./fileName"
+        bool putFile(const std::string& remoteFilePath, bool override, void* data, int size);
 
-        int writeConfig(std::string config_string, const char* write_path);   // write .config from read_path to write_path(/tmp)
+        // remoteFilePath: if you want to store the file in remote working path please set with "./fileName"
+        bool putFile(const std::string& remoteFilePath, bool override, const std::string& localFilePath);
+
+        bool setWorkingDirectory(const std::string& remotePath);
+
+        // remoteFilePath: the file name and the relevant path
+        std::optional<std::string> getFileToMemory(const std::string& remoteFilePath);
+
+        // localPath: if you want to store the file in current running path please set with "./"
+        bool getFileToDisk(const std::string& remoteFilePath, const std::string& localPath);
 
     protected:
         SFTPSession() = default;
@@ -48,6 +59,7 @@ namespace util {
 
         SSHChannel(SSHChannel&&) = delete;
 
+        // execute can only be called once in non-interactive channel
         bool execute(const std::string &command);
 
         bool read(std::string& buf, int errFlag, const std::function<bool(std::string_view append)>& callback=nullptr);

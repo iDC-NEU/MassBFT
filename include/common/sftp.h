@@ -37,10 +37,10 @@ namespace util {
         bool setWorkingDirectory(const std::string& remotePath);
 
         // remoteFilePath: the file name and the relevant path
-        std::optional<std::string> getFileToMemory(const std::string& remoteFilePath);
+        bool  getFileToLocal(const std::string& remoteFilePath, const std::string &localFilePath);
 
         // localPath: if you want to store the file in current running path please set with "./"
-        bool getFileToDisk(const std::string& remoteFilePath, const std::string& localPath);
+        // bool getFileToDisk(const std::string& remoteFilePath, const std::string& localPath);
 
     protected:
         SFTPSession() = default;

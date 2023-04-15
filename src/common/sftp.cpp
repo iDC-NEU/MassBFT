@@ -9,6 +9,8 @@
 #include <fcntl.h>
 #include "glog/logging.h"
 
+#define MAX_XFER_BUF_SIZE 16384
+
 std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session_struct* session) {
     auto sftp = sftp_new(session);
     if(sftp == nullptr) {
@@ -120,10 +122,40 @@ bool util::SFTPSession::putFile(const std::string &remoteFilePath, bool override
     return true;
 }
 
-std::optional<std::string> getFileToMemory(const std::string& remoteFilePath){
-    return nullptr;
-}
+bool util::SFTPSession::getFileToLocal(const std::string& remoteFilePath, const std::string &localFilePath){
+    // open a remote file
+    int accessType = O_RDONLY;
+    std::shared_ptr<sftp_file_struct> file(sftp_open(this->_sftp, remoteFilePath.data(), accessType, 0),
+                                           [](auto* p){ sftp_close(p);});
+    if (file == nullptr) {
+        LOG(ERROR) << " Can't open file for reading: %s" << ssh_get_error(this->_session);
+        return false;
+    }
 
-bool getFileToDisk(const std::string& remoteFilePath, const std::string& localPath){
-    return false;
+    // open local file
+    int fd = open(localFilePath.data(), O_CREAT);
+    if (fd < 0) {
+        LOG(ERROR) << "Can't open file for writing: %s" << strerror(errno);
+        return false;
+    }
+
+    // read the remote file into buffer
+    char buffer[MAX_XFER_BUF_SIZE];
+    for (;;) {
+        ssize_t nbytes = sftp_read(file.get(), buffer, sizeof(buffer));
+        // when EOF, break
+        if (nbytes == 0) {
+            break;
+        } else if (nbytes < 0) {
+            LOG(ERROR) << "Error while reading file: %s" << ssh_get_error(this->_session);
+            return false;
+        }
+
+        ssize_t nwritten = write(fd, buffer, nbytes);
+        if (nwritten != nbytes) {
+            LOG(ERROR) << "Error writing: %s" << strerror(errno);
+            return false;
+        }
+    }
+    return true;
 }

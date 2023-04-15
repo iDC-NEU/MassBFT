@@ -57,6 +57,39 @@ TEST_F(SFTPTest, TransTest) {
     sleep(3600);
 }
 
-TEST_F(SFTPTest, StopTest){
+TEST_F(SFTPTest, ReadTest){
+    auto session = util::SSHSession::NewSSHSession("127.0.0.1");
+    ASSERT_TRUE(session != nullptr);
+    auto ret = session->connect("user", "123456");
+    ASSERT_TRUE(ret);
 
+    std::string remote_path = "/home/user/nc_bft/";
+    auto local_path = "/tmp/";
+
+    for (int i=0; i<4; i++) {
+        auto remoteFilePath = remote_path + "hosts_" + std::to_string(i) + ".config";
+        auto it = session->createSFTPSession();
+        ASSERT_TRUE(it->getFileToLocal(remoteFilePath, local_path));
+    }
+}
+
+TEST_F(SFTPTest, StopTest){
+    auto session = util::SSHSession::NewSSHSession("127.0.0.1");
+    ASSERT_TRUE(session != nullptr);
+    auto ret = session->connect("user", "123456");
+    ASSERT_TRUE(ret);
+
+    std::string runningPath = "/home/user/nc_bft/";
+
+    std::string jvmPath = "/home/user/.jdks/openjdk-20/bin/java ";
+    std::string jvmOption = "-Dlogback.configurationFile=./config/logback.xml ";
+    std::string classPath = "-classpath ./nc_bft.jar ";
+
+    auto channel = session->createChannel();
+    ASSERT_TRUE(channel != nullptr);
+    channel->execute("cd " + runningPath + "&&" + jvmPath.append(jvmOption).append(classPath) + "bftsmart.demo.neuchainplus.NeuChainServer " + std::to_string(0));
+
+    auto stop_channel = session->createChannel();
+    ASSERT_TRUE(stop_channel != nullptr);
+    channel->execute("ls -l");
 }

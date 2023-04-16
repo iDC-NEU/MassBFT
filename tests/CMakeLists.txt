@@ -9,7 +9,7 @@ option(ENABLE_TEST_COVERAGE "Enable test coverage" OFF)
 # ---- Create binary ----
 
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-add_executable(${PROJECT_NAME} ${sources} common/sftp_tests.cpp)
+add_executable(${PROJECT_NAME} ${sources})
 target_link_libraries(${PROJECT_NAME} gtest gtest_main gmock NBP ${COMMON_DEPENDENCIES})
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 

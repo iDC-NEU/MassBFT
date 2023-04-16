@@ -3,7 +3,6 @@
 //
 
 #include "common/ssh.h"
-#include "common/sftp.h"
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
@@ -23,9 +22,9 @@ TEST_F(SFTPTest, TransTest) {
     auto ret = session->connect("user", "123456");
     ASSERT_TRUE(ret);
     std::string runningPath = "/home/user/nc_bft/";
-    auto hostConfigPath = "/tmp/hosts.config";
+    auto hostConfigPath = "/home/user/nc_bft/config/hosts.config";
     for (int i=0; i<4; i++) {
-        auto remoteFilePath = runningPath + "hosts_" + std::to_string(i) + ".config";
+        auto remoteFilePath = "/tmp/hosts_" + std::to_string(i) + ".config";
         auto it = session->createSFTPSession();
         ASSERT_TRUE(it->putFile(remoteFilePath, true, hostConfigPath));
     }
@@ -49,7 +48,8 @@ TEST_F(SFTPTest, TransTest) {
     };
 
     for (int i=0; i<(int)channelList.size(); i++) {
-        channelList[i]->execute("cd " + runningPath + "&&" + jvmPath.append(jvmOption).append(classPath) + "bftsmart.demo.neuchainplus.NeuChainServer " + std::to_string(i));
+        ret = channelList[i]->execute("cd " + runningPath + "&&" + jvmPath.append(jvmOption).append(classPath) + "bftsmart.demo.neuchainplus.NeuChainServer " + std::to_string(i));
+        ASSERT_TRUE(ret);
     }
     std::string out, error;
     channelList[0]->read(out, false, cb);
@@ -64,12 +64,15 @@ TEST_F(SFTPTest, ReadTest){
     ASSERT_TRUE(ret);
 
     std::string remote_path = "/home/user/nc_bft/";
-    auto local_path = "/tmp/";
+    std::string local_path = "/home/user/nc_bft/tmp/";
 
     for (int i=0; i<4; i++) {
         auto remoteFilePath = remote_path + "hosts_" + std::to_string(i) + ".config";
+        auto localFilePath = local_path + "hosts_" + std::to_string(i) + ".config";
+
         auto it = session->createSFTPSession();
-        ASSERT_TRUE(it->getFileToLocal(remoteFilePath, local_path));
+        ASSERT_TRUE(it != nullptr);
+        ASSERT_TRUE(it->getFileToLocal(remoteFilePath, localFilePath, true));
     }
 }
 
@@ -79,17 +82,8 @@ TEST_F(SFTPTest, StopTest){
     auto ret = session->connect("user", "123456");
     ASSERT_TRUE(ret);
 
-    std::string runningPath = "/home/user/nc_bft/";
-
-    std::string jvmPath = "/home/user/.jdks/openjdk-20/bin/java ";
-    std::string jvmOption = "-Dlogback.configurationFile=./config/logback.xml ";
-    std::string classPath = "-classpath ./nc_bft.jar ";
-
-    auto channel = session->createChannel();
-    ASSERT_TRUE(channel != nullptr);
-    channel->execute("cd " + runningPath + "&&" + jvmPath.append(jvmOption).append(classPath) + "bftsmart.demo.neuchainplus.NeuChainServer " + std::to_string(0));
-
     auto stop_channel = session->createChannel();
     ASSERT_TRUE(stop_channel != nullptr);
-    channel->execute("ls -l");
+    stop_channel->execute("pkill -f nc_bft.jar");
+    ASSERT_TRUE(stop_channel);
 }

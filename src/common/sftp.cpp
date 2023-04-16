@@ -86,6 +86,7 @@ bool util::SFTPSession::putFile(const std::string &remoteFilePath, bool override
     // then, read the file to memory
     std::ifstream fin(localFilePath, std::ios::binary);
     if (!fin) {
+        LOG(ERROR) << "can't open file for reading: " << strerror(errno);
         return false;
     }
     // get file size in bytes
@@ -122,38 +123,44 @@ bool util::SFTPSession::putFile(const std::string &remoteFilePath, bool override
     return true;
 }
 
-bool util::SFTPSession::getFileToLocal(const std::string& remoteFilePath, const std::string &localFilePath){
+bool util::SFTPSession::getFileToLocal(const std::string& remoteFilePath, const std::string &localFilePath, bool override){
     // open a remote file
-    int accessType = O_RDONLY;
-    std::shared_ptr<sftp_file_struct> file(sftp_open(this->_sftp, remoteFilePath.data(), accessType, 0),
-                                           [](auto* p){ sftp_close(p);});
+    sftp_file file = sftp_open(this->_sftp, remoteFilePath.data(), O_RDONLY, 0);
     if (file == nullptr) {
-        LOG(ERROR) << " Can't open file for reading: %s" << ssh_get_error(this->_session);
+        LOG(ERROR) << " Can't open file for reading: " << ssh_get_error(this->_session);
         return false;
     }
 
     // open local file
-    int fd = open(localFilePath.data(), O_CREAT);
+    int accessType = O_CREAT | O_WRONLY;
+    if (!override) {
+        accessType |= O_EXCL;   // if file exists, return false
+    }
+
+    int fd = open(localFilePath.data(), accessType, 0777);
     if (fd < 0) {
-        LOG(ERROR) << "Can't open file for writing: %s" << strerror(errno);
+        LOG(ERROR) << "Can't open file for writing: " << strerror(errno);
+        sftp_close(file);
         return false;
     }
 
     // read the remote file into buffer
     char buffer[MAX_XFER_BUF_SIZE];
     for (;;) {
-        ssize_t nbytes = sftp_read(file.get(), buffer, sizeof(buffer));
+        ssize_t nbytes = sftp_read(file, buffer, sizeof(buffer));
         // when EOF, break
         if (nbytes == 0) {
             break;
         } else if (nbytes < 0) {
-            LOG(ERROR) << "Error while reading file: %s" << ssh_get_error(this->_session);
+            LOG(ERROR) << "Error while reading file: " << ssh_get_error(this->_session);
+            sftp_close(file);
             return false;
         }
 
         ssize_t nwritten = write(fd, buffer, nbytes);
         if (nwritten != nbytes) {
-            LOG(ERROR) << "Error writing: %s" << strerror(errno);
+            LOG(ERROR) << "Error writing: " << strerror(errno);
+            sftp_close(file);
             return false;
         }
     }

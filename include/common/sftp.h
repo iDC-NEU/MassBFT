@@ -37,7 +37,7 @@ namespace util {
         bool setWorkingDirectory(const std::string& remotePath);
 
         // remoteFilePath: the file name and the relevant path
-        bool  getFileToLocal(const std::string& remoteFilePath, const std::string &localFilePath);
+        bool  getFileToLocal(const std::string& remoteFilePath, const std::string &localFilePath, bool override);
 
         // localPath: if you want to store the file in current running path please set with "./"
         // bool getFileToDisk(const std::string& remoteFilePath, const std::string& localPath);

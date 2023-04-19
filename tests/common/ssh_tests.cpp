@@ -67,9 +67,25 @@ TEST_F(SSHTest, SendFileToRemote) {
     for (int i=0; i<4; i++) {
         auto remoteFilePath = runningPath + "config/hosts_" + std::to_string(i) + ".config";
         auto it = session->createSFTPSession();
+        ASSERT_TRUE(it != nullptr);
         ASSERT_TRUE(it->putFile(remoteFilePath, true, hostConfigPath));
     }
+}
 
+TEST_F(SSHTest, ReadTest) {
+    auto session = NewSSHSession();
+    for (int i=0; i<4; i++) {
+        std::string data;
+        auto remoteFilePath = runningPath + "config/hosts_" + std::to_string(i) + ".config";
+        auto it = session->createSFTPSession();
+        ASSERT_TRUE(it != nullptr);
+        ASSERT_TRUE(it->getFileToBuffer(remoteFilePath, data));
+        ASSERT_TRUE(!data.empty());
+    }
+}
+
+TEST_F(SSHTest, StartTest){
+    auto session = NewSSHSession();
     std::vector<std::unique_ptr<util::SSHChannel>> channelList(4);
     for (auto& it: channelList) {
         it = session->createChannel();
@@ -87,19 +103,9 @@ TEST_F(SSHTest, SendFileToRemote) {
     std::string out, error;
     channelList[0]->read(out, false, readChannelCallback);
     channelList[0]->read(error, true, readChannelCallback);
+    channelList[1]->read(out, false, readChannelCallback);
+    channelList[1]->read(error, true, readChannelCallback);
     sleep(10);
-}
-
-TEST_F(SSHTest, ReadTest) {
-    auto session = NewSSHSession();
-    for (int i=0; i<4; i++) {
-        std::string data;
-        auto remoteFilePath = runningPath + "config/hosts_" + std::to_string(i) + ".config";
-        auto it = session->createSFTPSession();
-        ASSERT_TRUE(it != nullptr);
-        ASSERT_TRUE(it->getFileToBuffer(remoteFilePath, data));
-        ASSERT_TRUE(!data.empty());
-    }
 }
 
 TEST_F(SSHTest, StopTest) {
@@ -110,4 +116,20 @@ TEST_F(SSHTest, StopTest) {
     std::string out, error;
     stop_channel->read(out, false, readChannelCallback);
     stop_channel->read(error, true, readChannelCallback);
+}
+
+TEST_F(SSHTest, CleanTest) {
+    auto session = NewSSHSession();
+
+    std::vector<std::unique_ptr<util::SSHChannel>> channelList(4);
+    for (int i=0; i<(int)channelList.size(); i++) {
+        channelList[i] = session->createChannel();
+        ASSERT_TRUE(channelList[i] != nullptr);
+        auto ret = channelList[i]->execute("cd " + runningPath + "/config" + "&&" + "rm hosts_" + std::to_string(i) + ".config");
+        ASSERT_TRUE(ret);
+
+        std::string out, error;
+        channelList[i]->read(out, false, readChannelCallback);
+        channelList[i]->read(error, true, readChannelCallback);
+    }
 }

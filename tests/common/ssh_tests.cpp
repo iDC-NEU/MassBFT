@@ -105,7 +105,7 @@ TEST_F(SSHTest, StartTest){
     channelList[0]->read(error, true, readChannelCallback);
     channelList[1]->read(out, false, readChannelCallback);
     channelList[1]->read(error, true, readChannelCallback);
-    sleep(10);
+    sleep(20);
 }
 
 TEST_F(SSHTest, StopTest) {

@@ -7,7 +7,6 @@
 #include <utility>
 #include <memory>
 #include <functional>
-#include <ca/bft_instance_controller.h>
 
 
 struct ssh_session_struct;

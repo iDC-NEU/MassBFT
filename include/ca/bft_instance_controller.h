@@ -43,7 +43,7 @@ namespace util{
         // _channel store the channel at the processId(value) position
         std::vector<std::unique_ptr<SSHChannel>> _channels;
         std::string _ip;
-        int _port;
+        int _port = -1;
         std::string _user;
     };
 }

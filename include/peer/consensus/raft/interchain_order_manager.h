@@ -102,8 +102,8 @@ namespace peer::consensus {
             if (cell->finishedVectorClock.empty()) {
                 return false;   // vector clock merged error
             }
-            // LOG(INFO) << cell->subChainId << " " << cell->blockNumber << " " << cell->finishedVectorClock[0]
-            //           << " " << cell->finishedVectorClock[1] << " " << cell->finishedVectorClock[2];
+            LOG(INFO) << cell->subChainId << " " << cell->blockNumber << ", weight:" << cell->finishedVectorClock[0]
+                      << " " << cell->finishedVectorClock[1] << " " << cell->finishedVectorClock[2];
             // calculate depends list
             for (const auto& it: cell->finishedVectorClock) {
                 if (it.second == -1) {  // in it.first sub chain, current cell depend on nothing

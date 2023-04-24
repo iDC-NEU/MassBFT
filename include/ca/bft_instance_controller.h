@@ -4,10 +4,11 @@
 
 #pragma once
 
-#include "common/property.h"
 #include "common/ssh.h"
 #include "common/timer.h"
 #include <filesystem>
+
+#include "glog/logging.h"
 
 namespace ca {
     struct SSHConfig {
@@ -42,7 +43,19 @@ namespace ca {
 
         BFTInstanceController(BFTInstanceController &&) = delete;
 
-        bool startInstance() {
+        bool startInstance(const std::filesystem::path& hostConfigPath) {
+            // transmit config file to remote server
+            LOG(INFO) << "Transmitting files to remote instance " << _processId;
+            auto remoteFilePath = _runningPath / "config" / ("hosts_" + std::to_string(_processId) + ".config");
+            auto sftp = _session->createSFTPSession();
+            if (sftp == nullptr) {
+                return false;
+            }
+            if (!sftp->putFile(remoteFilePath, true, hostConfigPath)) {
+                return false;
+            }
+            // 2. start the server
+            LOG(INFO) << "Preparing to start instance " << _processId;
             std::vector<std::string> builder {
                     "cd",
                     _runningPath.string(),
@@ -67,7 +80,7 @@ namespace ca {
             return _bftInstanceChannel->execute(command);
         }
 
-        // read feedback from specific instance by processId
+        // return isSuccess, stdout, stderr
         std::tuple<bool, std::string, std::string> getChannelResponse() {
             auto callback = [this](std::string_view sv) {
                 auto spanMs = waitUntil - util::Timer::time_now_ms();

@@ -72,7 +72,7 @@ TEST_F(SSHTest, SendFileToRemote) {
     }
 }
 
-TEST_F(SSHTest, ReadTest) {
+TEST_F(SSHTest, ReadRemoteConfigTest) {
     auto session = NewSSHSession();
     for (int i=0; i<4; i++) {
         std::string data;
@@ -84,7 +84,7 @@ TEST_F(SSHTest, ReadTest) {
     }
 }
 
-TEST_F(SSHTest, StartTest){
+TEST_F(SSHTest, StartBFTInstanceTest){
     auto session = NewSSHSession();
     std::vector<std::unique_ptr<util::SSHChannel>> channelList(4);
     for (auto& it: channelList) {

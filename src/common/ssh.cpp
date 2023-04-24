@@ -48,6 +48,7 @@ bool util::SSHChannel::read(std::string& buf, int errFlag, const std::function<b
         auto currentOut = ssh_channel_read_timeout(_channel, buf.data() + outBytes, buf.size() - outBytes, errFlag, _timeout);
         if (callback) {
             if (!callback(std::string_view(buf.data() + outBytes, currentOut))) {
+                buf.resize(outBytes);
                 return true;    // user cancel it
             }
         } else {

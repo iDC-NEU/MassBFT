@@ -76,14 +76,14 @@ namespace ca {
                 return false;
             }
             _bftInstanceChannel = std::move(channel);
-            waitUntil = util::Timer::time_now_ms() + 10 * 1000;
+            startTime = util::Timer::time_now_ms();
             return _bftInstanceChannel->execute(command);
         }
 
         // return isSuccess, stdout, stderr
-        std::tuple<bool, std::string, std::string> getChannelResponse() {
-            auto callback = [this](std::string_view sv) {
-                auto spanMs = waitUntil - util::Timer::time_now_ms();
+        std::tuple<bool, std::string, std::string> getChannelResponse(int timedWait=15) {
+            auto callback = [&](std::string_view sv) {
+                auto spanMs = startTime + timedWait * 1000 - util::Timer::time_now_ms();
                 util::Timer::sleep_ns(spanMs * 1000 * 1000);
                 if (sv.empty()) {
                     return false;
@@ -101,6 +101,32 @@ namespace ca {
             return {true, out, error};
         }
 
+        void stopAndClean() {
+            auto channel = _session->createChannel();
+            if (!channel) {
+                return;
+            }
+            channel->execute("pkill -f nc_bft.jar");
+
+            channel = _session->createChannel();
+            if (!channel) {
+                return;
+            }
+            std::vector<std::string> builder {
+                    "cd",
+                    _runningPath / "config",
+                    "&&",
+                    "rm",
+                    "hosts_" + std::to_string(_processId) + ".config",
+                    "currentView",
+            };
+            std::string command;
+            for (const auto& it: builder) {
+                command.append(it).append(" ");
+            }
+            channel->execute(command);
+        }
+
         [[nodiscard]] const auto& getConfig() const { return _config; };
 
     protected:
@@ -110,7 +136,7 @@ namespace ca {
     private:
         const SSHConfig _config;
         const int _processId;
-        int64_t waitUntil = -1;
+        int64_t startTime = -1;
         std::unique_ptr<util::SSHSession> _session;
         std::unique_ptr<util::SSHChannel> _bftInstanceChannel;
         std::filesystem::path _runningPath;

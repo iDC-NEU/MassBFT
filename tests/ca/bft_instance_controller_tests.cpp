@@ -25,19 +25,25 @@ protected:
 protected:
     ca::SSHConfig sshConfig;
     inline static std::string runningPath = "/home/user/nc_bft";
-    inline static std::string jvmPath = "/home/user/.jdks/openjdk-20/bin/java";
+    inline static std::string jvmPath = "/home/user/.jdks/corretto-16.0.2/bin/java";
 };
 
 TEST_F(ControllerTest, StartTest) {
     std::vector<std::unique_ptr<ca::BFTInstanceController>> ctlList(4);
     for (int i=0; i<4; i++) {
         ctlList[i] = ca::BFTInstanceController::NewBFTInstanceController(sshConfig, i, runningPath, jvmPath);
-        ASSERT_TRUE(ctlList[i]->startInstance());
+        ctlList[i]->stopAndClean();
+    }
+    for (int i=0; i<4; i++) {
+        ASSERT_TRUE(ctlList[i]->startInstance("/home/user/nc_bft/config/hosts.config"));
     }
     for (int i=0; i<4; i++) {
         auto[success, out, err] = ctlList[i]->getChannelResponse();
         ASSERT_TRUE(success);
         LOG(INFO) << out << err;
+    }
+    for (int i=0; i<4; i++) {
+        ctlList[i]->stopAndClean();
     }
     util::Timer::sleep_sec(5);
 }

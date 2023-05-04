@@ -12,7 +12,6 @@
 #include <unordered_set>
 #include <vector>
 #include <queue>
-#include <optional>
 
 #include "glog/logging.h"
 

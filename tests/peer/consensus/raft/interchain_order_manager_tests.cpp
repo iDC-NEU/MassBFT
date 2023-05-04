@@ -2,12 +2,10 @@
 // Created by user on 23-4-5.
 //
 
-#include "peer/consensus/raft/v2/interchain_order_manager.h"
+#include "peer/consensus/raft/interchain_order_manager.h"
 #include "common/timer.h"
 #include "common/thread_pool_light.h"
-#include <queue>
 
-#include "bthread/countdown_event.h"
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
@@ -135,41 +133,13 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder) {
     ASSERT_TRUE(queue.size() == 6);
 }
 
-class OrderIterator {
-public:
-    OrderIterator(int total, peer::consensus::v2::InterChainOrderManager* iom) {
-        _iom = iom;
-        for (int i=0; i<total; i++) {
-            _view.emplace_back(-1);
-        }
-    }
-
-    OrderIterator(const OrderIterator&) = delete;
-
-    std::unordered_map<int, int> getBlockOrder(int chainId, int blockId) {
-        std::unique_lock guard(mutex);
-        std::unordered_map<int, int> ret;
-        for (int i=0; i<(int)_view.size(); i++) {
-            ret[i] = _view[i];
-        }
-        auto it = _view[chainId];
-        CHECK(it == blockId - 1);
-        _view[chainId] = blockId;
-        return ret;
-    }
-
-private:
-    std::mutex mutex;
-    peer::consensus::v2::InterChainOrderManager* _iom;
-    std::vector<int> _view;
-};
-
-
 TEST_F(OrderManagerTest, TestDeterminsticOrder2) {
-    std::vector<std::unique_ptr<OrderIterator>> oiList;
+    std::vector<std::unique_ptr<peer::consensus::v2::OrderAssigner>> oiList;
     oiList.reserve(3);
     for (int i=0; i<3; i++) {
-        oiList.push_back(std::make_unique<OrderIterator>(3, iom.get()));
+        auto ret = std::make_unique<peer::consensus::v2::OrderAssigner>();
+        ret->setSubChainIds({0, 1, 2});
+        oiList.push_back(std::move(ret));
     }
     util::thread_pool_light tp;
     const peer::consensus::v2::InterChainOrderManager::Cell* lastCell = nullptr;

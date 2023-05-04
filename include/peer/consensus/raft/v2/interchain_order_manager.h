@@ -36,7 +36,7 @@ namespace peer::consensus::v2 {
             std::unordered_map<int, int> finalDecision;
             // after we collect ALL decisions, we calculate depends and depended
             int dependsCount = 0;
-            std::unordered_map<int, std::unordered_set<int>> depended;
+            std::unordered_map<int, std::priority_queue<int, std::vector<int>, std::greater<>>> depended;
 
             // if all vc in block it relied on is calculated, the block can commit
             inline bool canAddToCommitBuffer() const {
@@ -71,7 +71,7 @@ namespace peer::consensus::v2 {
             void printDebugString() const {
                 std::string weightStr = "{";
                 for (const auto& it: this->finalDecision) {
-                    weightStr.append(std::to_string(it.second) + ": " + std::to_string(it.second)).append(", ");
+                    weightStr.append(std::to_string(it.first) + ": " + std::to_string(it.second)).append(", ");
                 }
                 weightStr.append("}");
                 LOG(INFO) << this->subChainId << " " << this->blockNumber << ", weight:" << weightStr;
@@ -80,7 +80,7 @@ namespace peer::consensus::v2 {
             bool operator<(const Cell* rhs) const {
                 DCHECK(this->canAddToCommitBuffer() && rhs->canAddToCommitBuffer());
                 // compare vector clock (happen before)
-                std::optional<bool> result = std::nullopt;
+                int result = -1;
                 for (const auto& it: finalDecision) {
                     auto ret = rhs->finalDecision.find(it.first);
                     CHECK(ret != rhs->finalDecision.end()) << "vector clocks contains error!";
@@ -88,22 +88,25 @@ namespace peer::consensus::v2 {
                         continue;
                     }
                     if (it.second < ret->second) {
-                        if (result != std::nullopt && result == false) {
-                            result = std::nullopt;
+                        if (result == 0) {
+                            result = -1;
                             break;
                         }
-                        *result = true;  // happen before
+                        result = 1;  // happen before
                     }
-                    if (it.second < ret->second) {
-                        if (result != std::nullopt && result == true) {
-                            result = std::nullopt;
+                    if (it.second > ret->second) {
+                        if (result == 1) {
+                            result = -1;
                             break;
                         }
-                        *result = false; // happen after
+                        result = 0; // happen after
                     }
                 }
-                if (result != std::nullopt) {
-                    return *result;
+                if (result == 1) {
+                    return true;
+                }
+                if (result == 0) {
+                    return false;
                 }
                 // when two cells have the same vector clock
                 if (subChainId < rhs->subChainId) {
@@ -174,7 +177,6 @@ namespace peer::consensus::v2 {
     protected:
         // after we get all decisions, we create a final decision
         bool decide(Cell* cell) {
-            // cell->printDebugString();
             // calculate the blocks that it depends on
             for (const auto& it: cell->finalDecision) {  // iter through chain
                 auto startWith = it.second; // reverse check dep block
@@ -192,7 +194,7 @@ namespace peer::consensus::v2 {
                         break;
                     }
                     // add to dep list
-                    res->depended[cell->subChainId].insert(cell->blockNumber);
+                    res->depended[cell->subChainId].push(cell->blockNumber);
                     cell->dependsCount++;
                 }
             }
@@ -200,19 +202,29 @@ namespace peer::consensus::v2 {
                 // The vc of all blocks that the block depends on has been calculated,
                 // it is added to the commit collection to determine its position later
                 CHECK(chains[cell->subChainId].lastFinished == cell->blockNumber - 1);
-                chains[cell->subChainId].lastFinished++;
+                chains[cell->subChainId].lastFinished = cell->blockNumber;
+                // DLOG(INFO) << "Push block:"; cell->printDebugString();
                 commitBuffer.push(cell);
             }
             // remove all blocks that depends on it
-            for (const auto& chainId: cell->depended) {
-                for (const auto& blockNumber: chainId.second) {
+            for (auto& chainId: cell->depended) {
+                int blockNumber = -1;
+                while (!chainId.second.empty()) {
+                    if (blockNumber >= chainId.second.top()) {
+                        chainId.second.pop();
+                        continue;
+                    }   // remove redundant value
+                    blockNumber = chainId.second.top();
+                    chainId.second.pop();
                     auto* res = findCell(chainId.first, blockNumber, false);
                     CHECK(res != nullptr) << "Impl error!";
                     res->dependsCount--;
                     if (res->canAddToCommitBuffer()) {
                         // add to commit set
-                        CHECK(chains[res->subChainId].lastFinished == res->blockNumber - 1);
-                        chains[res->subChainId].lastFinished++;
+                        auto& tmp = chains[res->subChainId].lastFinished;
+                        CHECK(tmp == res->blockNumber - 1);
+                        tmp = res->blockNumber;
+                        // DLOG(INFO) << "Push block:"; res->printDebugString();
                         commitBuffer.push(res);
                     }
                 }
@@ -252,7 +264,6 @@ namespace peer::consensus::v2 {
     public:
         void setSubChainIds(const std::vector<int>& chainIds) {
             std::unique_lock guard(mutex);
-            subChainCount = (int)chainIds.size();
             for (const auto& it: chainIds) {
                 currentDecision[it] = -1;
             }
@@ -269,7 +280,6 @@ namespace peer::consensus::v2 {
 
     private:
         std::mutex mutex;
-        int subChainCount = 0;
         std::unordered_map<int, int> currentDecision;
     };
 

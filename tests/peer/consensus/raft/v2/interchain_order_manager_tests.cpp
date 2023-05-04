@@ -167,22 +167,28 @@ private:
 
 TEST_F(OrderManagerTest, TestDeterminsticOrder2) {
     std::vector<std::unique_ptr<OrderIterator>> oiList;
+    oiList.reserve(3);
     for (int i=0; i<3; i++) {
         oiList.push_back(std::make_unique<OrderIterator>(3, iom.get()));
     }
     util::thread_pool_light tp;
     const peer::consensus::v2::InterChainOrderManager::Cell* lastCell = nullptr;
     iom->setDeliverCallback([&](const peer::consensus::v2::InterChainOrderManager::Cell* cell) {
-        LOG(INFO) << "RESULT";
-        cell->printDebugString();
+        LOG(INFO) << "RESULT"; cell->printDebugString();
+        if (lastCell != nullptr) {
+            if(!lastCell->operator<(cell)) {
+                CHECK(false);
+            }
+        }
+        lastCell = cell;
     });
 
     auto func2 = [&](int id) {
-        for (int i=0; i< 10000; i++) {
+        for (int i=0; i< 1000; i++) {
             for (int j=0; j<3; j++) {
                 auto vc = oiList[j]->getBlockOrder(id, i);
                 iom->pushDecision(id, i, std::move(vc));
-                util::Timer::sleep_ms(5+rand()%5+id*2);
+                util::Timer::sleep_ms(15 - rand()%5 - id*2);
             }
         }
     };
@@ -190,7 +196,7 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder2) {
     std::thread sender_2(func2, 1);
     std::thread sender_3(func2, 2);
 
-    sleep(36000);
-
-    ASSERT_TRUE(queue.size() == 6);
+    sender_1.join();
+    sender_2.join();
+    sender_3.join();
 }

@@ -2,7 +2,7 @@
 // Created by user on 23-4-5.
 //
 
-#include "peer/consensus/raft/interchain_order_manager.h"
+#include "peer/consensus/raft/v2/interchain_order_manager.h"
 #include "common/timer.h"
 #include "common/thread_pool_light.h"
 #include <queue>
@@ -14,10 +14,10 @@
 class OrderManagerTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        iom = std::make_unique<peer::consensus::InterChainOrderManager>();
+        iom = std::make_unique<peer::consensus::v2::InterChainOrderManager>();
         queue = {};
         iom->setSubChainIds({0, 1, 2});   // 3 regions tests
-        iom->setDeliverCallback([&](const peer::consensus::InterChainOrderManager::Cell* cell) {
+        iom->setDeliverCallback([&](const peer::consensus::v2::InterChainOrderManager::Cell* cell) {
             LOG(INFO) << "ChainNumber: " << cell->subChainId << ", BlockNumber: " << cell->blockNumber;
             queue.push(cell);
         });
@@ -26,8 +26,8 @@ protected:
     void TearDown() override {
     };
 
-    std::unique_ptr<peer::consensus::InterChainOrderManager> iom;
-    std::queue<const peer::consensus::InterChainOrderManager::Cell*> queue;
+    std::unique_ptr<peer::consensus::v2::InterChainOrderManager> iom;
+    std::queue<const peer::consensus::v2::InterChainOrderManager::Cell*> queue;
 };
 
 TEST_F(OrderManagerTest, TestOneRegionSequenalPush) {
@@ -40,7 +40,7 @@ TEST_F(OrderManagerTest, TestOneRegionSequenalPush) {
             {0, 1, {{0, 0}, {1, -1}, {2, -1}}}
     };
     for (const auto& it: input) {
-        ASSERT_TRUE(iom->pushBlockWithOrder(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
+        ASSERT_TRUE(iom->pushDecision(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
     }
     ASSERT_TRUE(queue.size() == 2);
 }
@@ -58,7 +58,7 @@ TEST_F(OrderManagerTest, TestOneRegionRandomPush) {
             {0, 2, {{0, 1}, {1, -1}, {2, -1}}}
     };
     for (const auto& it: input) {
-        ASSERT_TRUE(iom->pushBlockWithOrder(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
+        ASSERT_TRUE(iom->pushDecision(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
     }
     ASSERT_TRUE(queue.size() == 3);
 }
@@ -79,7 +79,7 @@ TEST_F(OrderManagerTest, TestTwoRegionsSequenalPush) {
             {1, 1, {{0, 0}, {1, 0}, {2, -1}}}
     };
     for (const auto& it: input) {
-        ASSERT_TRUE(iom->pushBlockWithOrder(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
+        ASSERT_TRUE(iom->pushDecision(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
     }
     ASSERT_TRUE(queue.size() == 4);
 }
@@ -100,7 +100,7 @@ TEST_F(OrderManagerTest, TestCoverage) {
             {0, 1, {{0, 0}, {1, -1}, {2, -1}}},
     };
     for (const auto& it: input) {
-        ASSERT_TRUE(iom->pushBlockWithOrder(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
+        ASSERT_TRUE(iom->pushDecision(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
     }
     ASSERT_TRUE(queue.size() == 4);
 }
@@ -130,48 +130,38 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder) {
             {0, 1, {{0, 0}, {1, -1}, {2, -1}}},
     };
     for (const auto& it: input) {
-        ASSERT_TRUE(iom->pushBlockWithOrder(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
+        ASSERT_TRUE(iom->pushDecision(std::get<0>(it), std::get<1>(it), std::get<2>(it)));
     }
     ASSERT_TRUE(queue.size() == 6);
 }
 
 class OrderIterator {
 public:
-    OrderIterator(int total, peer::consensus::InterChainOrderManager* iom) {
+    OrderIterator(int total, peer::consensus::v2::InterChainOrderManager* iom) {
         _iom = iom;
         for (int i=0; i<total; i++) {
             _view.emplace_back(-1);
-            _lastView.emplace_back(-1);
         }
     }
 
     OrderIterator(const OrderIterator&) = delete;
 
-    void receiveABlock(int chainId) {
-        std::unique_lock lock(mutex);
-        _view[chainId]++;
-    }
-
-    void consensus(int chainId) {
-        std::unique_lock lock(mutex);
-        if (_lastView[chainId] > _view[chainId]) {
-            return;
-        }
+    std::unordered_map<int, int> getBlockOrder(int chainId, int blockId) {
+        std::unique_lock guard(mutex);
         std::unordered_map<int, int> ret;
         for (int i=0; i<(int)_view.size(); i++) {
             ret[i] = _view[i];
         }
-        ret[chainId] = _lastView[chainId];
-        auto item = ++_lastView[chainId];
-        lock.unlock();
-        CHECK(_iom->pushBlockWithOrder(chainId, item, ret));
+        auto it = _view[chainId];
+        CHECK(it == blockId - 1);
+        _view[chainId] = blockId;
+        return ret;
     }
 
 private:
     std::mutex mutex;
-    peer::consensus::InterChainOrderManager* _iom;
+    peer::consensus::v2::InterChainOrderManager* _iom;
     std::vector<int> _view;
-    std::vector<int> _lastView;
 };
 
 
@@ -181,28 +171,19 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder2) {
         oiList.push_back(std::make_unique<OrderIterator>(3, iom.get()));
     }
     util::thread_pool_light tp;
-    const peer::consensus::InterChainOrderManager::Cell* lastCell = nullptr;
-    iom->setDeliverCallback([&](const peer::consensus::InterChainOrderManager::Cell* cell) {
-        LOG(INFO) << "ChainNumber: " << cell->subChainId << ", BlockNumber: " << cell->blockNumber;
-        if (lastCell) {
-            // CHECK(peer::consensus::InterChainOrderManager::DeterministicCompareCells(lastCell, cell));
-        }
-        lastCell = cell;
-        queue.push(cell);
-        tp.push_task([&, id=cell->subChainId] {
-            util::Timer::sleep_ms(10+id*10);
-            for (int i=0; i< 3; i++) {
-                oiList[i]->receiveABlock(id);
-            }
-        });
+    const peer::consensus::v2::InterChainOrderManager::Cell* lastCell = nullptr;
+    iom->setDeliverCallback([&](const peer::consensus::v2::InterChainOrderManager::Cell* cell) {
+        LOG(INFO) << "RESULT";
+        cell->printDebugString();
     });
 
-    auto func2 = [&](int id){
+    auto func2 = [&](int id) {
         for (int i=0; i< 10000; i++) {
             for (int j=0; j<3; j++) {
-                oiList[id]->consensus(j);
+                auto vc = oiList[j]->getBlockOrder(id, i);
+                iom->pushDecision(id, i, std::move(vc));
+                util::Timer::sleep_ms(5+rand()%5+id*2);
             }
-            util::Timer::sleep_ms(10);
         }
     };
     std::thread sender_1(func2, 0);

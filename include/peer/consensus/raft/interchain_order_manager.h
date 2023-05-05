@@ -210,7 +210,7 @@ namespace peer::consensus::v2 {
                 if (!cell->mergeDecisions()) {
                     return false;
                 }
-                return decide(cell);
+                return decideV2(cell);
             }
             return true;
         }
@@ -276,6 +276,49 @@ namespace peer::consensus::v2 {
             return true;
         }
 
+        // after we get all decisions, we create a final decision
+        bool decideV2(Cell* cell) {
+            // The vc of all blocks that the block depends on has been calculated,
+            // it is added to the commit collection to determine its position later
+            CHECK(chains[cell->subChainId].lastFinished == cell->blockNumber - 1);
+            chains[cell->subChainId].lastFinished = cell->blockNumber;
+            // DLOG(INFO) << "Push block:"; cell->printDebugString();
+            commitBuffer.push(cell);
+
+            while(!commitBuffer.empty()) {
+                cell = commitBuffer.top();
+                // check if all cell it depends on is committed already
+                for (const auto &it: cell->finalDecision) {  // iter through chain
+                    if (it.first == cell->subChainId) {
+                        continue;   // skip itself
+                    }
+                    const auto& lastFinished = chains[it.first].lastFinished;
+                    if (lastFinished == -1) {
+                        return true; // retry later
+                    }
+                    if (lastFinished < it.second) {
+                        return true; // retry later
+                    }
+                    // ----compare vector clocks start
+                    auto* res = findCell(it.first, lastFinished, false);
+                    CHECK(res != nullptr) << "Impl error!";
+                    // Optimization, TODO: double check
+                    res->finalDecision[res->subChainId]++;
+                    auto cmpResult = cell->operator<(res);
+                    res->finalDecision[res->subChainId]--;
+                    if (!cmpResult) {
+                        // the block after res still may < than cell, still have to wait
+                        return true;
+                    }
+                    // the block after res still must larger than cell, can add to buffer safely
+                    // ----compare vector clocks end
+                }
+                commitBuffer.pop();
+                callback(cell);
+            }
+            return true;
+        }
+
     public:
         void setDeliverCallback(auto&& cb) { callback = std::forward<decltype(cb)>(cb); }
 
@@ -290,7 +333,7 @@ namespace peer::consensus::v2 {
                     }
                     const auto& lastFinished = chains[it.first].lastFinished;
                     if (lastFinished == -1) {
-                        continue;
+                        return; // retry later
                     }
                     if (lastFinished < it.second) {
                         return; // retry later

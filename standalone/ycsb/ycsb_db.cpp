@@ -2,22 +2,15 @@
 // Created by user on 23-5-4.
 //
 
+#include "common/ycsb_payload.h"
+#include "ycsb/core/db_user_base.h"
 #include "ycsb/ycsb_db.h"
 #include "glog/logging.h"
 #include "proto/tpc-c.pb.h"
 
-struct Request {
-    // if empty = test_table
-    std::string tableName;
-    // if empty = use config file default
-    std::string funcName;
-    std::vector<std::string> reads;
-    std::vector<std::string> writes;
-};
-
 ycsb::core::Status ycsb::client::YCSB_DB::read(const std::string &table, const std::string &key,
                                                const std::vector<std::string> &fields, utils::ByteIteratorMap &result) {
-    Request request;
+    Utils::Request request;
     request.funcName = "read";
     request.tableName = table;
     YCSB_FOR_BLOCK_BENCH payload;
@@ -27,7 +20,7 @@ ycsb::core::Status ycsb::client::YCSB_DB::read(const std::string &table, const s
         value->set_value("_");
     }
     request.reads = {key, payload.SerializeAsString()};
-
+    // sendInvokeRequest(request);
     return core::STATUS_OK;
 }
 
@@ -41,7 +34,7 @@ ycsb::core::Status ycsb::client::YCSB_DB::scan(const std::string &table, const s
 
 ycsb::core::Status ycsb::client::YCSB_DB::update(const std::string &table, const std::string &key,
                                                  const utils::ByteIteratorMap &values) {
-    Request request;
+    Utils::Request request;
     request.funcName = "update";
     request.tableName = table;
     YCSB_FOR_BLOCK_BENCH payload;
@@ -51,7 +44,7 @@ ycsb::core::Status ycsb::client::YCSB_DB::update(const std::string &table, const
         value->set_value(pair.second->toString());
     }
     request.reads = {key, payload.SerializeAsString()};
-
+    // sendInvokeRequest(request);
     return core::STATUS_OK;
 }
 
@@ -61,10 +54,10 @@ ycsb::core::Status ycsb::client::YCSB_DB::insert(const std::string &table, const
 }
 
 ycsb::core::Status ycsb::client::YCSB_DB::remove(const std::string &table, const std::string &key) {
-    Request request;
+    Utils::Request request;
     request.funcName = "remove";
     request.tableName = table;
     request.reads = {key};
-
+    // sendInvokeRequest(request);
     return core::STATUS_OK;
 }

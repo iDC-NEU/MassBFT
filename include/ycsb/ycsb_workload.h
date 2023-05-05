@@ -5,4 +5,6 @@
 #ifndef NBP_YCSB_WORKLOAD_H
 #define NBP_YCSB_WORKLOAD_H
 
+
+
 #endif //NBP_YCSB_WORKLOAD_H

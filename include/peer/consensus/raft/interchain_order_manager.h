@@ -77,9 +77,10 @@ namespace peer::consensus::v2 {
             }
 
             bool operator<(const Cell* rhs) const {
-                DCHECK(this->canAddToCommitBuffer() && rhs->canAddToCommitBuffer());
+                CHECK(this->canAddToCommitBuffer() && rhs->canAddToCommitBuffer());
                 // compare vector clock (happen before)
-                int result = -1;
+                bool before = false;
+                bool after = false;
                 for (const auto& it: finalDecision) {
                     auto ret = rhs->finalDecision.find(it.first);
                     CHECK(ret != rhs->finalDecision.end()) << "vector clocks contains error!";
@@ -87,24 +88,16 @@ namespace peer::consensus::v2 {
                         continue;
                     }
                     if (it.second < ret->second) {
-                        if (result == 0) {
-                            result = -1;
-                            break;
-                        }
-                        result = 1;  // happen before
+                        before = true;
                     }
                     if (it.second > ret->second) {
-                        if (result == 1) {
-                            result = -1;
-                            break;
-                        }
-                        result = 0; // happen after
+                        after = true;
                     }
                 }
-                if (result == 1) {
+                if (before && !after) {
                     return true;
                 }
-                if (result == 0) {
+                if (!before && after) {
                     return false;
                 }
                 // when two cells have the same vector clock
@@ -119,9 +112,58 @@ namespace peer::consensus::v2 {
                 return blockNumber < rhs->blockNumber;
             }
 
-            // minq3:  0 1 2 3 4 5 6 7 8 9
-            // bool operator() (const int l, const int r) const { return l > r; }
-            bool operator() (const Cell* a, const Cell* b) { return !a->operator<(b); }
+            bool operator>(const Cell* rhs) const { return !(*this < rhs); }
+
+        };
+
+    protected:
+        class CommitBuffer {
+        public:
+            void push(Cell* c) {
+                buffer.push_back(c);
+                int rhsPos = (int)buffer.size()-1;
+                for (int i = (int)buffer.size()-2; i >= 0; i--) {
+                    if (!(*buffer[rhsPos] < buffer[i])) {
+                        break;
+                    }
+                    std::swap(buffer[rhsPos], buffer[i]);
+                    rhsPos = i;
+                }
+            }
+
+            Cell* pop() {
+                if (empty()) {
+                    return nullptr;
+                }
+                auto* elem = buffer.front();
+                buffer.erase(buffer.begin());
+                return elem;
+            }
+
+            [[nodiscard]] Cell* top() const {
+                if (empty()) {
+                    return nullptr;
+                }
+                return buffer.front();
+            }
+
+            [[nodiscard]] bool empty() const {
+                return buffer.empty();
+            }
+
+            void print() const {
+                Cell* prev = nullptr;
+                for (const auto& it: buffer) {
+                    it->printDebugString();
+                    if (prev) {
+                        CHECK(*prev < it);
+                    }
+                    prev = it;
+                }
+            }
+
+        private:
+            std::vector<Cell*> buffer;
         };
 
     protected:
@@ -218,8 +260,9 @@ namespace peer::consensus::v2 {
                     auto* res = findCell(chainId.first, blockNumber, false);
                     CHECK(res != nullptr) << "Impl error!";
                     res->dependsCount--;
+                    CHECK(res->dependsCount >= 0);
                     if (res->canAddToCommitBuffer()) {
-                        // add to commit set
+                        // add to commit set, lastFinished++
                         auto& tmp = chains[res->subChainId].lastFinished;
                         CHECK(tmp == res->blockNumber - 1);
                         tmp = res->blockNumber;
@@ -242,10 +285,31 @@ namespace peer::consensus::v2 {
                 auto *cell = commitBuffer.top();
                 // check if all cell it depends on is committed already
                 for (const auto &it: cell->finalDecision) {  // iter through chain
-                    if (chains[it.first].lastFinished < it.second) {
+                    if (it.first == cell->subChainId) {
+                        continue;   // skip itself
+                    }
+                    const auto& lastFinished = chains[it.first].lastFinished;
+                    if (lastFinished == -1) {
+                        continue;
+                    }
+                    if (lastFinished < it.second) {
                         return; // retry later
                     }
+                    // ----compare vector clocks start
+                    auto* res = findCell(it.first, lastFinished, false);
+                    CHECK(res != nullptr) << "Impl error!";
+                    // Optimization, TODO: double check
+                    res->finalDecision[res->subChainId]++;
+                    auto cmpResult = cell->operator<(res);
+                    res->finalDecision[res->subChainId]--;
+                    if (!cmpResult) {
+                        // the block after res still may < than cell, still have to wait
+                        return;
+                    }
+                    // the block after res still must larger than cell, can add to buffer safely
+                    // ----compare vector clocks end
                 }
+                // commitBuffer.print();
                 commitBuffer.pop();
                 callback(cell);
             }
@@ -255,7 +319,7 @@ namespace peer::consensus::v2 {
         std::mutex mutex;
         std::unordered_map<int, Chain> chains;
         int subChainCount = 0;
-        std::priority_queue<Cell*, std::vector<Cell*>, Cell> commitBuffer;
+        CommitBuffer commitBuffer;
         std::function<void(const Cell*)> callback;
     };
 

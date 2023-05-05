@@ -3,7 +3,6 @@
 //
 
 #include "common/ycsb_payload.h"
-#include "ycsb/core/db_user_base.h"
 #include "ycsb/ycsb_db.h"
 #include "glog/logging.h"
 #include "proto/tpc-c.pb.h"

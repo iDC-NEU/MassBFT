@@ -47,3 +47,20 @@ TEST_F(ControllerTest, StartTest) {
     }
     util::Timer::sleep_sec(5);
 }
+
+TEST_F(ControllerTest, StartDemoInstance) {
+    std::vector<std::unique_ptr<ca::BFTInstanceController>> ctlList(4);
+    for (int i=0; i<4; i++) {
+        ctlList[i] = ca::BFTInstanceController::NewBFTInstanceController(sshConfig, i, runningPath, jvmPath);
+        ctlList[i]->stopAndClean();
+    }
+    for (int i=0; i<4; i++) {
+        ASSERT_TRUE(ctlList[i]->startInstance("/home/user/nc_bft/config/hosts.config"));
+    }
+    for (int i=0; i<1000; i++) {    // 1000 sec
+        ctlList[0]->getChannelResponse(1);
+    }
+    for (int i=0; i<4; i++) {
+        ctlList[i]->stopAndClean();
+    }
+}

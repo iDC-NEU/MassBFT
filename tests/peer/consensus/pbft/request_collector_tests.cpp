@@ -2,7 +2,7 @@
 // Created by user on 23-3-28.
 //
 
-#include "peer/consensus/pbft/local/request_collector.h"
+#include "peer/consensus/pbft/request_collector.h"
 
 #include "tests/proto_block_utils.h"
 #include "gtest/gtest.h"
@@ -37,7 +37,7 @@ TEST_F(RequestCollectorTest, TestNormalCase) {
         return true;
     });
     collector.start();
-    auto client = util::ZMQInstance::NewClient<zmq::socket_type::pub>("127.0.0.1", 51200);
+    auto client = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", 51200);
     auto envelop = tests::ProtoBlockUtils::CreateMockEnvelop();
     std::string buf;
     CHECK(envelop->serializeToString(&buf));

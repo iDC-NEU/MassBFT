@@ -5,11 +5,11 @@
 #pragma once
 
 #include "common/meta_rpc_server.h"
-#include "proto/pbft_connection.pb.h"
 #include "common/crypto.h"
+#include "proto/pbft_connection.pb.h"
 #include "proto/pbft_message.pb.h"
 
-namespace peer::consensus {
+namespace util::pbft {
 
     class MockRPCService : public proto::RPCService {
     public:

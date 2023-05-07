@@ -5,7 +5,7 @@
 #pragma once
 
 #include "peer/storage/mr_block_storage.h"
-#include "peer/consensus/pbft/pbft_state_machine.h"
+#include "common/pbft/pbft_state_machine.h"
 
 #include "common/meta_rpc_server.h"
 #include "common/bccsp.h"
@@ -14,7 +14,7 @@
 #include "proto/pbft_connection.pb.h"
 #include "proto/pbft_message.pb.h"
 
-namespace peer::consensus {
+namespace util::pbft {
 
     class PBFTRPCService : public proto::RPCService {
     public:

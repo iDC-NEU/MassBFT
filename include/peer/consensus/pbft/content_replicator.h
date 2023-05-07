@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "peer/consensus/pbft/pbft_state_machine.h"
-#include "proto/block.h"
+#include "common/pbft/pbft_state_machine.h"
 #include "common/zeromq.h"
 #include "common/property.h"
 #include "common/bccsp.h"
@@ -14,6 +13,7 @@
 #include "common/thread_pool_light.h"
 #include "common/concurrent_queue.h"
 
+#include "proto/block.h"
 #include "bthread/butex.h"
 #include "bthread/countdown_event.h"
 
@@ -82,7 +82,7 @@ namespace peer::consensus {
         std::vector<std::unique_ptr<util::ZMQInstance>> _clients;
     };
 
-    class ContentReplicator: public PBFTStateMachine {
+    class ContentReplicator: public util::pbft::PBFTStateMachine {
     public:
         // In order to separate the payload from the consensus,
         // the local cluster needs to establish a set of zmq ports, which are stored in targetNodes

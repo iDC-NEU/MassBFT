@@ -103,9 +103,9 @@ namespace peer::consensus {
             aa->_orderManager->setSubChainCount(groupCount);
             aa->_orderManager->setDeliverCallback([ptr = aa.get()](const v2::InterChainOrderManager::Cell* c) {
                 // return the final decision to caller
-                ptr->onApplyCallback(c->subChainId, c->blockNumber);
+                ptr->deliverCallback(c->subChainId, c->blockNumber);
             });
-            // start local brpc instance
+            // start local rpc instance
             if (util::DefaultRpcServer::AddRaftService(cfg->port) != 0) {
                 return nullptr;
             }
@@ -205,7 +205,7 @@ namespace peer::consensus {
             return true;
         }
 
-        // thread safe
+        // thread safe, called by leader
         bool apply(std::string& content) {
             braft::PeerId pc;
             if (!PeerIdFromConfig(_localConfig->addr(), _localConfig->port, _localConfig->nodeConfig->groupId, pc)) {
@@ -228,13 +228,20 @@ namespace peer::consensus {
         }
 
     private:
-        std::function<bool(int chainId, int blockNumber)> onApplyCallback;
+        // Called on return after determining the final order of sub chain blocks
+        std::function<bool(int chainId, int blockNumber)> deliverCallback;
+        // Called after receiving a message from raft, responsible for broadcasting to all local nodes
+        std::function<void(std::string decision)> broadcastCallback;
         // BCCSP and thread pool
         std::shared_ptr<util::BCCSP> _bccsp;
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;
 
     public:
-        void setOnApplyCallback(auto&& callback) { onApplyCallback = std::forward<decltype(callback)>(callback); }
+        // deliverCallback is called sequentially
+        void setDeliverCallback(auto&& callback) { deliverCallback = std::forward<decltype(callback)>(callback); }
+
+        // broadcastCallback must be thread safe
+        void setBroadcastCallback(auto&& callback) { broadcastCallback = std::forward<decltype(callback)>(callback); }
 
         void setBCCSPWithThreadPool(std::shared_ptr<util::BCCSP> bccsp, std::shared_ptr<util::thread_pool_light> threadPool) {
             _bccsp = std::move(bccsp);
@@ -242,10 +249,11 @@ namespace peer::consensus {
         }
 
     protected:
-        // this function is called by raft fsm, thread safe
+        // thread safe, called by raft fsm (followers and the leader)
         bool onApply(const butil::IOBuf& data) {
             proto::SignedBlockOrder sb;
-            if (!sb.deserializeFromString(data.to_string())) {
+            auto dataStr = data.to_string();
+            if (!sb.deserializeFromString(dataStr)) {
                 return false;
             }
             if (!validateSignatureOfBlockOrder(sb)) {
@@ -254,6 +262,11 @@ namespace peer::consensus {
             proto::BlockOrder bo{};
             if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
                 return false;
+            }
+            // the callback need to be thread safe!
+            // broadcast to all local receivers
+            if (broadcastCallback) {
+                broadcastCallback(std::move(dataStr));
             }
             // TODO: broadcast the decision in local cluster(avoiding a byzantine leader)
             // it is a valid bo, can safely push decision

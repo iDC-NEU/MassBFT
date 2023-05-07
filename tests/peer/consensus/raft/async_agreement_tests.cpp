@@ -83,18 +83,18 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
         if (aa == nullptr) {
             CHECK(false) << "init failed";
         }
-        aa->setOnApplyCallback([node=it](int chainId, int blockNumber) {
+        aa->setDeliverCallback([node = it](int chainId, int blockNumber) {
             LOG(INFO) << "{ " << node->nodeConfig->groupId << ", " << node->nodeConfig->nodeId << " }: "
                       << chainId << ", " << blockNumber;
             return true;
         });
         aaList.push_back(std::move(aa));
     }
-    // start all cluster
+    // start all peers
     for (int i=0; i<(int)nodes.size(); i++) {
-        // 0, 2, 4 are leaders
-        for (auto j: {0, 1, 2}) {
-            CHECK(aaList[i]->startCluster(nodes, j*2, j));
+        // each peer contains 3 multi-raft instance, 0, 2, 4 are leaders, j/2 are group id
+        for (auto j: {0, 2, 4}) {
+            CHECK(aaList[i]->startCluster(nodes, j, j/2));
         }
     }
     // ensure leader

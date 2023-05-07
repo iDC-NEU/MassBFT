@@ -80,6 +80,90 @@ namespace peer::consensus {
         std::function<bool(const butil::IOBuf& data)> onApplyCallback;
     };
 
+    class AsyncAgreementCallback {
+    public:
+        virtual ~AsyncAgreementCallback() = default;
+
+        explicit AsyncAgreementCallback(int groupCount) {
+            auto om = std::make_unique<v2::InterChainOrderManager>();
+            om->setSubChainCount(groupCount);
+            om->setDeliverCallback([this](const v2::InterChainOrderManager::Cell* c) {
+                // return the final decision to caller
+                this->onDeliver(c->subChainId, c->blockNumber);
+            });
+            _orderManager = std::move(om);
+        }
+        // Called on return after determining the final order of sub chain blocks
+        virtual bool onDeliver(int chainId, int blockNumber) = 0;
+
+        // Called after receiving a message from raft, responsible for broadcasting to all local nodes
+        virtual bool onBroadcast(std::string decision) = 0;
+
+        // TODO: prevent unordered concurrent access
+        bool applyRawBlockOrder(const std::string& decision) {
+            proto::SignedBlockOrder sb;
+            if (!sb.deserializeFromString(decision)) {
+                return false;
+            }
+            if (!validateSignatureOfBlockOrder(sb)) {
+                return false;
+            }
+            proto::BlockOrder bo{};
+            if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
+                return false;
+            }
+            // the callback need to be thread safe!
+            // broadcast to all local receivers
+            // TODO: broadcast the decision in local cluster(avoiding a byzantine leader)
+            // it is a valid bo, can safely push decision
+            // LOG(INFO) << "decisions: " << bo.chainId << " " << bo.blockId << " " << bo.voteChainId << " " << bo.voteBlockId;
+            return _orderManager->pushDecision(bo.chainId, bo.blockId, { bo.voteChainId, bo.voteBlockId });
+        }
+
+    protected:
+        std::unique_ptr<v2::InterChainOrderManager> _orderManager;
+        // BCCSP and thread pool
+        std::shared_ptr<util::BCCSP> _bccsp;
+        std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;
+
+    public:
+        void setBCCSPWithThreadPool(std::shared_ptr<util::BCCSP> bccsp, std::shared_ptr<util::thread_pool_light> threadPool) {
+            _bccsp = std::move(bccsp);
+            _threadPoolForBCCSP = std::move(threadPool);
+        }
+
+        bool validateSignatureOfBlockOrder(const proto::SignedBlockOrder& sb) {
+            if (sb.signatures.empty()) {    // optimize
+                // DLOG(WARNING) << "Sigs are empty in validateSignatureOfBlockOrder!";
+                return true;
+            }
+            bool success = true;
+            auto numRoutines = (int)_threadPoolForBCCSP->get_thread_count();
+            bthread::CountdownEvent countdown(numRoutines);
+            for (auto i = 0; i < numRoutines; i++) {
+                _threadPoolForBCCSP->push_task([&, start=i] {
+                    auto& payload = sb.serializedBlockOrder;
+                    for (int j = start; j < (int)sb.signatures.size(); j += numRoutines) {
+                        auto& signature = sb.signatures[j];
+                        const auto key = _bccsp->GetKey(signature.ski);
+                        if (key == nullptr) {
+                            LOG(WARNING) << "Can not load key, ski: " << signature.ski;
+                            success = false;
+                            break;
+                        }
+                        if (!key->Verify(signature.digest, payload.data(), payload.size())) {
+                            success = false;
+                            break;
+                        }
+                    }
+                    countdown.signal();
+                });
+            }
+            countdown.wait();
+            return success;
+        }
+    };
+
     // The cluster orders the blocks locally(with bft) and then broadcasts to other clusters(with raft)
     // Meanwhile, the cluster receives the ordering results of other clusters(with raft)
     // Generate a final block order based on the aggregation of all results
@@ -88,23 +172,19 @@ namespace peer::consensus {
         std::shared_ptr<util::ZMQInstanceConfig> _localConfig;
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaft;
         std::unique_ptr<v2::OrderAssigner> _localOrderAssigner;
-        std::unique_ptr<v2::InterChainOrderManager> _orderManager;
+        std::shared_ptr<AsyncAgreementCallback> _callback;
 
     public:
         // groupCount: sub chain ids are from 0 to groupCount-1
-        static std::unique_ptr<AsyncAgreement> NewAsyncAgreement(std::shared_ptr<util::ZMQInstanceConfig> localConfig, int groupCount) {
+        static std::unique_ptr<AsyncAgreement> NewAsyncAgreement(std::shared_ptr<util::ZMQInstanceConfig> localConfig,
+                                                                 std::shared_ptr<AsyncAgreementCallback> callback) {
             auto aa = std::make_unique<AsyncAgreement>();
             aa->_localConfig = std::move(localConfig);
+            aa->_callback = std::move(callback);
             auto& cfg = aa->_localConfig;
             aa->_multiRaft = std::make_unique<util::raft::MultiRaftFSM>("blk_order_cluster");
             aa->_localOrderAssigner = std::make_unique<v2::OrderAssigner>();
             aa->_localOrderAssigner->setLocalChainId(cfg->nodeConfig->groupId);
-            aa->_orderManager = std::make_unique<v2::InterChainOrderManager>();
-            aa->_orderManager->setSubChainCount(groupCount);
-            aa->_orderManager->setDeliverCallback([ptr = aa.get()](const v2::InterChainOrderManager::Cell* c) {
-                // return the final decision to caller
-                ptr->deliverCallback(c->subChainId, c->blockNumber);
-            });
             // start local rpc instance
             if (util::DefaultRpcServer::AddRaftService(cfg->port) != 0) {
                 return nullptr;
@@ -227,82 +307,11 @@ namespace peer::consensus {
             return true;
         }
 
-    private:
-        // Called on return after determining the final order of sub chain blocks
-        std::function<bool(int chainId, int blockNumber)> deliverCallback;
-        // Called after receiving a message from raft, responsible for broadcasting to all local nodes
-        std::function<void(std::string decision)> broadcastCallback;
-        // BCCSP and thread pool
-        std::shared_ptr<util::BCCSP> _bccsp;
-        std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;
-
-    public:
-        // deliverCallback is called sequentially
-        void setDeliverCallback(auto&& callback) { deliverCallback = std::forward<decltype(callback)>(callback); }
-
-        // broadcastCallback must be thread safe
-        void setBroadcastCallback(auto&& callback) { broadcastCallback = std::forward<decltype(callback)>(callback); }
-
-        void setBCCSPWithThreadPool(std::shared_ptr<util::BCCSP> bccsp, std::shared_ptr<util::thread_pool_light> threadPool) {
-            _bccsp = std::move(bccsp);
-            _threadPoolForBCCSP = std::move(threadPool);
-        }
-
     protected:
         // thread safe, called by raft fsm (followers and the leader)
         bool onApply(const butil::IOBuf& data) {
-            proto::SignedBlockOrder sb;
             auto dataStr = data.to_string();
-            if (!sb.deserializeFromString(dataStr)) {
-                return false;
-            }
-            if (!validateSignatureOfBlockOrder(sb)) {
-                return false;
-            }
-            proto::BlockOrder bo{};
-            if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
-                return false;
-            }
-            // the callback need to be thread safe!
-            // broadcast to all local receivers
-            if (broadcastCallback) {
-                broadcastCallback(std::move(dataStr));
-            }
-            // TODO: broadcast the decision in local cluster(avoiding a byzantine leader)
-            // it is a valid bo, can safely push decision
-            // LOG(INFO) << "decisions: " << bo.chainId << " " << bo.blockId << " " << bo.voteChainId << " " << bo.voteBlockId;
-            return _orderManager->pushDecision(bo.chainId, bo.blockId, { bo.voteChainId, bo.voteBlockId });
+            return _callback->onBroadcast(std::move(dataStr));
         };
-
-        bool validateSignatureOfBlockOrder(const proto::SignedBlockOrder& sb) {
-            if (sb.signatures.empty()) {    // optimize
-                // DLOG(WARNING) << "Sigs are empty in validateSignatureOfBlockOrder!";
-                return true;
-            }
-            bool success = true;
-            auto numRoutines = (int)_threadPoolForBCCSP->get_thread_count();
-            bthread::CountdownEvent countdown(numRoutines);
-            for (auto i = 0; i < numRoutines; i++) {
-                _threadPoolForBCCSP->push_task([&, start=i] {
-                    auto& payload = sb.serializedBlockOrder;
-                    for (int j = start; j < (int)sb.signatures.size(); j += numRoutines) {
-                        auto& signature = sb.signatures[j];
-                        const auto key = _bccsp->GetKey(signature.ski);
-                        if (key == nullptr) {
-                            LOG(WARNING) << "Can not load key, ski: " << signature.ski;
-                            success = false;
-                            break;
-                        }
-                        if (!key->Verify(signature.digest, payload.data(), payload.size())) {
-                            success = false;
-                            break;
-                        }
-                    }
-                    countdown.signal();
-                });
-            }
-            countdown.wait();
-            return success;
-        }
     };
 }

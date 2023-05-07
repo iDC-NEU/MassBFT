@@ -10,6 +10,28 @@
 
 using namespace peer::consensus;
 
+class MockACB : public AsyncAgreementCallback {
+public:
+    MockACB(int groupCount, std::shared_ptr<util::ZMQInstanceConfig> node)
+            : AsyncAgreementCallback(groupCount), localNode(std::move(node)) {}
+
+    // called by orderManager in base class
+    bool onDeliver(int chainId, int blockNumber) override {
+        LOG(INFO) << "{ " << localNode->nodeConfig->groupId << ", " << localNode->nodeConfig->nodeId << " }: "
+                  << chainId << ", " << blockNumber;
+        return true;
+    }
+
+    // called by localDistributor
+    bool onBroadcast(std::string decision) override {
+        return applyRawBlockOrder(decision);
+    }
+
+private:
+    std::shared_ptr<util::ZMQInstanceConfig> localNode;
+};
+
+
 class AsyncAgreementTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -79,15 +101,11 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
     std::vector<std::unique_ptr<AsyncAgreement>> aaList;
 
     for (const auto& it : nodes) {
-        auto aa = AsyncAgreement::NewAsyncAgreement(it, 3);
+        auto acb = std::make_unique<MockACB>(3, it);
+        auto aa = AsyncAgreement::NewAsyncAgreement(it, std::move(acb));
         if (aa == nullptr) {
             CHECK(false) << "init failed";
         }
-        aa->setDeliverCallback([node = it](int chainId, int blockNumber) {
-            LOG(INFO) << "{ " << node->nodeConfig->groupId << ", " << node->nodeConfig->nodeId << " }: "
-                      << chainId << ", " << blockNumber;
-            return true;
-        });
         aaList.push_back(std::move(aa));
     }
     // start all peers

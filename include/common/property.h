@@ -15,16 +15,36 @@ namespace util {
         int groupId = -1;
         std::string ski;
         std::string ip;
+
+        bool operator==(const NodeConfig& rhs) const {
+            if (this->nodeId != rhs.nodeId) {
+                return false;
+            }
+            if (this->groupId != rhs.groupId) {
+                return false;
+            }
+            DCHECK(this->ski == rhs.ski);
+            DCHECK(this->ip == rhs.ip);
+            return true;
+        }
     };
     using NodeConfigPtr = std::shared_ptr<NodeConfig>;
 
     struct ZMQInstanceConfig {
         util::NodeConfigPtr nodeConfig;
+        int port;
+
         [[nodiscard]] std::string& addr() const {
             DCHECK(nodeConfig != nullptr) << "nodeConfig unset!";
             return nodeConfig->ip;
         }
-        int port;
+
+        bool operator==(const ZMQInstanceConfig& rhs) const {
+            if (this->port != rhs.port) {
+                return false;
+            }
+            return *this->nodeConfig == *rhs.nodeConfig;
+        }
     };
 
     class Properties {

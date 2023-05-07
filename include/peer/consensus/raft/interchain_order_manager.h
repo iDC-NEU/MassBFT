@@ -258,12 +258,13 @@ namespace peer::consensus::v2 {
 
     class OrderAssigner {
     public:
-        void setSubChainIds(int chainId) {
+        void setLocalChainId(int chainId) {
             std::unique_lock guard(mutex);
             _chainId = chainId;
         }
 
         std::pair<int, int> getBlockOrder(int chainId, int blockId) {
+            DCHECK(_chainId >= 0) << "have not inited yet!";
             std::unique_lock guard(mutex);
             auto ret = std::make_pair(_chainId, _myClock);
             if (_chainId == chainId) {

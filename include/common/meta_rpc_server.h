@@ -5,6 +5,7 @@
 #pragma once
 
 #include "brpc/server.h"
+#include "braft/raft.h"
 #include <memory>
 
 namespace util {
@@ -27,6 +28,19 @@ namespace util {
             }
             if (onStop) {
                 onStopList[port].push_back(onStop);
+            }
+            return 0;
+        }
+
+        static int AddRaftService(int port) {
+            std::lock_guard guard(mutex);
+            auto& server = globalControlServer[port];
+            if (!server) {
+                server = std::make_unique<brpc::Server>();
+            }
+            if (braft::add_service(server.get(), port) != 0) {
+                LOG(ERROR) << "Fail to add raft service";
+                return -1;
             }
             return 0;
         }

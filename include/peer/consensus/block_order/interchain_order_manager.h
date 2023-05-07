@@ -171,6 +171,11 @@ namespace peer::consensus::v2 {
             std::unique_lock guard(mutex);
             auto* cell = findCell(subChainId, blockNumber, true);
             CHECK(cell != nullptr) << "Impl error!";
+            // prevent unordered concurrent access
+            if (cell->canAddToCommitBuffer()) {
+                // return true if not an internal error (should not be displayed)
+                return true;
+            }
             cell->decisions.insert(std::move(decision));
             // enter decision loop
             if ((int)cell->decisions.size() == subChainCount) {

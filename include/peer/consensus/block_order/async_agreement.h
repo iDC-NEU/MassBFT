@@ -99,7 +99,6 @@ namespace peer::consensus {
         // Called after receiving a message from raft, responsible for broadcasting to all local nodes
         virtual bool onBroadcast(std::string decision) = 0;
 
-        // TODO: prevent unordered concurrent access
         bool applyRawBlockOrder(const std::string& decision) {
             proto::SignedBlockOrder sb;
             if (!sb.deserializeFromString(decision)) {
@@ -112,11 +111,6 @@ namespace peer::consensus {
             if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
                 return false;
             }
-            // the callback need to be thread safe!
-            // broadcast to all local receivers
-            // TODO: broadcast the decision in local cluster(avoiding a byzantine leader)
-            // it is a valid bo, can safely push decision
-            // LOG(INFO) << "decisions: " << bo.chainId << " " << bo.blockId << " " << bo.voteChainId << " " << bo.voteBlockId;
             return _orderManager->pushDecision(bo.chainId, bo.blockId, { bo.voteChainId, bo.voteBlockId });
         }
 

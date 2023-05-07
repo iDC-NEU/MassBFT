@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "peer/consensus/raft/interchain_order_manager.h"
+#include "peer/consensus/block_order/interchain_order_manager.h"
 
 #include "common/raft/multi_raft_fsm.h"
 #include "common/meta_rpc_server.h"

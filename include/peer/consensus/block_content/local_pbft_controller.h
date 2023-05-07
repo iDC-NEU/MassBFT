@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "peer/consensus/pbft/content_replicator.h"
-#include "peer/consensus/pbft/request_collector.h"
+#include "peer/consensus/block_content/content_replicator.h"
+#include "peer/consensus/block_content/request_collector.h"
 #include "common/pbft/pbft_rpc_service.h"
 #include "peer/replicator/v2/zmq_port_util.h"
 #include "peer/storage/mr_block_storage.h"

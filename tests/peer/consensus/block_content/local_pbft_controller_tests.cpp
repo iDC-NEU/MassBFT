@@ -2,7 +2,7 @@
 // Created by user on 23-3-29.
 //
 
-#include "peer/consensus/pbft/local_pbft_controller.h"
+#include "peer/consensus/block_content/local_pbft_controller.h"
 
 #include "tests/proto_block_utils.h"
 #include "gtest/gtest.h"

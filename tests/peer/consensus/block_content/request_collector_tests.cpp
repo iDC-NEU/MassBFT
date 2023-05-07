@@ -2,7 +2,7 @@
 // Created by user on 23-3-28.
 //
 
-#include "peer/consensus/pbft/request_collector.h"
+#include "peer/consensus/block_content/request_collector.h"
 
 #include "tests/proto_block_utils.h"
 #include "gtest/gtest.h"

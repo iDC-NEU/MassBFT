@@ -264,6 +264,20 @@ namespace util {
 
         NodeProperties getNodeProperties() const { return NodeProperties(_node[NODES_PROPERTIES]); }
 
+        YAML::Node getCustomProperties(const std::string& key) {
+            if (!_node[key].IsDefined()) {
+                _node[key].reset();
+            }
+            return _node[key];
+        }
+
+        YAML::Node getCustomProperties(const std::string& key) const {
+            if (!_node[key].IsDefined()) {
+                CHECK(false) << "Can not find key: " << key;
+            }
+            return _node[key];
+        }
+
     private:
         YAML::Node _node;
     };

@@ -4,6 +4,7 @@
 
 #include "peer/core/bootstrap.h"
 #include "peer/core/node_info_helper.h"
+#include "peer/core/yaml_key_storage.h"
 #include "common/property.h"
 
 namespace peer::core {
@@ -18,5 +19,25 @@ namespace peer::core {
         }
         mf->_nodeInfoHelper = std::move(nodeInfoHelper);
         return mf;
+    }
+
+    std::shared_ptr<::util::BCCSP> ModuleFactory::getBCCSP() {
+        if (!_bccsp) {
+            auto node = _properties->getCustomProperties("bccsp");
+            _bccsp = std::make_shared<util::BCCSP>(std::make_unique<YAMLKeyStorage>(node));
+        }
+        return _bccsp;
+    }
+
+    std::unique_ptr<::peer::Replicator> ModuleFactory::newReplicator() {
+        auto np = _properties->getNodeProperties();
+        std::unordered_map<int, std::vector<util::NodeConfigPtr>> nodes;
+        for (int i=0; i<np.getGroupCount(); i++) {
+            // Cross-domain block transmission needs to transmit the erasure code
+            // segment to the corresponding remote node, so a public network address is required
+            nodes[i] = np.getGroupNodesInfo(i, true);
+        }
+
+
     }
 }

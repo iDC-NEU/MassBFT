@@ -11,6 +11,8 @@
 #include "peer/chaincode/orm.h"
 #include "peer/chaincode/chaincode.h"
 
+#include "common/phmap.h"
+
 #include "proto/transaction.h"
 
 namespace peer::cc {
@@ -30,14 +32,25 @@ namespace peer::cc {
 
         ReceiverState OnExecuteTransaction() override {
             CHECK(db != nullptr) << "failed to init db!";
-            auto orm = peer::chaincode::ORM::NewORMFromLeveldb(db.get());
-            auto chaincode = peer::chaincode::NewChaincode(std::move(orm));
+            util::MyFlatHashMap<std::string, std::unique_ptr<peer::chaincode::Chaincode>> ccList;
             do {    // defer func
                 if (txnList.empty() || reserveTable == nullptr) {
                     LOG(WARNING) << "OnExecuteTransaction input error";
                     break;
                 }
                 for (auto& txn: txnList) {
+                    // find the chaincode using ccList
+                    auto ccNameSV = txn->getUserRequest().getCCNameSV();
+                    auto it = ccList.find(ccNameSV);
+                    if (it == ccList.end()) {   // chaincode not found
+                        auto ccName = std::string(ccNameSV);
+                        auto orm = peer::chaincode::ORM::NewORMFromLeveldb(db.get());
+                        auto ret = peer::chaincode::NewChaincodeByName(ccName, std::move(orm));
+                        CHECK(ret != nullptr) << "chaincode name not exist!";
+                        ccList[ccName] = std::move(ret);
+                        it = ccList.find(ccNameSV);
+                    }
+                    auto chaincode = it->second.get();
                     chaincode->setTxnRawPointer(txn.get());
                     auto& userRequest = txn->getUserRequest();
                     auto ret = chaincode->invoke(userRequest.getFuncNameSV(), userRequest.getArgs());
@@ -46,7 +59,7 @@ namespace peer::cc {
                     txn->getReads() = std::move(*reads);
                     txn->getWrites() = std::move(*writes);
                     // 1. transaction internal error, abort it without adding reserve table
-                    if ( ret != 0) {
+                    if (ret != 0) {
                         txn->setExecutionResult(ResultType::ABORT_NO_RETRY);
                         continue;
                     }

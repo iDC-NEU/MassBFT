@@ -13,8 +13,8 @@
 class WorkerImplTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        util::Properties::InitProperties();
-        util::Properties::GetProperties()->setDefaultChaincodeName("transfer");
+        util::Properties::LoadProperties();
+        util::Properties::GetProperties()->getChaincodeProperties().install("transfer");
     };
 
     void TearDown() override {

@@ -22,7 +22,7 @@ namespace peer::consensus::v2 {
                 if (ret == std::nullopt) {
                     break;  // socket dead
                 }
-                instance->_cb(std::move(*ret));
+                instance->_cb(ret->to_string());
             }
             return nullptr;
         }
@@ -48,7 +48,7 @@ namespace peer::consensus::v2 {
     private:
         std::unique_ptr<std::thread> _thread;
         std::unique_ptr<util::ZMQInstance> _sub;
-        std::function<void(zmq::message_t&& raw)> _cb;
+        std::function<void(std::string raw)> _cb;
     };
 
     // LocalDistributor is responsible for broadcasting messages received from raft to other local machines
@@ -65,8 +65,8 @@ namespace peer::consensus::v2 {
             auto ld = std::make_unique<LocalDistributor>();
             ld->_pub = std::move(pub);
             ld->_subs.reserve(nodes.size()-1);  // skip local sub
-            auto cb = [ptr = ld.get()](auto&& raw) {    // receive function
-                ptr->_deliverCallback(std::forward<decltype(raw)>(raw));
+            auto cb = [ptr = ld.get()](std::string raw) {    // receive function
+                ptr->_deliverCallback(std::move(raw));
             };
             for (int i=0; i<(int)nodes.size(); i++) {
                 if (i == myPos) {
@@ -84,8 +84,9 @@ namespace peer::consensus::v2 {
         }
 
         bool gossip(const std::string& msg) {
-            _deliverCallback(zmq::message_t(msg));
-            return _pub->send(std::forward<decltype(msg)>(msg));
+            _deliverCallback(std::string(msg));
+            return true;
+            return _pub->send(std::string(msg));
         }
 
         // the delivery callback is called concurrently by multiple receiver clients
@@ -94,7 +95,7 @@ namespace peer::consensus::v2 {
     private:
         std::unique_ptr<util::ZMQInstance> _pub;
         std::vector<std::unique_ptr<ActiveZMQReceiver>> _subs;
-        std::function<void(zmq::message_t msg)> _deliverCallback;
+        std::function<void(std::string msg)> _deliverCallback;
     };
 
 }

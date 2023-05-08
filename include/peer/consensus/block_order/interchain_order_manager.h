@@ -177,12 +177,20 @@ namespace peer::consensus::v2 {
                 return true;
             }
             cell->decisions.insert(std::move(decision));
-            // enter decision loop
-            if ((int)cell->decisions.size() == subChainCount) {
+            // prevent out-of-order insert
+            while (cell != nullptr && cell->blockNumber-1 == chains[cell->subChainId].lastFinished) {
+                // enter decision loop
+                if ((int)cell->decisions.size() != subChainCount) {
+                    DCHECK((int)cell->decisions.size() < subChainCount);
+                    return true;
+                }
                 if (!cell->mergeDecisions()) {
                     return false;
                 }
-                return decideV2(cell);
+                if (!decideV2(cell)) {
+                    return false;
+                }
+                cell = findCell(cell->subChainId, cell->blockNumber+1, false);
             }
             return true;
         }

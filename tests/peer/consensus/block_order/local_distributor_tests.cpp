@@ -27,12 +27,12 @@ TEST_F(LocalDistributorTest, BasicTest) {
     std::vector<std::unique_ptr<LocalDistributor>> dList(nodeCount);
     // receive message list
     std::mutex deliverMutex;
-    std::vector<zmq::message_t> receiveMsgList;
+    std::vector<std::string> receiveMsgList;
     CHECK(dList.size() == region0.size());
     for (int i=0; i<(int)dList.size(); i++) {
         dList[i] = LocalDistributor::NewLocalDistributor(region0, i);
         CHECK(dList[i] != nullptr) << "init failed!";
-        dList[i]->setDeliverCallback([&](zmq::message_t msg) {
+        dList[i]->setDeliverCallback([&](std::string msg) {
             std::unique_lock guard(deliverMutex);
             receiveMsgList.push_back(std::move(msg));
         });
@@ -45,7 +45,7 @@ TEST_F(LocalDistributorTest, BasicTest) {
         std::unique_lock guard(deliverMutex);
         ASSERT_TRUE((int)receiveMsgList.size() == nodeCount);
         for (auto& it: receiveMsgList) {
-            ASSERT_TRUE(it.to_string() == "node0");
+            ASSERT_TRUE(it == "node0");
         }
         receiveMsgList.clear();
     }
@@ -56,7 +56,7 @@ TEST_F(LocalDistributorTest, BasicTest) {
         std::unique_lock guard(deliverMutex);
         ASSERT_TRUE((int)receiveMsgList.size() == nodeCount);
         for (auto& it: receiveMsgList) {
-            ASSERT_TRUE(it.to_string() == "node1");
+            ASSERT_TRUE(it == "node1");
         }
         receiveMsgList.clear();
     }

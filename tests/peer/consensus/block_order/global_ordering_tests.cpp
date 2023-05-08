@@ -38,15 +38,28 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     auto localNodes1 = GetLocalNodes(1);
     // prepare callback
     std::vector<std::vector<std::pair<int, int>>> retValue(8);
+    bthread::CountdownEvent ce(8);  // 8 nodes total
+    std::vector<bool> sent(8);
+
+    auto callback = [&] (int i, int regionId, int blockId) ->bool {
+        if (retValue[i].size() >= 15000) {
+            if (!sent[i]) {
+                sent[i] = true;
+                ce.signal();
+            }
+        } else {
+            retValue[i].emplace_back(regionId, blockId);
+        }
+        return true;
+    };
 
     // spin up nodes in region 0
     std::vector<std::unique_ptr<BlockOrder>> regions(8);
     for (auto i: {0, 1, 2, 3}) {
         auto& me = localNodes0[i]->nodeConfig;
         regions[i] = BlockOrder::NewBlockOrder(
-                localNodes0, raftNodes, raftLeaders, me, [&, i=i](int regionId, int blockId) ->bool {
-                    retValue[i].emplace_back(regionId, blockId);
-                    return true;
+                localNodes0, raftNodes, raftLeaders, me, [&callback, i=i](int regionId, int blockId) ->bool {
+                    return callback(i, regionId, blockId);
                 });
         ASSERT_TRUE(regions[i] != nullptr);
     }
@@ -54,9 +67,8 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     for (auto i: {4, 5, 6, 7}) {
         auto& me = localNodes1[i-4]->nodeConfig;
         regions[i] = BlockOrder::NewBlockOrder(
-                localNodes1, raftNodes, raftLeaders, me, [&, i=i](int regionId, int blockId) ->bool {
-                    retValue[i].emplace_back(regionId, blockId);
-                    return true;
+                localNodes1, raftNodes, raftLeaders, me, [&callback, i=i](int regionId, int blockId) ->bool {
+                    return callback(i, regionId, blockId);
                 });
         ASSERT_TRUE(regions[i] != nullptr);
     }
@@ -70,7 +82,6 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
         for (int i=0; i< 10000; i++) {
             auto ret = regions[myIdx]->voteNewBlock(targetGroup, i);
             CHECK(ret);
-            util::Timer::sleep_ms(1);
         }
     };
 
@@ -89,5 +100,12 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     LOG(INFO) << "finish sending message";
 
     // need to check the result
-    sleep(100);
+    ce.wait();
+    for (int i=1; i<(int)retValue.size(); i++) {
+        ASSERT_TRUE(retValue[0] == retValue[i]);
+    }
+    LOG(INFO) << "Test successfully finished, size: " << retValue[0].size();
+    LOG(INFO) << "List size: " << retValue.size();
+    LOG(INFO) << "Last value: " << retValue[0].back().first << ", " << retValue[0].back().second;
+    util::Timer::sleep_sec(10);
 }

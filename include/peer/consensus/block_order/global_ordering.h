@@ -20,7 +20,7 @@ namespace peer::consensus::v2 {
             });
         }
 
-        // called by AsyncAgreement when nodes involved in raft instance
+        // called by multiple AsyncAgreement when nodes involved in raft instance, access concurrently
         bool onBroadcast(std::string decision) override {
             return localDistributor->gossip(decision);
         }

@@ -83,16 +83,24 @@ namespace peer::consensus::v2 {
             return ld;
         }
 
-        bool gossip(const std::string& msg) {
+        // gossip should be thread safe
+        inline bool gossip(std::string&& msg) {
             _deliverCallback(std::string(msg));
-            return true;
-            return _pub->send(std::string(msg));
+            std::unique_lock guard(gossipMutex);
+            return _pub->send(std::move(msg));
+        }
+
+        inline bool gossip(const std::string& msg) {
+            _deliverCallback(std::string(msg.data(), msg.size()));
+            std::unique_lock guard(gossipMutex);
+            return _pub->send(msg);
         }
 
         // the delivery callback is called concurrently by multiple receiver clients
         void setDeliverCallback(auto&& cb) { _deliverCallback = std::forward<decltype(cb)>(cb); }
 
     private:
+        std::mutex gossipMutex;
         std::unique_ptr<util::ZMQInstance> _pub;
         std::vector<std::unique_ptr<ActiveZMQReceiver>> _subs;
         std::function<void(std::string msg)> _deliverCallback;

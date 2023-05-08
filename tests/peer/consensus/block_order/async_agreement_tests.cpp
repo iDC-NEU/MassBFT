@@ -13,13 +13,12 @@ using namespace peer::consensus;
 class MockACB : public AsyncAgreementCallback {
 public:
     MockACB(int groupCount, std::shared_ptr<util::ZMQInstanceConfig> node)
-            : AsyncAgreementCallback(groupCount), localNode(std::move(node)) {}
-
-    // called by orderManager in base class
-    bool onDeliver(int chainId, int blockNumber) override {
-        LOG(INFO) << "{ " << localNode->nodeConfig->groupId << ", " << localNode->nodeConfig->nodeId << " }: "
-                  << chainId << ", " << blockNumber;
-        return true;
+            : AsyncAgreementCallback(groupCount), localNode(std::move(node)) {
+        onDeliver = [this] (int chainId, int blockNumber) {
+            LOG(INFO) << "{ " << localNode->nodeConfig->groupId << ", " << localNode->nodeConfig->nodeId << " }: "
+                      << chainId << ", " << blockNumber;
+            return true;
+        };
     }
 
     // called by localDistributor
@@ -112,7 +111,7 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
     for (int i=0; i<(int)nodes.size(); i++) {
         // each peer contains 3 multi-raft instance, 0, 2, 4 are leaders, j/2 are group id
         for (auto j: {0, 2, 4}) {
-            CHECK(aaList[i]->startCluster(nodes, j, j/2));
+            CHECK(aaList[i]->startCluster(nodes, j));
         }
     }
     // ensure leader
@@ -150,4 +149,6 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
     sender_7.join();
     sender_8.join();
     sender_9.join();
+
+    util::Timer::sleep_sec(10); // wait until finished
 }

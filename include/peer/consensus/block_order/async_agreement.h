@@ -93,9 +93,12 @@ namespace peer::consensus {
             });
             _orderManager = std::move(om);
         }
-        // Called on return after determining the final order of sub chain blocks
-        virtual bool onDeliver(int chainId, int blockNumber) = 0;
 
+    protected:
+        // Called on return after determining the final order of sub chain blocks
+        std::function<bool(int, int)> onDeliver;
+
+    public:
         // Called after receiving a message from raft, responsible for broadcasting to all local nodes
         virtual bool onBroadcast(std::string decision) = 0;
 
@@ -206,14 +209,15 @@ namespace peer::consensus {
 
         // leaderPos: the leader of current cluster
         // targetGroupId: the group involved in
-        bool startCluster(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& nodes, int leaderPos, int targetGroupId) {
+        bool startCluster(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& nodes, int leaderPos) {
             std::vector<braft::PeerId> peers(nodes.size());
             int myIdIndex = -1;
             for (int i=0; i<(int)nodes.size(); i++) {
                 if (nodes[i] == _localConfig) {
                     myIdIndex = i;
                 }
-                if (!PeerIdFromConfig(nodes[i]->addr(), nodes[i]->port, targetGroupId, peers[i])) {
+                // targetGroupId = the region id of leader, since each region has only one leader
+                if (!PeerIdFromConfig(nodes[i]->addr(), nodes[i]->port, nodes[leaderPos]->nodeConfig->groupId, peers[i])) {
                     return false;
                 }
             }
@@ -279,6 +283,7 @@ namespace peer::consensus {
             return true;
         }
 
+    protected:
         // thread safe, called by leader
         bool apply(std::string& content) {
             braft::PeerId pc;
@@ -301,7 +306,6 @@ namespace peer::consensus {
             return true;
         }
 
-    protected:
         // thread safe, called by raft fsm (followers and the leader)
         bool onApply(const butil::IOBuf& data) {
             auto dataStr = data.to_string();

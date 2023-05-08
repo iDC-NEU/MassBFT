@@ -57,19 +57,19 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     std::vector<std::unique_ptr<BlockOrder>> regions(8);
     for (auto i: {0, 1, 2, 3}) {
         auto& me = localNodes0[i]->nodeConfig;
-        regions[i] = BlockOrder::NewBlockOrder(
-                localNodes0, raftNodes, raftLeaders, me, [&callback, i=i](int regionId, int blockId) ->bool {
-                    return callback(i, regionId, blockId);
-                });
+        auto orderCAB = std::make_unique<OrderACB>([&callback, i=i](int regionId, int blockId) ->bool {
+                return callback(i, regionId, blockId);
+        });
+        regions[i] = BlockOrder::NewBlockOrder(localNodes0, raftNodes, raftLeaders, me, std::move(orderCAB));
         ASSERT_TRUE(regions[i] != nullptr);
     }
     // spin up nodes in region 1
     for (auto i: {4, 5, 6, 7}) {
         auto& me = localNodes1[i-4]->nodeConfig;
-        regions[i] = BlockOrder::NewBlockOrder(
-                localNodes1, raftNodes, raftLeaders, me, [&callback, i=i](int regionId, int blockId) ->bool {
-                    return callback(i, regionId, blockId);
-                });
+        auto orderCAB = std::make_unique<OrderACB>([&callback, i=i](int regionId, int blockId) ->bool {
+            return callback(i, regionId, blockId);
+        });
+        regions[i] = BlockOrder::NewBlockOrder(localNodes1, raftNodes, raftLeaders, me, std::move(orderCAB));
         ASSERT_TRUE(regions[i] != nullptr);
     }
     // leaders send proposals

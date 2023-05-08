@@ -84,7 +84,21 @@ namespace peer::consensus {
     public:
         virtual ~AsyncAgreementCallback() = default;
 
-        explicit AsyncAgreementCallback(int groupCount) {
+        explicit AsyncAgreementCallback() {
+            onValidateHandle = [this](const proto::SignedBlockOrder& sb) { return validateSignatureOfBlockOrder(sb); };
+            onBroadcastHandle = [this](const std::string& decision) { return applyRawBlockOrder(decision); };
+        }
+
+        // Called by raft fsm in the first RPC (Receive but may not be replicated in most region)
+        inline auto onValidate(const proto::SignedBlockOrder& sb) { return onValidateHandle(sb); }
+
+        // Called on return after determining the final order of sub chain blocks
+        inline auto onDeliver(int subChainId, int blockId) { return onDeliverHandle(subChainId, blockId); }
+
+        // Called after receiving a message from raft, responsible for broadcasting to all local nodes
+        inline auto onBroadcast(std::string decision) { return onBroadcastHandle(std::move(decision)); }
+
+        void init(int groupCount) {
             auto om = std::make_unique<v2::InterChainOrderManager>();
             om->setSubChainCount(groupCount);
             om->setDeliverCallback([this](const v2::InterChainOrderManager::Cell* c) {
@@ -92,22 +106,24 @@ namespace peer::consensus {
                 this->onDeliver(c->subChainId, c->blockNumber);
             });
             _orderManager = std::move(om);
+            // all handles are set
+            CHECK(onValidateHandle && onDeliverHandle && onBroadcastHandle);
         }
 
     protected:
-        // Called on return after determining the final order of sub chain blocks
-        std::function<bool(int, int)> onDeliver;
+        std::function<bool(const proto::SignedBlockOrder& sb)> onValidateHandle;
+
+        std::function<bool(int, int)> onDeliverHandle;
+
+        std::function<bool(std::string decision)> onBroadcastHandle;
 
     public:
-        // Called after receiving a message from raft, responsible for broadcasting to all local nodes
-        virtual bool onBroadcast(std::string decision) = 0;
-
         bool applyRawBlockOrder(const std::string& decision) {
             proto::SignedBlockOrder sb;
             if (!sb.deserializeFromString(decision)) {
                 return false;
             }
-            if (!validateSignatureOfBlockOrder(sb)) {
+            if (!onValidate(sb)) {
                 return false;
             }
             proto::BlockOrder bo{};

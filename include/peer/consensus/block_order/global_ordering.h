@@ -4,25 +4,26 @@
 
 #include "peer/consensus/block_order/local_distributor.h"
 #include "peer/consensus/block_order/async_agreement.h"
-#include "common/concurrent_queue.h"
 
 namespace peer::consensus::v2 {
     class OrderACB : public AsyncAgreementCallback {
     public:
-        OrderACB(int groupCount, std::unique_ptr<LocalDistributor> ld, auto &&cb)
-                : AsyncAgreementCallback(groupCount),
-                  localDistributor(std::move(ld)) {
-            onDeliver = std::forward<decltype(cb)>(cb);
+        explicit OrderACB(std::function<bool(int chainId, int blockNumber)> deliverCallback) {
+            // called by multiple AsyncAgreement when nodes involved in raft instance, access concurrently
+            onDeliverHandle = std::move(deliverCallback);
+            onBroadcastHandle = [this](const std::string& decision) {
+                return localDistributor->gossip(decision);
+            };
+        }
+
+        void init(int groupCount, std::unique_ptr<LocalDistributor> ld) {
+            localDistributor = std::move(ld);
             localDistributor->setDeliverCallback([&](const std::string& decision) {
                 if (!applyRawBlockOrder(decision)) {
                     LOG(WARNING) << "receive wrong order from gossip!";
                 }
             });
-        }
-
-        // called by multiple AsyncAgreement when nodes involved in raft instance, access concurrently
-        bool onBroadcast(std::string decision) override {
-            return localDistributor->gossip(decision);
+            AsyncAgreementCallback::init(groupCount);
         }
 
     protected:
@@ -37,7 +38,7 @@ namespace peer::consensus::v2 {
                 const std::vector<std::shared_ptr<util::ZMQInstanceConfig>> &multiRaftParticipant,
                 const std::vector<int> &multiRaftLeaderPos,  // the leader indexes in multiRaftParticipant
                 const util::NodeConfigPtr &me,
-                std::function<bool(int, int)> onDeliver) {
+                std::shared_ptr<OrderACB> callback) {
             auto bo = std::make_unique<BlockOrder>();
             {   // init LocalDistributor
                 // find local nodes position
@@ -61,7 +62,8 @@ namespace peer::consensus::v2 {
                 for (auto &it: multiRaftParticipant) {
                     maxGroupId = std::max(maxGroupId, it->nodeConfig->groupId);
                 }
-                bo->agreementCallback = std::make_shared<OrderACB>(maxGroupId + 1, std::move(ld), std::move(onDeliver));
+                callback->init(maxGroupId + 1, std::move(ld));
+                bo->agreementCallback = std::move(callback);
             }
             {   // init AsyncAgreement
                 //---- get group count and local instance ID
@@ -113,6 +115,10 @@ namespace peer::consensus::v2 {
                 return true;
             }
             return raftAgreement->ready();
+        }
+
+        void setBCCSPWithThreadPool(std::shared_ptr<util::BCCSP> bccsp, std::shared_ptr<util::thread_pool_light> threadPool) {
+            agreementCallback->setBCCSPWithThreadPool(std::move(bccsp), std::move(threadPool));
         }
 
     private:

@@ -12,18 +12,14 @@ using namespace peer::consensus;
 
 class MockACB : public AsyncAgreementCallback {
 public:
-    MockACB(int groupCount, std::shared_ptr<util::ZMQInstanceConfig> node)
-            : AsyncAgreementCallback(groupCount), localNode(std::move(node)) {
-        onDeliver = [this] (int chainId, int blockNumber) {
+    void init(int groupCount, std::shared_ptr<util::ZMQInstanceConfig> node) {
+        onDeliverHandle = [this](int chainId, int blockNumber) {
             LOG(INFO) << "{ " << localNode->nodeConfig->groupId << ", " << localNode->nodeConfig->nodeId << " }: "
                       << chainId << ", " << blockNumber;
             return true;
         };
-    }
-
-    // called by localDistributor
-    bool onBroadcast(std::string decision) override {
-        return applyRawBlockOrder(decision);
+        localNode = std::move(node);
+        AsyncAgreementCallback::init(groupCount);
     }
 
 private:
@@ -100,7 +96,8 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
     std::vector<std::unique_ptr<AsyncAgreement>> aaList;
 
     for (const auto& it : nodes) {
-        auto acb = std::make_unique<MockACB>(3, it);
+        auto acb = std::make_unique<MockACB>();
+        acb->init(3, it);
         auto aa = AsyncAgreement::NewAsyncAgreement(it, std::move(acb));
         if (aa == nullptr) {
             CHECK(false) << "init failed";

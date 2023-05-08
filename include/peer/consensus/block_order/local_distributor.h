@@ -20,7 +20,6 @@ namespace peer::consensus::v2 {
             while(true) {
                 auto ret = instance->_sub->receive();
                 if (ret == std::nullopt) {
-                    LOG(ERROR) << "Receive message fragment failed!";
                     break;  // socket dead
                 }
                 instance->_cb(std::move(*ret));
@@ -84,11 +83,12 @@ namespace peer::consensus::v2 {
             return ld;
         }
 
-        bool gossip(auto&& msg) {
+        bool gossip(const std::string& msg) {
             _deliverCallback(zmq::message_t(msg));
             return _pub->send(std::forward<decltype(msg)>(msg));
         }
 
+        // the delivery callback is called concurrently by multiple receiver clients
         void setDeliverCallback(auto&& cb) { _deliverCallback = std::forward<decltype(cb)>(cb); }
 
     private:

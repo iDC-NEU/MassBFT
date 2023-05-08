@@ -52,7 +52,7 @@ TEST_F(AsyncAgreementTest, TestFSM) {
     std::vector<braft::PeerId> subPeers;
     for (auto& it: nodes) {
         braft::PeerId tmp;
-        CHECK(AsyncAgreement::PeerIdFromConfig(it->addr(), it->port, 0, tmp));
+        CHECK(AsyncAgreement::PeerIdFromConfig(it->pubAddr(), it->port, 0, tmp));
         subPeers.push_back(tmp);
     }
 

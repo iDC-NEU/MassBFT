@@ -14,7 +14,8 @@ namespace util {
         int nodeId = -1;
         int groupId = -1;
         std::string ski;
-        std::string ip;
+        std::string priIp;
+        std::string pubIp;
 
         bool operator==(const NodeConfig& rhs) const {
             if (this->nodeId != rhs.nodeId) {
@@ -24,7 +25,8 @@ namespace util {
                 return false;
             }
             DCHECK(this->ski == rhs.ski);
-            DCHECK(this->ip == rhs.ip);
+            DCHECK(this->priIp == rhs.priIp);
+            DCHECK(this->pubIp == rhs.pubIp);
             return true;
         }
     };
@@ -34,9 +36,14 @@ namespace util {
         util::NodeConfigPtr nodeConfig;
         int port;
 
-        [[nodiscard]] std::string& addr() const {
+        [[nodiscard]] std::string& priAddr() const {
             DCHECK(nodeConfig != nullptr) << "nodeConfig unset!";
-            return nodeConfig->ip;
+            return nodeConfig->priIp;
+        }
+
+        [[nodiscard]] std::string& pubAddr() const {
+            DCHECK(nodeConfig != nullptr) << "nodeConfig unset!";
+            return nodeConfig->pubIp;
         }
 
         bool operator==(const ZMQInstanceConfig& rhs) const {
@@ -119,20 +126,14 @@ namespace util {
     protected:
         static auto BuildGroupKey(int groupId) { return std::string("group_") + std::to_string(groupId); }
 
-        static NodeConfigPtr LoadNodeInfo(const YAML::Node& node, bool publicAddress) {
+        static NodeConfigPtr LoadNodeInfo(const YAML::Node& node) {
             try {
                 NodeConfigPtr cfg(new NodeConfig);
                 cfg->nodeId = node["node_id"].as<int>();
                 cfg->groupId = node["group_id"].as<int>();
                 cfg->ski = node["ski"].as<std::string>();
-                cfg->ip = node["pri_ip"].as<std::string>(); // load private ip first (public ip may not exist)
-                if (publicAddress) {
-                    if (!node["pub_ip"].IsDefined() || node["pub_ip"].IsNull()) {
-                        LOG(WARNING) << "node: " << cfg->ski << " public ip not exist!";
-                        return cfg;
-                    }
-                    cfg->ip = node["pub_ip"].as<std::string>();
-                }
+                cfg->priIp = node["pri_ip"].as<std::string>(); // load private ip first (public ip may not exist)
+                cfg->pubIp = node["pub_ip"].as<std::string>();
                 return cfg;
             }
             catch (const YAML::Exception &e) {
@@ -152,7 +153,7 @@ namespace util {
 
     public:
         // NodeConfigPtr may be empty
-        NodeConfigPtr getSingleNodeInfo(int groupId, int nodeId, bool publicAddress) const {
+        NodeConfigPtr getSingleNodeInfo(int groupId, int nodeId) const {
             auto [list, success] = getAndCheckGroup(groupId);
             if (!success) {
                 return nullptr; // group not found
@@ -160,17 +161,17 @@ namespace util {
             if ((int)list.size() <= nodeId) {
                 return nullptr; // node not found
             }
-            return LoadNodeInfo(list[nodeId], publicAddress);
+            return LoadNodeInfo(list[nodeId]);
         }
 
-        std::vector<NodeConfigPtr> getGroupNodesInfo(int groupId, bool publicAddress) const {
+        std::vector<NodeConfigPtr> getGroupNodesInfo(int groupId) const {
             auto [list, success] = getAndCheckGroup(groupId);
             if (!success) {
                 return {}; // group not found
             }
             std::vector<NodeConfigPtr> nodeList;
             for (const auto& it: list) {
-                auto ret = LoadNodeInfo(it, publicAddress);
+                auto ret = LoadNodeInfo(it);
                 if (ret == nullptr) {
                     continue;
                 }

@@ -72,7 +72,7 @@ namespace peer::consensus::v2 {
                 if (i == myPos) {
                     continue;   // skip local
                 }
-                auto sub = util::ZMQInstance::NewClient<zmq::socket_type::sub>(nodes[i]->addr(), nodes[i]->port);
+                auto sub = util::ZMQInstance::NewClient<zmq::socket_type::sub>(nodes[i]->priAddr(), nodes[i]->port);
                 if (sub == nullptr) {
                     return nullptr;
                 }

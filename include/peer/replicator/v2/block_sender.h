@@ -103,7 +103,7 @@ namespace peer::v2 {
                     LOG(ERROR) << "Can not load zmq config!";
                     return nullptr;
                 }
-                auto zmqClient = util::ReliableZmqClient::NewPublishClient(zmqConfig->addr(), zmqConfig->port);
+                auto zmqClient = util::ReliableZmqClient::NewPublishClient(zmqConfig->pubAddr(), zmqConfig->port);
                 if (zmqClient == nullptr) {
                     LOG(ERROR) << "Can not create ReliableZmqClient!";
                     return nullptr;

@@ -188,8 +188,8 @@ namespace peer::v2 {
                     LOG(ERROR) << "GroupId is not the same!";
                     return nullptr;
                 }
-                if (n0->addr() == lfrConfigList[i]->addr() && n0->port == lfrConfigList[i]->port) {
-                    LOG(ERROR) << "Two nodes have the same remote listen address!";
+                if (n0->priAddr() == lfrConfigList[i]->priAddr() && n0->port == lfrConfigList[i]->port) {
+                    LOG(ERROR) << "Two nodes in the same group have the same listen address!";
                     return nullptr;
                 }
                 if (n0->nodeConfig->ski == lfrConfigList[i]->nodeConfig->ski) {
@@ -210,7 +210,7 @@ namespace peer::v2 {
                         LOG(ERROR) << "Can not enqueue to ring buffer, block fragment may be lost!";
                     }
                 });
-                auto zmq = util::ZMQInstance::NewClient<zmq::socket_type::sub>(it->addr(), it->port);
+                auto zmq = util::ZMQInstance::NewClient<zmq::socket_type::sub>(it->priAddr(), it->port);
                 if (!zmq) {
                     LOG(ERROR) << "Could not init localFragmentReceiver!";
                     return nullptr;

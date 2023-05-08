@@ -134,7 +134,7 @@ namespace peer::consensus {
             for (const auto& it: _userCollectorAddr) {
                 if (it->nodeConfig->ski == newLeaderNode->ski) {
                     // found the target config, create a client and forward requests to it
-                    _redirectClient = util::ZMQInstance::NewClient<zmq::socket_type::pub>(it->addr(), it->port);
+                    _redirectClient = util::ZMQInstance::NewClient<zmq::socket_type::pub>(it->priAddr(), it->port);
                     _collector->setBatchCallback([&](const std::vector<std::unique_ptr<::proto::Envelop>>& items) {
                         for (const auto& item: items) {
                             if (item->haveSerializedMessage()) {    // has cached message

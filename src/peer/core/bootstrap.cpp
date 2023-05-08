@@ -5,6 +5,7 @@
 #include "peer/core/bootstrap.h"
 #include "peer/core/node_info_helper.h"
 #include "peer/core/yaml_key_storage.h"
+#include "peer/replicator/replicator.h"
 #include "common/property.h"
 
 namespace peer::core {
@@ -35,9 +36,9 @@ namespace peer::core {
         for (int i=0; i<np.getGroupCount(); i++) {
             // Cross-domain block transmission needs to transmit the erasure code
             // segment to the corresponding remote node, so a public network address is required
-            nodes[i] = np.getGroupNodesInfo(i, true);
+            nodes[i] = np.getGroupNodesInfo(i);
         }
 
-
+        return nullptr;
     }
 }

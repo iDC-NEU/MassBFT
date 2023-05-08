@@ -68,7 +68,7 @@ namespace peer::consensus {
                 if (it->nodeConfig->nodeId == localId) {
                     continue;
                 }
-                _clients.emplace_back(util::ZMQInstance::NewClient<zmq::socket_type::push>(it->addr(), it->port));
+                _clients.emplace_back(util::ZMQInstance::NewClient<zmq::socket_type::push>(it->priAddr(), it->port));
             }
         }
 

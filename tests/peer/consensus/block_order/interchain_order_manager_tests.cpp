@@ -2,7 +2,7 @@
 // Created by user on 23-4-5.
 //
 
-#include "peer/consensus/raft/interchain_order_manager.h"
+#include "peer/consensus/block_order/interchain_order_manager.h"
 #include "common/timer.h"
 #include "common/thread_pool_light.h"
 
@@ -156,7 +156,7 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder2) {
     oiList.reserve(3);
     for (int i=0; i<3; i++) {
         auto ret = std::make_unique<peer::consensus::v2::OrderAssigner>();
-        ret->setSubChainIds(i);
+        ret->setLocalChainId(i);
         oiList.push_back(std::move(ret));
     }
     util::thread_pool_light tp;
@@ -195,7 +195,7 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder3) {
     oiList.reserve(3);
     for (int i=0; i<3; i++) {
         auto ret = std::make_unique<peer::consensus::v2::OrderAssigner>();
-        ret->setSubChainIds(i);
+        ret->setLocalChainId(i);
         oiList.push_back(std::move(ret));
     }
     auto iom_1 = std::make_unique<peer::consensus::v2::InterChainOrderManager>();

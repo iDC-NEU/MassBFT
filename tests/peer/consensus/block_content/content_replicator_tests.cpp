@@ -2,8 +2,8 @@
 // Created by user on 23-3-21.
 //
 
-#include "peer/consensus/pbft/local/content_replicator.h"
-#include "peer/consensus/pbft/pbft_rpc_service.h"
+#include "peer/consensus/block_content/content_replicator.h"
+#include "common/pbft/pbft_rpc_service.h"
 #include "tests/proto_block_utils.h"
 
 #include "gtest/gtest.h"
@@ -65,7 +65,7 @@ protected:
     std::vector<std::shared_ptr<util::ZMQInstanceConfig>> localNodes;
     std::shared_ptr<util::BCCSP> bccsp;
     std::shared_ptr<util::thread_pool_light> threadPool;
-    std::vector<std::shared_ptr<peer::consensus::PBFTStateMachine>> stateMachines;
+    std::vector<std::shared_ptr<util::pbft::PBFTStateMachine>> stateMachines;
 };
 
 TEST_F(ConsensusReplicatorTest, TestStateMachineNormalCase) {
@@ -102,7 +102,7 @@ TEST_F(ConsensusReplicatorTest, TestWithPBFTService) {
         nodes[it->nodeConfig->nodeId] = it->nodeConfig;
     }
     for (int i=0; i<4; i++) {
-        auto service = std::make_unique<peer::consensus::PBFTRPCService>();
+        auto service = std::make_unique<util::pbft::PBFTRPCService>();
         CHECK(service->checkAndStart(nodes, bccsp, stateMachines[i]));
         if (util::DefaultRpcServer::AddService(service.release(), 9510 + i) != 0) {
             CHECK(false) << "Fail to add globalControlService!";

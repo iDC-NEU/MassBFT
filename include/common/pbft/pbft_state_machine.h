@@ -10,7 +10,7 @@
 #include <string>
 #include <memory>
 
-namespace peer::consensus {
+namespace util::pbft {
     class PBFTStateMachine {
     public:
         virtual ~PBFTStateMachine() = default;

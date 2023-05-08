@@ -2,14 +2,14 @@
 // Created by user on 23-3-21.
 //
 
-#include "peer/consensus/pbft/mock_rpc_service.h"
-#include "peer/consensus/pbft/pbft_rpc_service.h"
+#include "common/pbft/mock_rpc_service.h"
+#include "common/pbft/pbft_rpc_service.h"
 #include "tests/proto_block_utils.h"
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
-class MockPBFTStateMachine : public peer::consensus::PBFTStateMachine {
+class MockPBFTStateMachine : public util::pbft::PBFTStateMachine {
 public:
     [[nodiscard]] std::optional<::util::OpenSSLED25519::digestType> OnSignMessage(const ::util::NodeConfigPtr&, const std::string&) const override {
         return std::nullopt;
@@ -78,7 +78,7 @@ protected:
 
 TEST_F(PBFTRPCServiceTest, TestPBFTRPCService) {
     util::OpenSSLED25519::initCrypto();
-    auto service = std::make_unique<peer::consensus::PBFTRPCService>();
+    auto service = std::make_unique<util::pbft::PBFTRPCService>();
     CHECK(service->checkAndStart(localNodes, bccsp, stateMachine));
     if (util::MetaRpcServer::AddService(service.release()) != 0) {
         CHECK(false) << "Fail to add globalControlService!";
@@ -89,7 +89,7 @@ TEST_F(PBFTRPCServiceTest, TestPBFTRPCService) {
 
 TEST_F(PBFTRPCServiceTest, TestServiceInterface) {
     util::OpenSSLED25519::initCrypto();
-    auto service = std::make_unique<peer::consensus::MockRPCService>();
+    auto service = std::make_unique<util::pbft::MockRPCService>();
     CHECK(service->checkAndStart());
     util::MetaRpcServer::Start();
     sleep(3600);

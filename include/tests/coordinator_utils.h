@@ -28,11 +28,8 @@ namespace tests {
         }
 
         using TxnListType = std::vector<std::unique_ptr<proto::Transaction>>;
-        static void StartBenchmark(const std::string& ccName,
-                                   const std::function<bool(TxnListType&)>& coordinatorCallback,
+        static void StartBenchmark(const std::function<bool(TxnListType&)>& coordinatorCallback,
                                    int recordCount=100000) {
-            util::Properties::InitProperties();
-            util::Properties::GetProperties()->setDefaultChaincodeName(ccName);
             std::vector<TxnListType> txnListList;
             txnListList.resize(100);
             for (int i=0; i<100; i++) {

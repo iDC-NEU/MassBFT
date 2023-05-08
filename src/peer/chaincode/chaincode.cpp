@@ -20,9 +20,4 @@ namespace peer::chaincode {
         return nullptr;
     }
 
-    std::unique_ptr<Chaincode> NewChaincode(std::unique_ptr<ORM> orm) {
-        auto ccName = util::Properties::GetProperties()->getDefaultChaincodeName();
-        return NewChaincodeByName(ccName, std::move(orm));
-    }
-
 }

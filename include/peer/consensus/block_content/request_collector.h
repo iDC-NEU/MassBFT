@@ -113,6 +113,9 @@ namespace peer::consensus {
                 auto timeLeftUs = _batchConfig.timeoutMs * 1000;
                 auto currentBatchSize = 0;
                 while (true) {
+                    if (_tearDownSignal.load(std::memory_order_relaxed)) {
+                        return;
+                    }
                     auto ret = _requestsQueue.wait_dequeue_bulk_timed(unorderedRequests.begin() + currentBatchSize,
                                                                       _batchConfig.maxBatchSize - currentBatchSize,
                                                                       timeLeftUs);

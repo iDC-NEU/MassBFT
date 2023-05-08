@@ -5,6 +5,7 @@
 #pragma once
 
 #include "proto/transaction.h"
+#include "common/property.h"
 #include <random>
 
 namespace tests {
@@ -49,8 +50,11 @@ namespace tests {
 
             std::vector<std::unique_ptr<proto::Envelop>> envelopList;
             envelopList.reserve(count);
+            auto ccNameList = util::Properties::GetProperties()->getChaincodeProperties().installed();
+            CHECK(!ccNameList.empty());
             for (int i=0; i<count; i++) {
                 proto::UserRequest request;
+                request.setCCName(std::string(ccNameList[0]));
                 // set from and to
                 request.setArgs(ParamToString({std::to_string(dist(rng)), std::to_string(dist(rng))}));
                 // serialize

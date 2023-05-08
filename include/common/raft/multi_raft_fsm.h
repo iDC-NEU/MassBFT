@@ -29,6 +29,7 @@ namespace util::raft {
 
         // start a new raft group, return 0 on success
         // note: peers must include local peer
+        // the fsm will be taken by braft::Node
         int start(const std::vector<braft::PeerId>& peers, int local_peer_index, SingleRaftFSM *fsm = nullptr) {
             // index is not out of range
             if (local_peer_index >= (int)peers.size() || local_peer_index < 0) {

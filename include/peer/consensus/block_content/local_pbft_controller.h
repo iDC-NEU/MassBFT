@@ -4,9 +4,9 @@
 
 #pragma once
 
-#include "peer/consensus/pbft/local/content_replicator.h"
-#include "peer/consensus/pbft/local/request_collector.h"
-#include "peer/consensus/pbft/pbft_rpc_service.h"
+#include "peer/consensus/block_content/content_replicator.h"
+#include "peer/consensus/block_content/request_collector.h"
+#include "common/pbft/pbft_rpc_service.h"
 #include "peer/replicator/v2/zmq_port_util.h"
 #include "peer/storage/mr_block_storage.h"
 
@@ -53,7 +53,7 @@ namespace peer::consensus {
                 LOG(ERROR) << "Replicator service start failed!";
                 return nullptr;
             }
-            auto service = new peer::consensus::PBFTRPCService();
+            auto service = new util::pbft::PBFTRPCService();
             if(!service->checkAndStart(localRegionNodes, bccsp, controller->_replicator)) {
                 LOG(ERROR) << "Fail to start PBFTRPCService!";
                 return nullptr;
@@ -154,13 +154,12 @@ namespace peer::consensus {
             LOG(WARNING) << "Can not find node, ski: " << newLeaderNode->ski;
         }
 
-    public:
+    private:
         const std::vector<std::shared_ptr<util::ZMQInstanceConfig>> _userCollectorAddr;
         int rpcServerPort = -1;
         std::unique_ptr<util::ZMQInstance> _redirectClient;
         std::shared_ptr<ContentReplicator> _replicator;
         std::unique_ptr<RequestCollector> _collector;
         std::shared_ptr<peer::MRBlockStorage> _storage;
-        std::unique_ptr<peer::consensus::PBFTRPCService> _service;
     };
 }

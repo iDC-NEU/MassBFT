@@ -107,6 +107,8 @@ namespace ca {
                 return;
             }
             channel->execute("pkill -f nc_bft.jar");
+            std::string out;
+            channel->read(out, false);
 
             channel = _session->createChannel();
             if (!channel) {

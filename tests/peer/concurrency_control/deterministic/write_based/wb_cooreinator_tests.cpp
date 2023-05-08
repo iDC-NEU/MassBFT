@@ -11,7 +11,7 @@
 class WBCoordinatorTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        util::Properties::InitProperties();
+        util::Properties::LoadProperties();
     };
 
     void TearDown() override {
@@ -19,14 +19,12 @@ protected:
 
 };
 
-
 TEST_F(WBCoordinatorTest, TestTransfer) {
+    util::Properties::GetProperties()->getChaincodeProperties().install("transfer");
     constexpr int recordCount=10000;
     auto dbc = tests::CoordinatorUtils::initDB(recordCount);
     auto c = peer::cc::WBCoordinator::NewCoordinator(dbc, 10);
-    tests::CoordinatorUtils::StartBenchmark("transfer", [&](auto& ph) -> bool {
-        return c->processTxnList(ph);
-    }, recordCount);
+    tests::CoordinatorUtils::StartBenchmark([&](auto& ph) -> bool { return c->processTxnList(ph); }, recordCount);
     // validate result
     int totalValue = 0;
     for (int i=0; i < recordCount; i++) {
@@ -38,10 +36,9 @@ TEST_F(WBCoordinatorTest, TestTransfer) {
 }
 
 TEST_F(WBCoordinatorTest, TestSessionStore) {
+    util::Properties::GetProperties()->getChaincodeProperties().install("session_store");
     constexpr int recordCount=10000;
     auto dbc = tests::CoordinatorUtils::initDB(recordCount);
     auto c = peer::cc::WBCoordinator::NewCoordinator(dbc, 10);
-    tests::CoordinatorUtils::StartBenchmark("session_store", [&](auto& ph) -> bool {
-        return c->processTxnList(ph);
-    }, recordCount);
+    tests::CoordinatorUtils::StartBenchmark([&](auto& ph) -> bool { return c->processTxnList(ph); }, recordCount);
 }

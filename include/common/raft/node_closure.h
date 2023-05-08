@@ -12,7 +12,7 @@ namespace util::raft {
     public:
         void Run() override {
             if (_expect_err_code >= 0) {
-                ASSERT_EQ(status().error_code(), _expect_err_code) << _pos << " : " << status();
+                CHECK(status().error_code() == _expect_err_code) << _pos << " : " << status();
             }
             if (_cond) {
                 _cond->signal();
@@ -32,6 +32,11 @@ namespace util::raft {
         bthread::CountdownEvent* _cond;
         int _expect_err_code;
         const char *_pos;
+    };
+
+    class NullOptionClosure : public braft::Closure {
+    public:
+        void Run() override { }
     };
 }
 

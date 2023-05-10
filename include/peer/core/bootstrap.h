@@ -10,14 +10,12 @@
 
 namespace util {
     class BCCSP;
+    class thread_pool_light;
 }
 
 namespace peer {
     class MRBlockStorage;
     class Replicator;
-    namespace core {
-        class NodeInfoHelper;
-    }
 }
 
 namespace ca {
@@ -37,7 +35,8 @@ namespace peer::core {
         // Called after PBFT consensuses a block
         std::shared_ptr<::peer::Replicator> getOrInitReplicator();
 
-        std::shared_ptr<::util::BCCSP> getOrInitBCCSP();
+        std::pair<std::shared_ptr<::util::BCCSP>,
+                std::shared_ptr<::util::thread_pool_light>> getOrInitBCCSPAndThreadPool();
 
         std::shared_ptr<::peer::MRBlockStorage> getOrInitContentStorage();
 
@@ -50,6 +49,7 @@ namespace peer::core {
 
     private:
         std::shared_ptr<::util::BCCSP> _bccsp;
+        std::shared_ptr<::util::thread_pool_light> _threadPoolForBCCSP;
         std::shared_ptr<::peer::MRBlockStorage> _contentStorage;
         std::shared_ptr<::peer::Replicator> _replicator;
         std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> _zmqPortUtilMap;

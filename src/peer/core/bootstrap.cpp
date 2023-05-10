@@ -5,9 +5,8 @@
 #include "peer/core/bootstrap.h"
 #include "peer/core/yaml_key_storage.h"
 #include "peer/replicator/replicator.h"
-
+#include "peer/consensus/block_content/local_pbft_controller.h"
 #include "ca/bft_instance_controller.h"
-
 #include "common/property.h"
 
 namespace peer::core {
@@ -19,13 +18,14 @@ namespace peer::core {
         return mf;
     }
 
-    std::shared_ptr<::util::BCCSP> ModuleFactory::getOrInitBCCSP() {
-        if (_bccsp) {
-            return _bccsp;
+    std::pair<std::shared_ptr<::util::BCCSP>, std::shared_ptr<::util::thread_pool_light>> ModuleFactory::getOrInitBCCSPAndThreadPool() {
+        if (_bccsp && _threadPoolForBCCSP) {
+            return { _bccsp, _threadPoolForBCCSP };
         }
         auto node = _properties->getCustomProperties("bccsp");
         _bccsp = std::make_shared<util::BCCSP>(std::make_unique<YAMLKeyStorage>(node));
-        return _bccsp;
+        _threadPoolForBCCSP = std::make_shared<util::thread_pool_light>();
+        return { _bccsp, _threadPoolForBCCSP };
     }
 
     std::shared_ptr<::peer::MRBlockStorage> ModuleFactory::getOrInitContentStorage() {
@@ -58,11 +58,11 @@ namespace peer::core {
             return nullptr;
         }
         auto replicator = std::make_shared<peer::Replicator>(nodes, localNode);
-        auto bccsp = getOrInitBCCSP();
-        if (!bccsp) {
+        auto [bccsp, tp] = getOrInitBCCSPAndThreadPool();
+        if (!bccsp || !tp) {
             return nullptr;
         }
-        replicator->setBCCSP(std::move(bccsp));
+        replicator->setBCCSPWithThreadPool(std::move(bccsp), std::move(tp));
         auto cs = getOrInitContentStorage();
         if (!cs) {
             return nullptr;
@@ -113,12 +113,12 @@ namespace peer::core {
         if (!portMap) {
             return nullptr;
         }
-        auto nodeCount = np.getGroupNodeCount(localNode->groupId);
-        CHECK(nodeCount == (int)portMap->at(localNode->groupId).size());
         std::vector<ca::NodeHostConfig> hostList;
         auto& groupPortMap = portMap->at(localNode->groupId);
-        for (int i=0; i<nodeCount; i++) {
-            auto node = np.getSingleNodeInfo(localNode->groupId, i);
+        auto localRegionNodes = np.getGroupNodesInfo(localNode->groupId);
+        CHECK(localRegionNodes.size() == portMap->at(localNode->groupId).size());
+        for (int i=0; i<(int)localRegionNodes.size(); i++) {
+            auto& node = localRegionNodes[i];
             hostList.push_back({
                                        .processId = node->nodeId,
                                        .ip = node->priIp,
@@ -128,7 +128,31 @@ namespace peer::core {
                                });
         }
         ic->prepareConfigurationFile(hostList);
-        return ic;
+        // ----- init LocalPBFTController ----
+        auto [bccsp, tp] = getOrInitBCCSPAndThreadPool();
+        if (!bccsp || !tp) {
+            return nullptr;
+        }
+        auto cs = getOrInitContentStorage();
+        if (!cs) {
+            return nullptr;
+        }
+        // local region nodes
+        auto controller = consensus::LocalPBFTController<false>::NewPBFTController(
+                localRegionNodes,
+                localNode->nodeId,
+                groupPortMap.at(localNode->nodeId),
+                bccsp,
+                std::move(tp),
+                std::move(cs),
+                {_properties->getBlockBatchTimeoutMs(),
+                 _properties->getBlockMaxBatchSize()});
+        if (!controller) {
+            return nullptr;
+        }
+        // todo: merge controller and ic together
+
+        return nullptr;
     }
 
     std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> ModuleFactory::getOrInitZMQPortUtilMap() {

@@ -237,6 +237,8 @@ namespace util {
         constexpr static const auto SSH_USERNAME = "ssh_username";
         constexpr static const auto SSH_PASSWORD = "ssh_password";
         constexpr static const auto JVM_PATH = "jvm_path";
+        constexpr static const auto BATCH_TIMEOUT_MS = "batch_timeout_ms";
+        constexpr static const auto BATCH_MAX_SIZE = "batch_max_size";
 
     public:
         // Load from file, if fileName is null, create an empty property
@@ -347,6 +349,23 @@ namespace util {
             return {};
         }
 
+        int getBlockBatchTimeoutMs() const {
+            try {
+                return _node[BATCH_TIMEOUT_MS].as<int>();
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not find BATCH_TIMEOUT_MS, leave it to 100.";
+            }
+            return 100; // 100ms
+        }
+
+        int getBlockMaxBatchSize() const {
+            try {
+                return _node[BATCH_MAX_SIZE].as<int>();
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not find BATCH_MAX_SIZE, leave it to 200.";
+            }
+            return 200; // 200 size
+        }
     private:
         YAML::Node _node;
     };

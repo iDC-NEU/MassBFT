@@ -34,7 +34,10 @@ namespace peer {
         [[nodiscard]] auto getStorage() const { return _localStorage; }
 
         // need to be set
-        void setBCCSP(std::shared_ptr<util::BCCSP> bccsp) { _bccsp = std::move(bccsp); }
+        void setBCCSPWithThreadPool(std::shared_ptr<util::BCCSP> bccsp, std::shared_ptr<util::thread_pool_light> threadPool) {
+            _bccsp = std::move(bccsp);
+            _bfgAndBCCSPThreadPool = std::move(threadPool);
+        }
 
         [[nodiscard]] auto getBCCSP() const { return _bccsp; }
 
@@ -53,7 +56,9 @@ namespace peer {
                 LOG(ERROR) << "Replicator checkAndStart failed!";
                 return false;
             }
-            initBFG();
+            if (!initBFG()) {
+                return false;
+            }
             initStorage();
             if (!initMRBlockReceiver()) {
                 return false;
@@ -156,7 +161,7 @@ namespace peer {
             return true;
         }
 
-        void initBFG() {
+        bool initBFG() {
             auto& groupId = _localNodeConfig->groupId;
             auto& nodeId = _localNodeConfig->nodeId;
 
@@ -172,8 +177,12 @@ namespace peer {
                 bfgConfigList.push_back(it.second);
             }
 
-            _bfgAndBCCSPThreadPool = std::make_shared<util::thread_pool_light>();
+            if (_bfgAndBCCSPThreadPool == nullptr) {
+                LOG(ERROR) << "bccsp thread pool is not set";
+                return false;
+            }
             _bfg = std::make_shared<peer::BlockFragmentGenerator>(bfgConfigList, _bfgAndBCCSPThreadPool.get());
+            return true;
         }
 
         void initStorage() {

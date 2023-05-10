@@ -23,6 +23,13 @@ namespace peer::consensus {
                 std::shared_ptr<util::thread_pool_light> threadPoolForBCCSP,
                 std::shared_ptr<peer::MRBlockStorage> storage,
                 const RequestCollector::Config& batchConfig) {
+            // check if localRegionNodes is in order
+            for (int i=0; i<(int)localRegionNodes.size(); i++) {
+                if (localRegionNodes[i]->nodeId != i) {
+                    LOG(ERROR) << "localRegionNodes list must in order!";
+                    return nullptr;
+                }
+            }
             // generate the corresponding zmq configs
             std::vector<std::shared_ptr<util::ZMQInstanceConfig>> payloadZMQConfigs;
             if (!util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,

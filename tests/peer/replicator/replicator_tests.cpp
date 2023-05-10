@@ -87,7 +87,7 @@ protected:
         for (int i=0; i<(int)nodes.size(); i++) {
             for (int j =0; j<(int)nodes[i].size(); j++) {
                 auto replicator = std::make_unique<peer::Replicator>(nodes, nodes[i][j]);
-                replicator->setBCCSP(bccsp);
+                replicator->setBCCSPWithThreadPool(bccsp, std::make_shared<util::thread_pool_light>());
                 replicator->setPortUtilMap(zmqPortUtilMap);
                 ASSERT_TRUE(replicator->initialize());
                 ASSERT_TRUE(replicator->startReceiver(startAt));
@@ -157,7 +157,7 @@ TEST_F(ReplicatorTest, TestInitialize) {
     auto zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(51200, regionNodesCount, false);
     // ----
     auto replicator = std::make_unique<peer::Replicator>(nodes, nodes[0][0]);
-    replicator->setBCCSP(bccsp);
+    replicator->setBCCSPWithThreadPool(bccsp, std::make_shared<util::thread_pool_light>());
     replicator->setPortUtilMap(zmqPortUtilMap);
     ASSERT_TRUE(replicator->initialize());
     auto startAt = GenerateStartAt();

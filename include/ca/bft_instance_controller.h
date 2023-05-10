@@ -7,6 +7,7 @@
 #include "common/ssh.h"
 #include "common/timer.h"
 #include <filesystem>
+#include <fstream>
 
 #include "glog/logging.h"
 
@@ -18,14 +19,23 @@ namespace ca {
         std::string password;
     };
 
+    struct NodeHostConfig {
+        int processId;
+        std::string ip;
+        int serverToServerPort;
+        int serverToClientPort;
+        int rpcPort;
+    };
+
     class BFTInstanceController {
     public:
         // Try to establish an ssh session with remote host
         static std::unique_ptr<BFTInstanceController> NewBFTInstanceController(SSHConfig config,
+                                                                               int groupId,
                                                                                int processId,
                                                                                std::filesystem::path runningPath,
                                                                                std::filesystem::path jvmExec) {
-            std::unique_ptr<BFTInstanceController> controller(new BFTInstanceController(std::move(config), processId));
+            std::unique_ptr<BFTInstanceController> controller(new BFTInstanceController(std::move(config), groupId, processId));
             auto session = util::SSHSession::NewSSHSession(controller->_config.ip, controller->_config.port);
             if(session == nullptr) {
                 return nullptr;
@@ -39,6 +49,24 @@ namespace ca {
             return controller;
         }
 
+        bool prepareConfigurationFile(const std::vector<NodeHostConfig>& nodes) {
+            auto remoteFilePath = _runningPath / "config" / "hosts.config";
+            std::ofstream file(remoteFilePath, std::ios::out | std::ios::trunc);
+            if (!file.is_open()) {
+                LOG(INFO) << "Failed to create file: " << remoteFilePath;
+                return false;
+            }
+            for (const auto& node: nodes) {
+                file << node.processId << " "
+                     << node.ip << " "
+                     << node.serverToServerPort << " "
+                     << node.serverToClientPort << " "
+                     << node.rpcPort << std::endl;
+            }
+            file.close();
+            return true;
+        }
+
         BFTInstanceController(const BFTInstanceController &) = delete;
 
         BFTInstanceController(BFTInstanceController &&) = delete;
@@ -46,7 +74,7 @@ namespace ca {
         bool startInstance(const std::filesystem::path& hostConfigPath) {
             // transmit config file to remote server
             LOG(INFO) << "Transmitting files to remote instance " << _processId;
-            auto remoteFilePath = _runningPath / "config" / ("hosts_" + std::to_string(_processId) + ".config");
+            auto remoteFilePath = _runningPath / "config" / ("hosts_" + std::to_string(_groupId) + "_" +std::to_string(_processId) + ".config");
             auto sftp = _session->createSFTPSession();
             if (sftp == nullptr) {
                 return false;
@@ -55,7 +83,7 @@ namespace ca {
                 return false;
             }
             // 2. start the server
-            LOG(INFO) << "Preparing to start instance " << _processId;
+            LOG(INFO) << "Preparing to start instance:, groupId: " << _groupId << ", process id:" << _processId;
             std::vector<std::string> builder {
                     "cd",
                     _runningPath.string(),
@@ -64,6 +92,7 @@ namespace ca {
                     "-Dlogback.configurationFile=./config/logback.xml",
                     "-classpath",
                     "./nc_bft.jar bftsmart.demo.neuchainplus.NeuChainServer",
+                    std::to_string(_groupId),
                     std::to_string(_processId),
             };
             std::string command;
@@ -132,11 +161,12 @@ namespace ca {
         [[nodiscard]] const auto& getConfig() const { return _config; };
 
     protected:
-        explicit BFTInstanceController(auto&& config, int processId)
-                : _config(std::forward<decltype(config)>(config)), _processId(processId) { }
+        explicit BFTInstanceController(auto&& config, int groupId, int processId)
+                : _config(std::forward<decltype(config)>(config)), _groupId(groupId), _processId(processId) { }
 
     private:
         const SSHConfig _config;
+        const int _groupId;
         const int _processId;
         int64_t startTime = -1;
         std::unique_ptr<util::SSHSession> _session;

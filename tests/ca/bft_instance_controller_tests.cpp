@@ -31,7 +31,7 @@ protected:
 TEST_F(ControllerTest, StartTest) {
     std::vector<std::unique_ptr<ca::BFTInstanceController>> ctlList(4);
     for (int i=0; i<4; i++) {
-        ctlList[i] = ca::BFTInstanceController::NewBFTInstanceController(sshConfig, i, runningPath, jvmPath);
+        ctlList[i] = ca::BFTInstanceController::NewBFTInstanceController(sshConfig, 0, i, runningPath, jvmPath);
         ctlList[i]->stopAndClean();
     }
     for (int i=0; i<4; i++) {
@@ -51,7 +51,7 @@ TEST_F(ControllerTest, StartTest) {
 TEST_F(ControllerTest, StartDemoInstance) {
     std::vector<std::unique_ptr<ca::BFTInstanceController>> ctlList(4);
     for (int i=0; i<4; i++) {
-        ctlList[i] = ca::BFTInstanceController::NewBFTInstanceController(sshConfig, i, runningPath, jvmPath);
+        ctlList[i] = ca::BFTInstanceController::NewBFTInstanceController(sshConfig, 0, i, runningPath, jvmPath);
         ctlList[i]->stopAndClean();
     }
     for (int i=0; i<4; i++) {

@@ -20,7 +20,7 @@ public:
         std::vector<int> regionServerCount {4, 4, 4};
         int offset = 51200;
         for (int i=0; i<4; i++) {
-            portsConfig.emplace_back(new peer::v2::ZMQPortUtil(regionServerCount, 0, i, offset));
+            portsConfig.emplace_back(new peer::v2::SingleServerZMQPortUtil(regionServerCount, 0, i, offset));
         }
 
         auto ms = std::make_unique<util::DefaultKeyStorage>();

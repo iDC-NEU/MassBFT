@@ -27,7 +27,7 @@ TEST_F(ZMQPortUtilTest, IntrgrateTest4_4) {
     util::Matrix2D<std::unique_ptr<peer::v2::ZMQPortUtil>> matrix(3, 6);
     for (const auto& it: regionsNodeCount) {
         for (int i=0; i<it.second; i++) {
-            matrix(it.first, i) = std::make_unique<peer::v2::ZMQPortUtil>(regionsNodeCount, it.first, i, portOffset);
+            matrix(it.first, i) = std::make_unique<peer::v2::SingleServerZMQPortUtil>(regionsNodeCount, it.first, i, portOffset);
         }
     }
     ASSERT_TRUE(matrix(0, 0)->getFRServerPort(0) == 0);

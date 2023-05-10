@@ -42,17 +42,17 @@ namespace peer {
 
         [[nodiscard]] auto getBCCSP() const { return _bccsp; }
 
-        // optional
+        // optional, recommended not to set
         void setBlockSenderThreadPool(std::shared_ptr<util::thread_pool_light> threadPool) {
             _blockSenderThreadPool = std::move(threadPool);
         }
 
-        bool initialize(int portOffset=51200) {
+        bool initialize(int portOffset=51200, bool samePort = true) {
             if (_nodeConfigs.empty() || !_localNodeConfig) {
                 LOG(ERROR) << "Replicator checkAndStart failed!";
                 return false;
             }
-            initPortsConfig(portOffset);
+            _zmqPortsConfig = peer::v2::ZMQPortUtil::InitPortsConfig(portOffset, _regionNodesCount, samePort);
             initBFG();
             initStorage();
             if (!initMRBlockReceiver()) {
@@ -154,22 +154,6 @@ namespace peer {
             receiver->setBFGWithConfig(_bfg, _localFragmentCfg.first);
             _receiver = std::move(receiver);
             return true;
-        }
-
-        void initPortsConfig(int portOffset) {
-            // init frServerPorts and rfrServerPorts
-            std::unordered_map<int, std::vector<std::unique_ptr<peer::v2::ZMQPortUtil>>> zmqPortsConfig;
-            for (const auto& it: _regionNodesCount) {
-                zmqPortsConfig[it.first].resize(it.second);
-                for (int i=0; i<it.second; i++) {
-                    zmqPortsConfig[it.first][i] = std::make_unique<peer::v2::ZMQPortUtil>(
-                            _regionNodesCount,
-                            it.first,
-                            i,
-                            portOffset);
-                }
-            }
-            _zmqPortsConfig = std::move(zmqPortsConfig);
         }
 
         void initBFG() {

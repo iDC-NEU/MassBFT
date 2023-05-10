@@ -3,7 +3,6 @@
 //
 
 #include "peer/core/bootstrap.h"
-#include "peer/core/node_info_helper.h"
 #include "peer/core/yaml_key_storage.h"
 #include "peer/replicator/replicator.h"
 
@@ -17,11 +16,6 @@ namespace peer::core {
     std::unique_ptr<ModuleFactory> ModuleFactory::NewModuleFactory(const std::shared_ptr<util::Properties>& properties) {
         std::unique_ptr<ModuleFactory> mf(new ModuleFactory);
         mf->_properties = properties;
-        auto nodeInfoHelper = NodeInfoHelper::NewNodeInfoHelper(properties);
-        if (nodeInfoHelper == nullptr) {
-            return nullptr;
-        }
-        mf->_nodeInfoHelper = std::move(nodeInfoHelper);
         return mf;
     }
 
@@ -64,9 +58,21 @@ namespace peer::core {
             return nullptr;
         }
         auto replicator = std::make_shared<peer::Replicator>(nodes, localNode);
-        replicator->setBCCSP(getOrInitBCCSP());
-        replicator->setStorage(getOrInitContentStorage());
-        replicator->setPortUtilMap(getOrInitZMQPortUtilMap());
+        auto bccsp = getOrInitBCCSP();
+        if (!bccsp) {
+            return nullptr;
+        }
+        replicator->setBCCSP(std::move(bccsp));
+        auto cs = getOrInitContentStorage();
+        if (!cs) {
+            return nullptr;
+        }
+        replicator->setStorage(std::move(cs));
+        auto pum = getOrInitZMQPortUtilMap();
+        if (!pum) {
+            return nullptr;
+        }
+        replicator->setPortUtilMap(std::move(pum));
         if (!replicator->initialize()) {
             LOG(WARNING) << "replicator initialize error!";
             return nullptr;
@@ -104,6 +110,9 @@ namespace peer::core {
                 _properties->getJVMPath());
         // generate host file
         auto portMap = getOrInitZMQPortUtilMap();
+        if (!portMap) {
+            return nullptr;
+        }
         auto nodeCount = np.getGroupNodeCount(localNode->groupId);
         CHECK(nodeCount == (int)portMap->at(localNode->groupId).size());
         std::vector<ca::NodeHostConfig> hostList;

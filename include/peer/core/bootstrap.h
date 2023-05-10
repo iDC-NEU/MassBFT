@@ -47,7 +47,6 @@ namespace peer::core {
 
     private:
         std::shared_ptr<util::Properties> _properties;
-        std::unique_ptr<NodeInfoHelper> _nodeInfoHelper;
 
     private:
         std::shared_ptr<::util::BCCSP> _bccsp;

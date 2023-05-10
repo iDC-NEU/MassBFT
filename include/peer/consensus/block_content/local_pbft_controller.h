@@ -6,9 +6,9 @@
 
 #include "peer/consensus/block_content/content_replicator.h"
 #include "peer/consensus/block_content/request_collector.h"
-#include "common/pbft/pbft_rpc_service.h"
-#include "peer/replicator/v2/zmq_port_util.h"
 #include "peer/storage/mr_block_storage.h"
+#include "common/pbft/pbft_rpc_service.h"
+#include "common/zmq_port_util.h"
 
 namespace peer::consensus {
     template<bool eagerValidate>
@@ -18,21 +18,21 @@ namespace peer::consensus {
                 // All nodes from the same region
                 const std::vector<std::shared_ptr<util::NodeConfig>>& localRegionNodes,
                 int localId,
-                const std::unique_ptr<peer::v2::ZMQPortUtil>& localPortConfig,
+                const std::unique_ptr<util::ZMQPortUtil>& localPortConfig,
                 const std::shared_ptr<util::BCCSP>& bccsp,
                 std::shared_ptr<util::thread_pool_light> threadPoolForBCCSP,
                 std::shared_ptr<peer::MRBlockStorage> storage,
                 const RequestCollector::Config& batchConfig) {
             // generate the corresponding zmq configs
             std::vector<std::shared_ptr<util::ZMQInstanceConfig>> payloadZMQConfigs;
-            if (!peer::v2::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,
+            if (!util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,
                                                            localPortConfig->getBFTPayloadSeparationPorts(),
                                                            payloadZMQConfigs)) {
                 LOG(ERROR) << "generate BFTPayloadSeparationPorts zmq config failed!";
                 return nullptr;
             }
             std::vector<std::shared_ptr<util::ZMQInstanceConfig>> collectorZMQConfigs;
-            if (!peer::v2::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,
+            if (!util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,
                                                            localPortConfig->getRequestCollectorPorts(),
                                                            collectorZMQConfigs)) {
                 LOG(ERROR) << "generate RequestCollectorPorts zmq config failed!";

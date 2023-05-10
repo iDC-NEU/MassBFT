@@ -12,10 +12,15 @@ namespace util {
 }
 
 namespace peer {
+    class MRBlockStorage;
     class Replicator;
     namespace core {
         class NodeInfoHelper;
     }
+}
+
+namespace ca {
+    class BFTInstanceController;
 }
 
 namespace peer::core {
@@ -28,9 +33,14 @@ namespace peer::core {
 
         virtual ~ModuleFactory();
 
-        std::unique_ptr<::peer::Replicator> newReplicator();
+        // Called after PBFT consensuses a block
+        std::shared_ptr<::peer::Replicator> getOrInitReplicator();
 
-        std::shared_ptr<::util::BCCSP> getBCCSP();
+        std::shared_ptr<::util::BCCSP> getOrInitBCCSP();
+
+        std::shared_ptr<::peer::MRBlockStorage> getOrInitContentStorage();
+
+        std::shared_ptr<::ca::BFTInstanceController> newReplicatorBFTController(int groupId=0);
 
     private:
         std::shared_ptr<util::Properties> _properties;
@@ -38,5 +48,7 @@ namespace peer::core {
 
     private:
         std::shared_ptr<::util::BCCSP> _bccsp;
+        std::shared_ptr<::peer::MRBlockStorage> _contentStorage;
+        std::shared_ptr<::peer::Replicator> _replicator;
     };
 }

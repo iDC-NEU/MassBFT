@@ -74,6 +74,13 @@ protected:
             util::Matrix2D<std::unique_ptr<peer::Replicator>>& replicators)>& callback) {
         auto bccsp = CreateBCCSP();
         auto nodes = GenerateNodesMap();
+        // ---- init port map
+        std::unordered_map<int, int> regionNodesCount;
+        for (const auto& it: nodes) {
+            regionNodesCount[it.first] = (int)it.second.size();
+        }
+        auto zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(51200, regionNodesCount, false);
+        // ----
         auto startAt = GenerateStartAt();
         util::Matrix2D<std::unique_ptr<peer::Replicator>> matrix(3, 31);
         util::Matrix2D<std::shared_ptr<peer::MRBlockStorage>> storage(3, 31);
@@ -81,6 +88,7 @@ protected:
             for (int j =0; j<(int)nodes[i].size(); j++) {
                 auto replicator = std::make_unique<peer::Replicator>(nodes, nodes[i][j]);
                 replicator->setBCCSP(bccsp);
+                replicator->setPortUtilMap(zmqPortUtilMap);
                 ASSERT_TRUE(replicator->initialize());
                 ASSERT_TRUE(replicator->startReceiver(startAt));
                 storage(i, j) = replicator->getStorage();
@@ -141,8 +149,16 @@ protected:
 TEST_F(ReplicatorTest, TestInitialize) {
     auto bccsp = CreateBCCSP();
     auto nodes = GenerateNodesMap();
+    // ---- init port map
+    std::unordered_map<int, int> regionNodesCount;
+    for (const auto& it: nodes) {
+        regionNodesCount[it.first] = (int)it.second.size();
+    }
+    auto zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(51200, regionNodesCount, false);
+    // ----
     auto replicator = std::make_unique<peer::Replicator>(nodes, nodes[0][0]);
     replicator->setBCCSP(bccsp);
+    replicator->setPortUtilMap(zmqPortUtilMap);
     ASSERT_TRUE(replicator->initialize());
     auto startAt = GenerateStartAt();
     ASSERT_TRUE(replicator->startReceiver(startAt));

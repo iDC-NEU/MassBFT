@@ -9,7 +9,7 @@
 #include <vector>
 #include "glog/logging.h"
 
-namespace peer::v2 {
+namespace util {
     // Deterministic generate zmq ports
     class ZMQPortUtil {
     protected:
@@ -20,7 +20,8 @@ namespace peer::v2 {
         static auto InitSingleHostPortsConfig(int portOffset, const std::unordered_map<int, int>& regionNodesCount);
 
     public:
-        static auto InitPortsConfig(int portOffset, const std::unordered_map<int, int>& regionNodesCount, bool samePort = true);
+        // samePort: each node using the same port for a service, for distributed tested
+        static auto InitPortsConfig(int portOffset, const std::unordered_map<int, int>& regionNodesCount, bool samePort);
 
         virtual ~ZMQPortUtil() = default;
 
@@ -90,6 +91,8 @@ namespace peer::v2 {
         // receive from crossRegionSender, key region id, value port (as ReliableZmqServer)
         std::vector<int> rfrPorts;
     };
+
+    using ZMQPortUtilList = std::vector<std::unique_ptr<ZMQPortUtil>>;
 
     class SingleServerZMQPortUtil : public ZMQPortUtil {
     public:
@@ -200,29 +203,29 @@ namespace peer::v2 {
     };
 
 
-    auto ZMQPortUtil::InitDistributedPortsConfig(int portOffset, const std::unordered_map<int, int>& regionNodesCount)  {
+    inline auto ZMQPortUtil::InitDistributedPortsConfig(int portOffset, const std::unordered_map<int, int>& regionNodesCount)  {
         // ---- print debug info ----
-        auto demoConfig = std::make_unique<peer::v2::DistributedZMQPortUtil>(regionNodesCount, 0, portOffset);
+        auto demoConfig = std::make_unique<DistributedZMQPortUtil>(regionNodesCount, 0, portOffset);
         demoConfig->printConfig();
         // init frServerPorts and rfrServerPorts
-        std::unordered_map<int, std::vector<std::unique_ptr<peer::v2::ZMQPortUtil>>> zmqPortsConfig;
+        std::unordered_map<int, ZMQPortUtilList> zmqPortsConfig;
         for (const auto& it: regionNodesCount) {
             for (int i=0; i<it.second; i++) {
-                auto portsConfig = std::make_unique<peer::v2::DistributedZMQPortUtil>(regionNodesCount, it.first, portOffset);
+                auto portsConfig = std::make_unique<DistributedZMQPortUtil>(regionNodesCount, it.first, portOffset);
                 zmqPortsConfig[it.first].push_back(std::move(portsConfig));
             }
         }
         return zmqPortsConfig;
     }
 
-    auto ZMQPortUtil::InitSingleHostPortsConfig(int portOffset, const std::unordered_map<int, int> &regionNodesCount){
+    inline auto ZMQPortUtil::InitSingleHostPortsConfig(int portOffset, const std::unordered_map<int, int> &regionNodesCount){
         // init frServerPorts and rfrServerPorts
-        std::unordered_map<int, std::vector<std::unique_ptr<peer::v2::ZMQPortUtil>>> zmqPortsConfig;
+        std::unordered_map<int, ZMQPortUtilList> zmqPortsConfig;
         // default config(i.e. run in the same host machine)
         for (const auto& it: regionNodesCount) {   // it: pair<regionId, node count>
             zmqPortsConfig[it.first].resize(it.second);
             for (int i=0; i<it.second; i++) {   // zmqPortsConfig of a node
-                zmqPortsConfig[it.first][i] = std::make_unique<peer::v2::SingleServerZMQPortUtil>(
+                zmqPortsConfig[it.first][i] = std::make_unique<SingleServerZMQPortUtil>(
                         regionNodesCount,
                         it.first,   // region id
                         i,          // node id
@@ -232,10 +235,13 @@ namespace peer::v2 {
         return zmqPortsConfig;
     }
 
-    auto ZMQPortUtil::InitPortsConfig(int portOffset, const std::unordered_map<int, int> &regionNodesCount, bool samePort) {
-        if (samePort) {
-            return InitSingleHostPortsConfig(portOffset, regionNodesCount);
+    // return a shared pointer of port map
+    inline auto ZMQPortUtil::InitPortsConfig(int portOffset, const std::unordered_map<int, int> &regionNodesCount, bool useSamePort) {
+        if (!useSamePort) {
+            auto ret = InitSingleHostPortsConfig(portOffset, regionNodesCount);
+            return std::make_shared<decltype(ret)>(std::move(ret));
         }
-        return InitDistributedPortsConfig(portOffset, regionNodesCount);
+        auto ret = InitDistributedPortsConfig(portOffset, regionNodesCount);
+        return std::make_shared<decltype(ret)>(std::move(ret));
     }
 }

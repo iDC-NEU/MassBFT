@@ -6,7 +6,7 @@
 
 #include "peer/replicator/v2/block_sender.h"
 #include "peer/replicator/v2/mr_block_receiver.h"
-#include "peer/replicator/v2/zmq_port_util.h"
+#include "common/zmq_port_util.h"
 
 namespace peer {
     // Replicator has fragment sending and receiving instances,
@@ -20,11 +20,7 @@ namespace peer {
         using ZMQConfigMap = std::unordered_map<int, std::vector<std::shared_ptr<util::ZMQInstanceConfig>>>;
 
         Replicator(NodeConfigMap nodes, util::NodeConfigPtr localNode)
-                :_localNodeConfig(std::move(localNode)), _nodeConfigs(std::move(nodes)) {
-            for (const auto& it: _nodeConfigs) {
-                _regionNodesCount[it.first] = (int)it.second.size();
-            }
-        }
+                :_localNodeConfig(std::move(localNode)), _nodeConfigs(std::move(nodes)) { }
 
         ~Replicator() = default;
 
@@ -47,12 +43,16 @@ namespace peer {
             _blockSenderThreadPool = std::move(threadPool);
         }
 
-        bool initialize(int portOffset=51200, bool samePort = true) {
+        // _zmqPortsConfig = util::ZMQPortUtil::InitPortsConfig(portOffset, regionNodesCount, samePort);
+        void setPortUtilMap(std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> zmqPortsConfig) {
+            _zmqPortsConfig = std::move(zmqPortsConfig);
+        }
+
+        bool initialize() {
             if (_nodeConfigs.empty() || !_localNodeConfig) {
                 LOG(ERROR) << "Replicator checkAndStart failed!";
                 return false;
             }
-            _zmqPortsConfig = peer::v2::ZMQPortUtil::InitPortsConfig(portOffset, _regionNodesCount, samePort);
             initBFG();
             initStorage();
             if (!initMRBlockReceiver()) {
@@ -85,18 +85,18 @@ namespace peer {
 
     protected:
         bool initMRBlockSender() {
-            if (!_bfg || !_localStorage || _nodeConfigs.empty() || _zmqPortsConfig.empty()) {
+            if (!_bfg || !_localStorage || _nodeConfigs.empty() || !_zmqPortsConfig) {
                 LOG(ERROR) << "init sender failed!";
                 return false;
             }
             auto& groupId = _localNodeConfig->groupId;
 
             ZMQConfigMap remoteReceiverConfigs;
-            for (const auto& it: _regionNodesCount) {
-                for (int i=0; i<it.second; i++) {
+            for (const auto& it: _nodeConfigs) {
+                for (int i=0; i<(int)it.second.size(); i++) {
                     auto zmqInstanceConfig = std::make_unique<util::ZMQInstanceConfig>();
                     zmqInstanceConfig->nodeConfig = _nodeConfigs.at(it.first)[i];
-                    zmqInstanceConfig->port = _zmqPortsConfig[it.first][i]->getRFRServerPort(groupId);
+                    zmqInstanceConfig->port = _zmqPortsConfig->at(it.first)[i]->getRFRServerPort(groupId);
                     remoteReceiverConfigs[it.first].push_back(std::move(zmqInstanceConfig));
                 }
             }
@@ -116,13 +116,13 @@ namespace peer {
         }
 
         bool initMRBlockReceiver() {
-            if (!_bfg || !_bccsp || !_localStorage || _nodeConfigs.empty() || _zmqPortsConfig.empty()) {
+            if (!_bfg || !_bccsp || !_localStorage || _nodeConfigs.empty() || !_zmqPortsConfig) {
                 LOG(ERROR) << "init receiver failed!";
                 return false;
             }
             auto& groupId = _localNodeConfig->groupId;
             auto& nodeId = _localNodeConfig->nodeId;
-            auto& localZmqConfig = *_zmqPortsConfig[groupId][nodeId];
+            auto& localZmqConfig = *_zmqPortsConfig->at(groupId)[nodeId];
             // broadcast in the local zone, key region id, value port (as ZMQServer)
             std::unordered_map<int, int> frServerPorts = localZmqConfig.getFRServerPorts();
             // receive from crossRegionSender (as ReliableZmqServer)
@@ -131,8 +131,8 @@ namespace peer {
             // init _localBroadcastConfigs
             // For mr receivers, local servers broadcast ports, key is remote region id (multi-master)
             ZMQConfigMap localBroadcastConfigs;
-            for (int i=0; i<_regionNodesCount[groupId]; i++) {
-                for (const auto& it: _zmqPortsConfig[groupId][i]->getFRServerPorts()) {
+            for (int i=0; i<(int)_nodeConfigs.at(groupId).size(); i++) {
+                for (const auto& it: _zmqPortsConfig->at(groupId)[i]->getFRServerPorts()) {
                     auto zmqInstanceConfig = std::make_unique<util::ZMQInstanceConfig>();
                     zmqInstanceConfig->nodeConfig = _nodeConfigs.at(groupId)[i];
                     zmqInstanceConfig->port = it.second;
@@ -159,11 +159,16 @@ namespace peer {
         void initBFG() {
             auto& groupId = _localNodeConfig->groupId;
             auto& nodeId = _localNodeConfig->nodeId;
-            _localFragmentCfg = v2::FragmentUtil::GenerateAllConfig(_regionNodesCount, groupId, nodeId);
+
+            std::unordered_map<int, int> regionNodesCount;
+            for (const auto& it: _nodeConfigs) {
+                regionNodesCount[it.first] = (int)it.second.size();
+            }
+            _localFragmentCfg = v2::FragmentUtil::GenerateAllConfig(regionNodesCount, groupId, nodeId);
 
             std::vector<peer::BlockFragmentGenerator::Config> bfgConfigList;
             for (auto& it: _localFragmentCfg.first) { // for receivers
-                it.second.concurrency = _regionNodesCount[it.first];
+                it.second.concurrency = regionNodesCount[it.first];
                 bfgConfigList.push_back(it.second);
             }
 
@@ -187,10 +192,8 @@ namespace peer {
         // the config of local node
         const util::NodeConfigPtr _localNodeConfig;
         const NodeConfigMap _nodeConfigs;
-        // regionNodesCount is a temp value
-        std::unordered_map<int, int> _regionNodesCount;
         // ports config of ALL nodes in ALL regions
-        std::unordered_map<int, std::vector<std::unique_ptr<peer::v2::ZMQPortUtil>>> _zmqPortsConfig;
+        std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> _zmqPortsConfig;
         // the ptr of shared storage
         std::shared_ptr<peer::MRBlockStorage> _localStorage;
         // bfg, bccsp and the corresponding thread pool.

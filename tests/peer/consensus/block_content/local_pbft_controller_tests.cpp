@@ -20,7 +20,7 @@ public:
         std::vector<int> regionServerCount {4, 4, 4};
         int offset = 51200;
         for (int i=0; i<4; i++) {
-            portsConfig.emplace_back(new peer::v2::SingleServerZMQPortUtil(regionServerCount, 0, i, offset));
+            portsConfig.emplace_back(new util::SingleServerZMQPortUtil(regionServerCount, 0, i, offset));
         }
 
         auto ms = std::make_unique<util::DefaultKeyStorage>();
@@ -66,7 +66,7 @@ protected:
 
 protected:
     std::vector<util::NodeConfigPtr> nodesConfig;
-    std::vector<std::unique_ptr<peer::v2::ZMQPortUtil>> portsConfig;
+    util::ZMQPortUtilList portsConfig;
     std::shared_ptr<util::BCCSP> bccsp;
     std::shared_ptr<util::thread_pool_light> threadPool;
     std::vector<std::shared_ptr<peer::MRBlockStorage>> storageList;

@@ -126,22 +126,6 @@ namespace util {
     protected:
         static auto BuildGroupKey(int groupId) { return std::string("group_") + std::to_string(groupId); }
 
-        static NodeConfigPtr LoadNodeInfo(const YAML::Node& node) {
-            try {
-                NodeConfigPtr cfg(new NodeConfig);
-                cfg->nodeId = node["node_id"].as<int>();
-                cfg->groupId = node["group_id"].as<int>();
-                cfg->ski = node["ski"].as<std::string>();
-                cfg->priIp = node["pri_ip"].as<std::string>(); // load private ip first (public ip may not exist)
-                cfg->pubIp = node["pub_ip"].as<std::string>();
-                return cfg;
-            }
-            catch (const YAML::Exception &e) {
-                LOG(WARNING) << "Can not load node config: " << e.what();
-            }
-            return nullptr;
-        }
-
         std::pair<YAML::Node, bool> getAndCheckGroup(int groupId) const {
             auto groupKey = BuildGroupKey(groupId);
             auto list = n[groupKey];
@@ -152,6 +136,21 @@ namespace util {
         }
 
     public:
+        static NodeConfigPtr LoadNodeInfo(const YAML::Node& node) {
+            try {
+                NodeConfigPtr cfg(new NodeConfig);
+                cfg->nodeId = node["node_id"].as<int>();
+                cfg->groupId = node["group_id"].as<int>();
+                cfg->ski = node["ski"].as<std::string>();
+                cfg->priIp = node["pri_ip"].as<std::string>(); // load private ip first (public ip may not exist)
+                cfg->pubIp = node["pub_ip"].as<std::string>();
+                return cfg;
+            } catch (const YAML::Exception &e) {
+                LOG(WARNING) << "Can not load node config: " << e.what();
+            }
+            return nullptr;
+        }
+
         // NodeConfigPtr may be empty
         NodeConfigPtr getSingleNodeInfo(int groupId, int nodeId) const {
             auto [list, success] = getAndCheckGroup(groupId);
@@ -178,6 +177,17 @@ namespace util {
                 nodeList.push_back(ret);
             }
             return nodeList;
+        }
+
+        NodeConfigPtr getLocalNodeInfo() const {
+            try {
+                auto groupId = n["local_group_id"].as<int>();
+                auto nodeId = n["local_node_id"].as<int>();
+                return getSingleNodeInfo(groupId, nodeId);
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not get local node id: " << e.what();
+            }
+            return nullptr;
         }
 
         int getGroupCount(bool check=true) {
@@ -221,6 +231,12 @@ namespace util {
         constexpr static const auto YCSB_PROPERTIES = "ycsb";
         constexpr static const auto CHAINCODE_PROPERTIES = "chaincode";
         constexpr static const auto NODES_PROPERTIES = "nodes";
+        constexpr static const auto START_BLOCK_NUMBER = "start_at";
+        constexpr static const auto DISTRIBUTED_SETTING = "distributed";
+        constexpr static const auto REPLICATOR_LOWEST_PORT = "replicator_lowest_port";
+        constexpr static const auto SSH_USERNAME = "ssh_username";
+        constexpr static const auto SSH_PASSWORD = "ssh_password";
+        constexpr static const auto JVM_PATH = "jvm_path";
 
     public:
         // Load from file, if fileName is null, create an empty property
@@ -241,8 +257,7 @@ namespace util {
                 CHECK(node[CHAINCODE_PROPERTIES].IsDefined() && !node[CHAINCODE_PROPERTIES].IsNull());
                 CHECK(node[NODES_PROPERTIES].IsDefined() && !node[NODES_PROPERTIES].IsNull());
                 properties->_node = node;
-            }
-            catch (const YAML::Exception &e) {
+            } catch (const YAML::Exception &e) {
                 CHECK(false) << "Can not load config: " << e.what();
             }
         }
@@ -277,6 +292,59 @@ namespace util {
                 CHECK(false) << "Can not find key: " << key;
             }
             return _node[key];
+        }
+
+        int getStartBlockNumber(int groupId) const {
+            int blockNumber = 0;
+            try {
+                blockNumber = _node[START_BLOCK_NUMBER][groupId].as<int>(0);
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not find START_BLOCK_NUMBER for group " << groupId << ", start from 0.";
+            }
+            return blockNumber;
+        }
+
+        bool isDistributedSetting() const {
+            bool dist = false;
+            try {
+                dist = _node[DISTRIBUTED_SETTING].as<bool>(false);
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not find DISTRIBUTED_SETTING key, fallback to false.";
+            }
+            return dist;
+        }
+
+        int replicatorLowestPort() const {
+            int port = 51200;
+            try {
+                port = _node[REPLICATOR_LOWEST_PORT].as<int>();
+                if (port<=0 || port > 65535) {
+                    port = 51200;
+                }
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not find REPLICATOR_LOWEST_PORT key, fallback to 51200.";
+            }
+            return port;
+        }
+
+        std::tuple<std::string, std::string, bool> getSSHInfo() const {
+            try {
+                return { _node[SSH_USERNAME].as<std::string>(),
+                         _node[SSH_PASSWORD].as<std::string>(),
+                         true };
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not load SSH info, fallback to default.";
+            }
+            return {"user", "123456", false};
+        }
+
+        std::string getJVMPath() const {
+            try {
+                return _node[JVM_PATH].as<std::string>();
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not find JVM_PATH, leave it to empty.";
+            }
+            return {};
         }
 
     private:

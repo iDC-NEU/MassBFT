@@ -52,9 +52,6 @@ namespace peer::core {
         if (_replicator) {
             return _replicator;
         }
-        if (_bccsp == nullptr || _contentStorage == nullptr) {
-            return nullptr;   // not set
-        }
         auto np = _properties->getNodeProperties();
         std::unordered_map<int, std::vector<util::NodeConfigPtr>> nodes;
         for (int i=0; i<np.getGroupCount(); i++) {
@@ -62,21 +59,14 @@ namespace peer::core {
             // segment to the corresponding remote node, so a public network address is required
             nodes[i] = np.getGroupNodesInfo(i);
         }
-        // ---- init port map
-        std::unordered_map<int, int> regionNodesCount;
-        for (const auto& it: nodes) {
-            regionNodesCount[it.first] = (int)it.second.size();
-        }
-        auto zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(_properties->replicatorLowestPort(), regionNodesCount, _properties->isDistributedSetting());
-        // ---- TODO: extract the method
         auto localNode = np.getLocalNodeInfo();
         if (localNode == nullptr) {
             return nullptr;
         }
         auto replicator = std::make_shared<peer::Replicator>(nodes, localNode);
-        replicator->setBCCSP(_bccsp);
-        replicator->setStorage(_contentStorage);
-        replicator->setPortUtilMap(zmqPortUtilMap);
+        replicator->setBCCSP(getOrInitBCCSP());
+        replicator->setStorage(getOrInitContentStorage());
+        replicator->setPortUtilMap(getOrInitZMQPortUtilMap());
         if (!replicator->initialize()) {
             LOG(WARNING) << "replicator initialize error!";
             return nullptr;
@@ -93,7 +83,8 @@ namespace peer::core {
     }
 
     std::shared_ptr<::ca::BFTInstanceController> ModuleFactory::newReplicatorBFTController(int groupId) {
-        auto localNode = _properties->getNodeProperties().getLocalNodeInfo();
+        auto np = _properties->getNodeProperties();
+        auto localNode = np.getLocalNodeInfo();
         auto [user, pass, success] = _properties->getSSHInfo();
         if (!success) {
             LOG(WARNING) << "please check your ssh setting in config file.";
@@ -105,20 +96,42 @@ namespace peer::core {
                 .userName = user,
                 .password = pass,
         };
-        // ports config of local region
-//        ::peer::v2::ZMQPortUtilList portsConfig;
-//        for (int i=0; i<4; i++) {
-//            portsConfig.emplace_back(new peer::v2::SingleServerZMQPortUtil(regionServerCount, 0, i, offset));
-//        }
-//        std::vector<NodeHostConfig>
-//        // todo: multi pbft
-//        auto ic = ca::BFTInstanceController::NewBFTInstanceController(
-//                sshConfig,
-//                groupId,
-//                localNode->nodeId,
-//                runningPath,
-//                _properties->getJVMPath());
-//        return ic;
-return nullptr;
+        auto ic = ca::BFTInstanceController::NewBFTInstanceController(
+                sshConfig,
+                groupId,
+                localNode->nodeId,
+                runningPath,
+                _properties->getJVMPath());
+        // generate host file
+        auto portMap = getOrInitZMQPortUtilMap();
+        auto nodeCount = np.getGroupNodeCount(localNode->groupId);
+        CHECK(nodeCount == (int)portMap->at(localNode->groupId).size());
+        std::vector<ca::NodeHostConfig> hostList;
+        auto& groupPortMap = portMap->at(localNode->groupId);
+        for (int i=0; i<nodeCount; i++) {
+            auto node = np.getSingleNodeInfo(localNode->groupId, i);
+            hostList.push_back({
+                                       .processId = node->nodeId,
+                                       .ip = node->priIp,
+                                       .serverToServerPort = groupPortMap[i]->getServerToServerPorts()[i],
+                                       .serverToClientPort = groupPortMap[i]->getClientToServerPorts()[i],
+                                       .rpcPort =  groupPortMap[i]->getBFTRpcPorts()[i],
+                               });
+        }
+        ic->prepareConfigurationFile(hostList);
+        return ic;
+    }
+
+    std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> ModuleFactory::getOrInitZMQPortUtilMap() {
+        if (_zmqPortUtilMap) {
+            return _zmqPortUtilMap;
+        }
+        auto np = _properties->getNodeProperties();
+        std::unordered_map<int, int> regionNodesCount;
+        for (int i=0; i<np.getGroupCount(); i++) {
+            regionNodesCount[i] = np.getGroupNodeCount(i);
+        }
+        _zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(_properties->replicatorLowestPort(), regionNodesCount, _properties->isDistributedSetting());
+        return _zmqPortUtilMap;
     }
 }

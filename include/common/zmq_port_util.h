@@ -49,14 +49,17 @@ namespace util {
             return ret;
         }
 
+        // TODO: SUPPORT MULTI BFT
         [[nodiscard]] inline const auto& getServerToServerPorts() const { return serverToServerPorts; }
 
+        // TODO: SUPPORT MULTI BFT
         [[nodiscard]] inline const auto& getClientToServerPorts() const { return clientToServerPorts; }
 
         [[nodiscard]] inline const auto& getRequestCollectorPorts() const { return userRequestCollectorPorts; }
 
         [[nodiscard]] inline const auto& getBFTPayloadSeparationPorts() const { return bftPayloadSeparationPorts; }
 
+        // TODO: SUPPORT MULTI BFT
         [[nodiscard]] inline const auto& getBFTRpcPorts() const { return bftRpcPorts; }
 
         static bool WrapPortWithConfig(const std::vector<std::shared_ptr<util::NodeConfig>>& nodes,

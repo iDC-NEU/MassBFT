@@ -50,7 +50,7 @@ namespace ca {
         }
 
         bool prepareConfigurationFile(const std::vector<NodeHostConfig>& nodes) {
-            auto remoteFilePath = _runningPath / "config" / "hosts.config";
+            auto remoteFilePath = _runningPath / "config" / ("hosts_" + std::to_string(_groupId) + "_" + std::to_string(_processId) + ".config");
             std::ofstream file(remoteFilePath, std::ios::out | std::ios::trunc);
             if (!file.is_open()) {
                 LOG(INFO) << "Failed to create file: " << remoteFilePath;
@@ -71,16 +71,19 @@ namespace ca {
 
         BFTInstanceController(BFTInstanceController &&) = delete;
 
+        // leave the hostConfigPath empty of you don't want to overwrite the file
         bool startInstance(const std::filesystem::path& hostConfigPath) {
-            // transmit config file to remote server
-            LOG(INFO) << "Transmitting files to remote instance " << _processId;
-            auto remoteFilePath = _runningPath / "config" / ("hosts_" + std::to_string(_groupId) + "_" +std::to_string(_processId) + ".config");
-            auto sftp = _session->createSFTPSession();
-            if (sftp == nullptr) {
-                return false;
-            }
-            if (!sftp->putFile(remoteFilePath, true, hostConfigPath)) {
-                return false;
+            if (!hostConfigPath.empty()) {
+                // transmit config file to remote server
+                LOG(INFO) << "Transmitting files to remote instance " << _processId;
+                auto remoteFilePath = _runningPath / "config" / ("hosts_" + std::to_string(_groupId) + "_" + std::to_string(_processId) + ".config");
+                auto sftp = _session->createSFTPSession();
+                if (sftp == nullptr) {
+                    return false;
+                }
+                if (!sftp->putFile(remoteFilePath, true, hostConfigPath)) {
+                    return false;
+                }
             }
             // 2. start the server
             LOG(INFO) << "Preparing to start instance:, groupId: " << _groupId << ", process id:" << _processId;

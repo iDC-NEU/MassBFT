@@ -4,10 +4,11 @@
 
 #pragma once
 
+#include "common/zmq_port_util.h"
+#include <unordered_map>
 #include <memory>
 
 namespace util {
-    class Properties;
     class BCCSP;
 }
 
@@ -40,6 +41,8 @@ namespace peer::core {
 
         std::shared_ptr<::peer::MRBlockStorage> getOrInitContentStorage();
 
+        std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> getOrInitZMQPortUtilMap();
+
         std::shared_ptr<::ca::BFTInstanceController> newReplicatorBFTController(int groupId=0);
 
     private:
@@ -50,5 +53,6 @@ namespace peer::core {
         std::shared_ptr<::util::BCCSP> _bccsp;
         std::shared_ptr<::peer::MRBlockStorage> _contentStorage;
         std::shared_ptr<::peer::Replicator> _replicator;
+        std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> _zmqPortUtilMap;
     };
 }

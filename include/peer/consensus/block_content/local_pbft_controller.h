@@ -11,18 +11,20 @@
 #include "common/zmq_port_util.h"
 
 namespace peer::consensus {
-    template<bool eagerValidate>
     class LocalPBFTController {
     public:
         static std::unique_ptr<LocalPBFTController> NewPBFTController(
                 // All nodes from the same region
+                // validateOnReceive: validate user request on receiving from user
+                // turn off to optimistic trust user (will validate during consensus)
                 const std::vector<std::shared_ptr<util::NodeConfig>>& localRegionNodes,
                 int localId,
                 const std::unique_ptr<util::ZMQPortUtil>& localPortConfig,
                 const std::shared_ptr<util::BCCSP>& bccsp,
                 std::shared_ptr<util::thread_pool_light> threadPoolForBCCSP,
                 std::shared_ptr<peer::MRBlockStorage> storage,
-                const RequestCollector::Config& batchConfig) {
+                const RequestCollector::Config& batchConfig,
+                bool validateOnReceive) {
             // check if localRegionNodes is in order
             for (int i=0; i<(int)localRegionNodes.size(); i++) {
                 if (localRegionNodes[i]->nodeId != i) {
@@ -53,7 +55,8 @@ namespace peer::consensus {
                     new LocalPBFTController(std::move(sm),
                                             std::move(rc),
                                             std::move(storage),
-                                            std::move(collectorZMQConfigs)));
+                                            std::move(collectorZMQConfigs),
+                                            validateOnReceive));
             // When the system is just started, all user requests received will be discarded
             // because the primary node is not determined. Thus, no need to call OnBecomeFollower(nullptr);
             if (!controller->_replicator->checkAndStart()) {
@@ -93,13 +96,14 @@ namespace peer::consensus {
                             std::unique_ptr<RequestCollector> collector,
                             std::shared_ptr<peer::MRBlockStorage> storage,
                             // Cn be generated through ZMQPortUtil::WrapPortWithConfig
-                            std::vector<std::shared_ptr<util::ZMQInstanceConfig>> userCollectorPortAddr)
-                            : _userCollectorAddr(std::move(userCollectorPortAddr)) {
+                            std::vector<std::shared_ptr<util::ZMQInstanceConfig>> userCollectorPortAddr,
+                            bool validateOnReceive)
+                            : _userCollectorAddr(std::move(userCollectorPortAddr)), _validateOnReceive(validateOnReceive) {
             _replicator = std::move(replicator);
             _collector = std::move(collector);
             _storage = std::move(storage);
             // Wire the connections
-            if (eagerValidate) {
+            if (_validateOnReceive) {
                 _collector->setValidateCallback([this](const auto& envelop) {
                     return _replicator->validateUserRequest(envelop);
                 }, _replicator->getThreadPoolForBCCSP());
@@ -131,7 +135,7 @@ namespace peer::consensus {
         void OnBecomeLeader() {
             _collector->start();
             _collector->setBatchCallback([this](auto&& item) {
-                return _replicator->pushUnorderedBlock<eagerValidate>(std::forward<decltype(item)>(item));
+                return _replicator->pushUnorderedBlock(std::forward<decltype(item)>(item), _validateOnReceive);
             });
         }
 
@@ -163,6 +167,7 @@ namespace peer::consensus {
 
     private:
         const std::vector<std::shared_ptr<util::ZMQInstanceConfig>> _userCollectorAddr;
+        const bool _validateOnReceive;
         int rpcServerPort = -1;
         std::unique_ptr<util::ZMQInstance> _redirectClient;
         std::shared_ptr<ContentReplicator> _replicator;

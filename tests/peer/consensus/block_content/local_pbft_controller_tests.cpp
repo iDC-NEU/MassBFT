@@ -33,7 +33,7 @@ public:
         for (int i=0; i<4; i++) {
             auto storage = std::make_shared<peer::MRBlockStorage>(3);   // 3 regions
             storageList.push_back(storage);
-            auto controller = peer::consensus::LocalPBFTController<false>::NewPBFTController(nodesConfig, i, portsConfig[i], bccsp, threadPool, storage, {100, 200});
+            auto controller = peer::consensus::LocalPBFTController::NewPBFTController(nodesConfig, i, portsConfig[i], bccsp, threadPool, storage, {100, 200}, false);
             CHECK(controller != nullptr) << "init controller error!";
             controllerList.push_back(std::move(controller));
         }
@@ -70,7 +70,7 @@ protected:
     std::shared_ptr<util::BCCSP> bccsp;
     std::shared_ptr<util::thread_pool_light> threadPool;
     std::vector<std::shared_ptr<peer::MRBlockStorage>> storageList;
-    std::vector<std::unique_ptr<peer::consensus::LocalPBFTController<false>>> controllerList;
+    std::vector<std::unique_ptr<peer::consensus::LocalPBFTController>> controllerList;
 };
 
 TEST_F(LocalPBFTControllerTest, TestCreate) {

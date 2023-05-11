@@ -117,11 +117,10 @@ namespace peer::consensus {
 
         // If the user request has been verified before (pessimistic verification),
         // there is no need to re-verify here, otherwise the user signature needs to be verified
-        template<bool validated>
-        bool pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>>&& batch) {
+        bool pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>>&& batch, bool skipValidate) {
             std::shared_ptr<::proto::Block> block(new proto::Block);
             block->body.userRequests = std::move(batch);
-            if (validated) {
+            if (skipValidate) {
                 auto rawBlock = std::make_unique<std::string>();
                 auto pos = block->serializeToString(rawBlock.get());
                 auto ret = util::OpenSSLSHA256::generateDigest(rawBlock->data()+pos.bodyPos, pos.execResultPos-pos.bodyPos);

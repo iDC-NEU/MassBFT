@@ -138,7 +138,7 @@ namespace peer::core {
             return nullptr;
         }
         // local region nodes
-        auto controller = consensus::LocalPBFTController<false>::NewPBFTController(
+        auto controller = consensus::LocalPBFTController::NewPBFTController(
                 localRegionNodes,
                 localNode->nodeId,
                 groupPortMap.at(localNode->nodeId),
@@ -146,7 +146,8 @@ namespace peer::core {
                 std::move(tp),
                 std::move(cs),
                 {_properties->getBlockBatchTimeoutMs(),
-                 _properties->getBlockMaxBatchSize()});
+                 _properties->getBlockMaxBatchSize()},
+                 _properties->validateOnReceive());
         if (!controller) {
             return nullptr;
         }

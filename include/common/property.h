@@ -239,6 +239,7 @@ namespace util {
         constexpr static const auto JVM_PATH = "jvm_path";
         constexpr static const auto BATCH_TIMEOUT_MS = "batch_timeout_ms";
         constexpr static const auto BATCH_MAX_SIZE = "batch_max_size";
+        constexpr static const auto VALIDATE_USER_REQUEST_ON_RECEIVE = "validate_on_receive";
 
     public:
         // Load from file, if fileName is null, create an empty property
@@ -366,6 +367,18 @@ namespace util {
             }
             return 200; // 200 size
         }
+
+        // validate user request immediately, instead of validate them during consensus
+        bool validateOnReceive() const {
+            bool dist = false;
+            try {
+                dist = _node[VALIDATE_USER_REQUEST_ON_RECEIVE].as<bool>(false);
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not find VALIDATE_USER_REQUEST_ON_RECEIVE key, fallback to false.";
+            }
+            return dist;
+        }
+
     private:
         YAML::Node _node;
     };

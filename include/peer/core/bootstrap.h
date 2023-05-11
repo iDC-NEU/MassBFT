@@ -14,12 +14,11 @@ namespace util {
 }
 
 namespace peer {
+    namespace core {
+        class SinglePBFTController;
+    }
     class MRBlockStorage;
     class Replicator;
-}
-
-namespace ca {
-    class BFTInstanceController;
 }
 
 namespace peer::core {
@@ -42,7 +41,8 @@ namespace peer::core {
 
         std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> getOrInitZMQPortUtilMap();
 
-        std::shared_ptr<::ca::BFTInstanceController> newReplicatorBFTController(int groupId=0);
+        // groupId: the bft group id (not region id!)
+        std::unique_ptr<::peer::core::SinglePBFTController> newReplicatorBFTController(int groupId=0);
 
     private:
         std::shared_ptr<util::Properties> _properties;

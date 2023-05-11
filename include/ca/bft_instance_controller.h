@@ -160,6 +160,11 @@ namespace ca {
             channel->execute(command);
         }
 
+        static bool IsInstanceReady(const std::string& log) {
+            size_t foundPos = log.find("Ready to process operations");
+            return foundPos != std::string::npos;
+        }
+
         [[nodiscard]] const auto& getConfig() const { return _config; };
 
     protected:

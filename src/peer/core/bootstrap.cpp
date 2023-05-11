@@ -3,10 +3,9 @@
 //
 
 #include "peer/core/bootstrap.h"
+#include "peer/core/single_pbft_controller.h"
 #include "peer/core/yaml_key_storage.h"
 #include "peer/replicator/replicator.h"
-#include "peer/consensus/block_content/local_pbft_controller.h"
-#include "ca/bft_instance_controller.h"
 #include "common/property.h"
 
 namespace peer::core {
@@ -88,7 +87,7 @@ namespace peer::core {
         return replicator;
     }
 
-    std::shared_ptr<::ca::BFTInstanceController> ModuleFactory::newReplicatorBFTController(int groupId) {
+    std::unique_ptr<::peer::core::SinglePBFTController> ModuleFactory::newReplicatorBFTController(int groupId) {
         auto np = _properties->getNodeProperties();
         auto localNode = np.getLocalNodeInfo();
         auto [user, pass, success] = _properties->getSSHInfo();
@@ -138,7 +137,7 @@ namespace peer::core {
             return nullptr;
         }
         // local region nodes
-        auto controller = consensus::LocalPBFTController::NewPBFTController(
+        auto pc = consensus::LocalPBFTController::NewPBFTController(
                 localRegionNodes,
                 localNode->nodeId,
                 groupPortMap.at(localNode->nodeId),
@@ -148,12 +147,10 @@ namespace peer::core {
                 {_properties->getBlockBatchTimeoutMs(),
                  _properties->getBlockMaxBatchSize()},
                  _properties->validateOnReceive());
-        if (!controller) {
+        if (!pc) {
             return nullptr;
         }
-        // todo: merge controller and ic together
-
-        return nullptr;
+        return std::make_unique<SinglePBFTController>(std::move(ic), std::move(pc), localNode->groupId, localNode->nodeId, groupId);
     }
 
     std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> ModuleFactory::getOrInitZMQPortUtilMap() {

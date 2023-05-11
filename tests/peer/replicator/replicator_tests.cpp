@@ -4,6 +4,7 @@
 
 #include "peer/replicator/replicator.h"
 #include "common/matrix_2d.h"
+#include "common/timer.h"
 
 #include "gtest/gtest.h"
 #include "tests/proto_block_utils.h"
@@ -21,7 +22,7 @@ protected:
     };
 
     void TearDown() override {
-        sleep(1);
+        util::Timer::sleep_sec(1);
         util::MetaRpcServer::Stop();
     };
 

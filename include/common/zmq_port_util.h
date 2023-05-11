@@ -182,15 +182,17 @@ namespace util {
                 LOG(ERROR) << "node index out of range!";
                 CHECK(false);
             }
-            auto totalNodes = regionsNodeCount.at(regionId);
+            auto totalRegions = (int)regionsNodeCount.size();
             auto tmpOffset = offset;
-            serverToServerPorts = std::vector<int>(totalNodes, tmpOffset++);
-            clientToServerPorts = std::vector<int>(totalNodes, tmpOffset++);
-            userRequestCollectorPorts = std::vector<int>(totalNodes, tmpOffset++);
-            bftPayloadSeparationPorts = std::vector<int>(totalNodes, tmpOffset++);
-            bftRpcPorts = std::vector<int>(totalNodes, tmpOffset++);
-            frPorts = std::vector<int>(totalNodes, tmpOffset++);
-            rfrPorts = std::vector<int>(totalNodes, tmpOffset++);
+            serverToServerPorts = std::vector<int>(totalRegions, tmpOffset++);
+            clientToServerPorts = std::vector<int>(totalRegions, tmpOffset++);
+            userRequestCollectorPorts = std::vector<int>(totalRegions, tmpOffset++);
+            bftPayloadSeparationPorts = std::vector<int>(totalRegions, tmpOffset++);
+            bftRpcPorts = std::vector<int>(totalRegions, tmpOffset++);
+            for (int i=0; i<totalRegions; i++) {
+                frPorts.push_back(tmpOffset++);
+                rfrPorts.push_back(tmpOffset++);
+            }
         }
 
         void printConfig() const {

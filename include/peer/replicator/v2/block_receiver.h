@@ -31,7 +31,6 @@ namespace peer::v2 {
             while(true) {
                 auto ret = instance->_sub->receive();
                 if (ret == std::nullopt) {
-                    LOG(ERROR) << "Receive message fragment failed!";
                     break;  // socket dead
                 }
                 // analyse the fragment and push into storage
@@ -234,7 +233,7 @@ namespace peer::v2 {
             });
             auto ret = util::ReliableZmqServer::NewSubscribeServer(rfrPort);
             if (!ret) {
-                LOG(ERROR) << "Could not init remoteFragmentReceiver!";
+                LOG(ERROR) << "Could not init remoteFragmentReceiver (zmq server) at port: " << rfrPort;
                 return nullptr;
             }
             if (!rfr->checkAndStart(util::ReliableZmqServer::GetSubscribeServer(rfrPort))) {

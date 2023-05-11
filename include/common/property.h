@@ -135,7 +135,6 @@ namespace util {
             return std::make_pair(list, true);
         }
 
-    public:
         static NodeConfigPtr LoadNodeInfo(const YAML::Node& node) {
             try {
                 NodeConfigPtr cfg(new NodeConfig);
@@ -151,6 +150,7 @@ namespace util {
             return nullptr;
         }
 
+    public:
         // NodeConfigPtr may be empty
         NodeConfigPtr getSingleNodeInfo(int groupId, int nodeId) const {
             auto [list, success] = getAndCheckGroup(groupId);
@@ -190,21 +190,16 @@ namespace util {
             return nullptr;
         }
 
-        int getGroupCount(bool check=true) {
+        int getGroupCount() {
             if (!n.IsDefined() || !n.IsMap()) {
                 return -1;
             }
-            auto ret = (int)n.size();
-            if (!check) {
-                return ret;
-            }
-            for (int i=0; i<ret; i++) {
+            for (int i=0;; i++) {
                 auto [list, success] = getAndCheckGroup(i);
                 if (!success) {
-                    return -1; // group not found
+                    return i;
                 }
             }
-            return ret;
         }
 
         int getGroupNodeCount(int groupId) {
@@ -213,6 +208,23 @@ namespace util {
                 return -1; // group not found
             }
             return (int)list.size();
+        }
+
+        void setSingleNodeInfo(const NodeConfigPtr& cfg) {
+            YAML::Node node;
+            node["node_id"] = cfg->nodeId;
+            node["group_id"] = cfg->groupId;
+            node["ski"] = cfg->ski;
+            node["pri_ip"] = cfg->priIp;
+            node["pub_ip"] = cfg->pubIp;
+            auto groupKey = BuildGroupKey(cfg->groupId);
+            auto list = n[groupKey];
+            list.push_back(node);
+        }
+
+        void setLocalNodeInfo(int groupId, int nodeId) {
+            n["local_group_id"] = groupId;
+            n["local_node_id"] = nodeId;
         }
 
     protected:
@@ -228,6 +240,7 @@ namespace util {
     private:
         static inline std::shared_ptr<Properties> properties;
 
+    public:
         constexpr static const auto YCSB_PROPERTIES = "ycsb";
         constexpr static const auto CHAINCODE_PROPERTIES = "chaincode";
         constexpr static const auto NODES_PROPERTIES = "nodes";
@@ -266,7 +279,7 @@ namespace util {
         }
 
         static Properties *GetProperties() {
-            DCHECK(properties != nullptr);
+            DCHECK(properties != nullptr) << "properties is not generated (or loaded) yet";
             return properties.get();
         }
 
@@ -290,7 +303,7 @@ namespace util {
             return _node[key];
         }
 
-        YAML::Node getCustomProperties(const std::string& key) const {
+        YAML::Node getCustomPropertiesOrPanic(const std::string& key) const {
             if (!_node[key].IsDefined()) {
                 CHECK(false) << "Can not find key: " << key;
             }

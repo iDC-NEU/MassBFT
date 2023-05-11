@@ -5,7 +5,6 @@
 #pragma once
 
 #include "common/ssh.h"
-#include "common/timer.h"
 #include <filesystem>
 #include <fstream>
 
@@ -108,29 +107,29 @@ namespace ca {
                 return false;
             }
             _bftInstanceChannel = std::move(channel);
-            startTime = util::Timer::time_now_ms();
             return _bftInstanceChannel->execute(command);
         }
 
         // return isSuccess, stdout, stderr
-        std::tuple<bool, std::string, std::string> getChannelResponse(int timedWait=15) {
+        bool getChannelResponse(std::ostream* out, std::ostream* error) {
+            if (_bftInstanceChannel == nullptr) {
+                return false;
+            }
             auto callback = [&](std::string_view sv) {
-                auto spanMs = startTime + timedWait * 1000 - util::Timer::time_now_ms();
-                util::Timer::sleep_ns(spanMs * 1000 * 1000);
                 if (sv.empty()) {
                     return false;
                 }
                 LOG(INFO) << sv;
                 return true;
             };
-            std::string out, error;
-            if (_bftInstanceChannel == nullptr) {
-                return {false, {}, {}};
-            }
             // do not catch the return value!
-            _bftInstanceChannel->read(out, false, callback);
-            _bftInstanceChannel->read(error, true, callback);
-            return {true, out, error};
+            if (out) {
+                _bftInstanceChannel->read(*out, false, callback);
+            }
+            if (error) {
+                _bftInstanceChannel->read(*error, true, callback);
+            }
+            return true;
         }
 
         void stopAndClean() {
@@ -139,7 +138,7 @@ namespace ca {
                 return;
             }
             channel->execute("pkill -f nc_bft.jar");
-            std::string out;
+            std::ostringstream out;
             channel->read(out, false);
 
             channel = _session->createChannel();
@@ -171,7 +170,6 @@ namespace ca {
         const SSHConfig _config;
         const int _groupId;
         const int _processId;
-        int64_t startTime = -1;
         std::unique_ptr<util::SSHSession> _session;
         std::unique_ptr<util::SSHChannel> _bftInstanceChannel;
         std::filesystem::path _runningPath;

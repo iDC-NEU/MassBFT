@@ -40,30 +40,20 @@ util::SSHChannel::~SSHChannel() {
     ssh_channel_free(_channel);
 }
 
-bool util::SSHChannel::read(std::string& buf, int errFlag, const std::function<bool(std::string_view append)>& callback) {
-    buf.clear();
-    auto outBytes = 0;
+bool util::SSHChannel::read(std::ostream& buf, int errFlag, const std::function<bool(std::string_view append)>& callback) {
+    const int bufferSize = 4096;
+    char readBuffer[bufferSize];
+    int bytesRead;
     do {
-        buf.resize(outBytes + 1024);
-        auto currentOut = ssh_channel_read_timeout(_channel, buf.data() + outBytes, buf.size() - outBytes, errFlag, _timeout);
-        if (callback) {
-            if (!callback(std::string_view(buf.data() + outBytes, currentOut))) {
-                buf.resize(outBytes);
-                return true;    // user cancel it
-            }
-        } else {
-            if (currentOut == 0) {
-                break;
+        bytesRead = ssh_channel_read_timeout(_channel, readBuffer, bufferSize, errFlag, _timeout);
+        if (bytesRead > 0) {
+            buf.write(readBuffer, bytesRead);
+            if (callback && !callback(std::string_view(readBuffer, bytesRead))) {
+                return false;    // user cancel it
             }
         }
-        if (currentOut < 0) {
-            LOG(ERROR) << "Read response error openssh.";
-            break;
-        }
-        outBytes += currentOut;
-    } while(true);
-    buf.resize(outBytes);
-    return !buf.empty();
+    } while (bytesRead > 0);
+    return true;
 }
 
 bool util::SSHChannel::execute(const std::string &command) {

@@ -3,6 +3,7 @@
 //
 
 #include "ca/bft_instance_controller.h"
+#include "common/timer.h"
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
@@ -48,10 +49,11 @@ TEST_F(ControllerTest, StartTest) {
     for (int i=0; i<4; i++) {
         ASSERT_TRUE(ctlList[i]->startInstance(""));
     }
+    std::stringbuf buf;
     for (int i=0; i<4; i++) {
-        auto[success, out, err] = ctlList[i]->getChannelResponse();
+        std::ostream out(&buf);
+        auto success = ctlList[i]->getChannelResponse(&out, &out);
         ASSERT_TRUE(success);
-        LOG(INFO) << out << err;
     }
     for (int i=0; i<4; i++) {
         ctlList[i]->stopAndClean();
@@ -79,8 +81,11 @@ TEST_F(ControllerTest, StartDemoInstance) {
     for (int i=0; i<4; i++) {
         ASSERT_TRUE(ctlList[i]->startInstance(""));
     }
-    for (int i=0; i<1000; i++) {    // 1000 sec
-        ctlList[0]->getChannelResponse(1);
+    std::stringbuf buf;
+    for (int i=0; i<1000; i++) {
+        std::ostream out(&buf);
+        auto success = ctlList[0]->getChannelResponse(&out, &out);
+        ASSERT_TRUE(success);
     }
     for (int i=0; i<4; i++) {
         ctlList[i]->stopAndClean();

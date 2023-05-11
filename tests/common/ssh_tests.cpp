@@ -33,7 +33,6 @@ protected:
     inline static std::string runningPath = "/home/user/nc_bft/";
 
     static bool readChannelCallback(std::string_view sv) {
-        util::Timer::sleep_sec(1);
         if (sv.empty()) {
             return false;
         }
@@ -47,7 +46,7 @@ TEST_F(SSHTest, IntrgrateTest) {
     auto session = NewSSHSession();
     auto channel = session->createChannel();
     ASSERT_TRUE(channel != nullptr);
-    std::string out, err;
+    std::ostringstream out;
     auto ret = channel->execute("ls");
     ASSERT_TRUE(ret);
     auto cb = [](std::string_view sv) {
@@ -58,7 +57,7 @@ TEST_F(SSHTest, IntrgrateTest) {
         return true;
     };
     channel->read(out, false, cb);
-    channel->read(err, true, cb);
+    channel->read(out, true, cb);
 }
 
 TEST_F(SSHTest, SendFileToRemote) {
@@ -100,11 +99,11 @@ TEST_F(SSHTest, StartBFTInstanceTest) {
         auto ret = channelList[i]->execute("cd " + runningPath + "&&" + jvmPath.append(jvmOption).append(classPath) + "bftsmart.demo.neuchainplus.NeuChainServer " + std::to_string(i));
         ASSERT_TRUE(ret);
     }
-    std::string out, error;
+    std::ostringstream out;
     channelList[0]->read(out, false, readChannelCallback);
-    channelList[0]->read(error, true, readChannelCallback);
+    channelList[0]->read(out, true, readChannelCallback);
     channelList[1]->read(out, false, readChannelCallback);
-    channelList[1]->read(error, true, readChannelCallback);
+    channelList[1]->read(out, true, readChannelCallback);
     sleep(20);
 }
 
@@ -113,9 +112,9 @@ TEST_F(SSHTest, StopTest) {
     auto stop_channel = session->createChannel();
     ASSERT_TRUE(stop_channel != nullptr);
     stop_channel->execute("pkill -f nc_bft.jar");
-    std::string out, error;
+    std::ostringstream out;
     stop_channel->read(out, false, readChannelCallback);
-    stop_channel->read(error, true, readChannelCallback);
+    stop_channel->read(out, true, readChannelCallback);
 }
 
 TEST_F(SSHTest, CleanTest) {
@@ -128,8 +127,8 @@ TEST_F(SSHTest, CleanTest) {
         auto ret = channelList[i]->execute("cd " + runningPath + "/config" + "&&" + "rm hosts_" + std::to_string(i) + ".config");
         ASSERT_TRUE(ret);
 
-        std::string out, error;
+        std::ostringstream out;
         channelList[i]->read(out, false, readChannelCallback);
-        channelList[i]->read(error, true, readChannelCallback);
+        channelList[i]->read(out, true, readChannelCallback);
     }
 }

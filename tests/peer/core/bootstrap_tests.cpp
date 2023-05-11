@@ -30,11 +30,10 @@ protected:
     };
 
 protected:
-    static auto getAndInitModules() {
-        tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
+    static auto getAndInitModules(bool distributed) {
         auto* properties = util::Properties::GetProperties();
         properties->getCustomProperties(util::Properties::JVM_PATH) = "/home/user/.jdks/corretto-16.0.2/bin/java";
-        properties->getCustomProperties(util::Properties::DISTRIBUTED_SETTING) = true;
+        properties->getCustomProperties(util::Properties::DISTRIBUTED_SETTING) = distributed;
         auto modules = peer::core::ModuleFactory::NewModuleFactory(util::Properties::GetSharedProperties());
         CHECK(modules != nullptr);
         auto [bccsp, tp] = modules->getOrInitBCCSPAndThreadPool();
@@ -49,8 +48,26 @@ protected:
     }
 };
 
-TEST_F(BootstrapTest, StartTest) {
-    auto modules = getAndInitModules();
-    auto bftController = modules->newReplicatorBFTController(0);
-    CHECK(bftController != nullptr);
+TEST_F(BootstrapTest, BasicTest) {
+    tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
+    getAndInitModules(false);
+    getAndInitModules(true);
+}
+
+TEST_F(BootstrapTest, TestBFTController) {
+    std::vector<std::unique_ptr<peer::core::ModuleFactory>> modList(4);
+    std::vector<std::unique_ptr<::peer::core::SinglePBFTController>> bftControllerList(4);
+    for (int i=0; i<4; i++) {
+        tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
+        tests::MockPropertyGenerator::SetLocalId(0, i);
+        modList[i] = getAndInitModules(false);
+        bftControllerList[i] = modList[i]->newReplicatorBFTController(0);
+        CHECK(bftControllerList[i] != nullptr);
+    }
+    for (int i=0; i<4; i++) {
+        bftControllerList[i]->startInstance();
+    }
+    for (int i=0; i<4; i++) {
+        bftControllerList[i]->waitUntilReady();
+    }
 }

@@ -87,6 +87,7 @@ namespace peer::consensus {
 
         ~LocalPBFTController() {
             if (rpcServerPort != -1) {
+                _replicator->sendStopSignal();
                 util::DefaultRpcServer::Stop(rpcServerPort);
             }
         }

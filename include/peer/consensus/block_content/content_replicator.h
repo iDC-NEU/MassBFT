@@ -87,7 +87,7 @@ namespace peer::consensus {
         // In order to separate the payload from the consensus,
         // the local cluster needs to establish a set of zmq ports, which are stored in targetNodes
         ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId, int64_t timeoutMs=100)
-                : _verifyProposalTimeout(timeoutMs) {
+                : _verifyProposalTimeout(timeoutMs), _running(false) {
             _sender = std::make_unique<ContentSender>(targetNodes, localId);
             _receiver = std::make_unique<ContentReceiver>(targetNodes[localId]->port);
             _receiver->setCallback([this](auto&& raw){ this->validateUnorderedBlock(std::forward<decltype(raw)>(raw)); });
@@ -112,8 +112,12 @@ namespace peer::consensus {
 
         // Start the zeromq sender and receiver threads
         bool checkAndStart() {
+            _running = true;
             return _receiver->checkAndStart();
         }
+
+        // Notify rpc that the requests being executed return and unblock the system
+        void sendStopSignal() { _running = false; }
 
         // If the user request has been verified before (pessimistic verification),
         // there is no need to re-verify here, otherwise the user signature needs to be verified
@@ -297,7 +301,12 @@ namespace peer::consensus {
                 return std::nullopt;
             }
             std::shared_ptr<::proto::Block> block;
-            _requestBatchQueue.wait_dequeue(block);
+            while (!_requestBatchQueue.wait_dequeue_timed(block,  std::chrono::seconds(5))) {
+                if (!_running) {
+                    LOG(INFO) << "The rpc instance is not running, return.";
+                    return std::nullopt;
+                }
+            }
             if (block == nullptr) {
                 return std::nullopt;
             }
@@ -366,6 +375,7 @@ namespace peer::consensus {
 
     private:
         const int64_t _verifyProposalTimeout; // ms
+        std::atomic<bool> _running;
         // Check if the node is leader
         std::shared_mutex _isLeaderMutex;
         bool _isLeader = false;

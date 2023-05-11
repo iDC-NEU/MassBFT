@@ -18,16 +18,27 @@ namespace peer::core {
                 : _ce(1), _nodeGroupId(nodeGroupId), _instanceId(instanceId), _bftGroupId(bftGroupId),
                   _instanceManager(std::move(instanceManager)), _consensusHandler(std::move(consensusHandler)) {
             CHECK(_instanceManager && _consensusHandler);
-            _statusThread = std::make_unique<std::thread>(&SinglePBFTController::run, this);
+            _instanceManager->stopAndClean();
         }
 
         ~SinglePBFTController() {
             _running = false;
-            _statusThread->join();
+            if (_statusThread) {
+                _statusThread->join();
+            }
+            _instanceManager->stopAndClean();
         }
 
         [[nodiscard]] ::peer::consensus::LocalPBFTController& getConsensusHandler() const { return *_consensusHandler; }
 
+        void startInstance() {
+            _instanceManager->startInstance("");    // we have already prepared the file
+            _statusThread = std::make_unique<std::thread>(&SinglePBFTController::run, this);
+        }
+
+        void waitUntilReady() { _ce.wait(); }
+
+    protected:
         void run() {
             std::stringbuf buf;
             bool isInit = true;
@@ -54,8 +65,6 @@ namespace peer::core {
             outputFile << &buf;
             outputFile.close();
         }
-
-        void waitUntilReady() { _ce.wait(); }
 
     private:
         std::atomic<bool> _running = true;

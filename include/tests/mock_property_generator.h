@@ -29,10 +29,14 @@ namespace tests {
                     nodeProperties.setSingleNodeInfo(cfg);
                 }
             }
-            nodeProperties.setLocalNodeInfo(0, 0);
-
             std::filesystem::path newDir = "/home/user/nc_bft";
             std::filesystem::current_path(newDir);
+        }
+
+        static void SetLocalId(int groupId, int nodeId) {
+            auto* properties = util::Properties::GetProperties();
+            auto nodeProperties = properties->getNodeProperties();
+            nodeProperties.setLocalNodeInfo(groupId, nodeId);
         }
     };
 }

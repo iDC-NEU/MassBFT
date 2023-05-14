@@ -30,7 +30,7 @@ protected:
     };
 
 protected:
-    static auto getAndInitModules(bool distributed) {
+    static auto GetAndInitModules(bool distributed) {
         auto* properties = util::Properties::GetProperties();
         properties->getCustomProperties(util::Properties::JVM_PATH) = "/home/user/.jdks/corretto-16.0.2/bin/java";
         properties->getCustomProperties(util::Properties::DISTRIBUTED_SETTING) = distributed;
@@ -50,8 +50,8 @@ protected:
 
 TEST_F(BootstrapTest, BasicTest) {
     tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
-    getAndInitModules(false);
-    getAndInitModules(true);
+    GetAndInitModules(false);
+    GetAndInitModules(true);
 }
 
 TEST_F(BootstrapTest, TestBFTController) {
@@ -60,7 +60,7 @@ TEST_F(BootstrapTest, TestBFTController) {
     for (int i=0; i<4; i++) {
         tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
         tests::MockPropertyGenerator::SetLocalId(0, i);
-        modList[i] = getAndInitModules(false);
+        modList[i] = GetAndInitModules(false);
         bftControllerList[i] = modList[i]->newReplicatorBFTController(0);
         CHECK(bftControllerList[i] != nullptr);
     }

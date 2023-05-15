@@ -33,17 +33,17 @@ namespace peer::consensus {
                 }
             }
             // generate the corresponding zmq configs
-            std::vector<std::shared_ptr<util::ZMQInstanceConfig>> payloadZMQConfigs;
-            if (!util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,
-                                                           localPortConfig->getLocalServicePorts(util::PortType::BFT_PAYLOAD),
-                                                           payloadZMQConfigs)) {
+            auto [payloadZMQConfigs, ret1] = util::ZMQPortUtil::WrapPortWithConfig(
+                    localRegionNodes,
+                    localPortConfig->getLocalServicePorts(util::PortType::BFT_PAYLOAD));
+            if (!ret1) {
                 LOG(ERROR) << "generate BFTPayloadSeparationPorts zmq config failed!";
                 return nullptr;
             }
-            std::vector<std::shared_ptr<util::ZMQInstanceConfig>> collectorZMQConfigs;
-            if (!util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,
-                                                       localPortConfig->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR),
-                                                       collectorZMQConfigs)) {
+            auto [collectorZMQConfigs, ret2] = util::ZMQPortUtil::WrapPortWithConfig(
+                    localRegionNodes,
+                    localPortConfig->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR));
+            if (!ret2) {
                 LOG(ERROR) << "generate RequestCollectorPorts zmq config failed!";
                 return nullptr;
             }

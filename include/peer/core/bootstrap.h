@@ -17,6 +17,10 @@ namespace peer {
     namespace core {
         class SinglePBFTController;
     }
+    namespace consensus::v2 {
+        class BlockOrder;
+        class OrderACB;
+    }
     class MRBlockStorage;
     class Replicator;
 }
@@ -43,6 +47,8 @@ namespace peer::core {
 
         // groupId: the bft group id (not region id!)
         std::unique_ptr<::peer::core::SinglePBFTController> newReplicatorBFTController(int groupId=0);
+
+        std::unique_ptr<::peer::consensus::v2::BlockOrder> newGlobalBlockOrdering(std::shared_ptr<peer::consensus::v2::OrderACB> callback);
 
     private:
         std::shared_ptr<util::Properties> _properties;

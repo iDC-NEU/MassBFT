@@ -22,6 +22,10 @@ namespace util {
         BFT_PAYLOAD = 3,
         // The port used to connect the peer with the bft instance
         BFT_RPC = 4,
+        // The port used to connect to raft instance
+        CFT_PEER_TO_PEER = 5,
+        // Local raft instances broadcast the block order after received.
+        LOCAL_BLOCK_ORDER = 6,
         // broadcast in the local zone, key region id, value port (as ZMQServer)
         LOCAL_FRAGMENT_BROADCAST = 100,
         // receive from crossRegionSender, key region id, value port (as ReliableZmqServer)
@@ -58,20 +62,19 @@ namespace util {
 
         [[nodiscard]] const std::vector<int>& getLocalServicePorts(PortType portType, int groupId=0) const;
 
-        static bool WrapPortWithConfig(const std::vector<std::shared_ptr<util::NodeConfig>>& nodes,
-                                       const std::vector<int>& ports,
-                                       std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& zmqInstances) {
+        static std::pair<std::vector<std::shared_ptr<util::ZMQInstanceConfig>>, bool>
+        WrapPortWithConfig(const std::vector<std::shared_ptr<util::NodeConfig>>& nodes, const std::vector<int>& ports) {
             if (nodes.empty() || nodes.size() != ports.size()) {
-                return false;
+                return {{}, false};
             }
-            zmqInstances.clear();
+            std::vector<std::shared_ptr<util::ZMQInstanceConfig>> zmqInstances;
             for (int i=0; i<(int)nodes.size(); i++) {
                 auto zmqCfg = std::make_unique<util::ZMQInstanceConfig>();
                 zmqCfg->nodeConfig = nodes[i];
                 zmqCfg->port = ports[i];
                 zmqInstances.push_back(std::move(zmqCfg));
             }
-            return true;
+            return {zmqInstances, true};
         }
 
         void distributedPrintConfig() const {

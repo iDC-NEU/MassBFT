@@ -6,6 +6,7 @@
 #include "peer/core/single_pbft_controller.h"
 #include "peer/core/yaml_key_storage.h"
 #include "peer/replicator/replicator.h"
+#include "peer/consensus/block_order/global_ordering.h"
 #include "common/property.h"
 
 namespace peer::core {
@@ -121,9 +122,9 @@ namespace peer::core {
             hostList.push_back({
                                        .processId = node->nodeId,
                                        .ip = node->priIp,
-                                       .serverToServerPort = groupPortMap[i]->getServerToServerPorts()[i],
-                                       .serverToClientPort = groupPortMap[i]->getClientToServerPorts()[i],
-                                       .rpcPort =  groupPortMap[i]->getBFTRpcPorts()[i],
+                                       .serverToServerPort = groupPortMap[i]->getLocalServicePorts(util::PortType::SERVER_TO_SERVER)[i],
+                                       .serverToClientPort = groupPortMap[i]->getLocalServicePorts(util::PortType::CLIENT_TO_SERVER)[i],
+                                       .rpcPort =  groupPortMap[i]->getLocalServicePorts(util::PortType::BFT_RPC)[i],
                                });
         }
         ic->prepareConfigurationFile(hostList);
@@ -164,5 +165,41 @@ namespace peer::core {
         }
         _zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(_properties->replicatorLowestPort(), regionNodesCount, _properties->isDistributedSetting());
         return _zmqPortUtilMap;
+    }
+
+    std::unique_ptr<::peer::consensus::v2::BlockOrder> ModuleFactory::newGlobalBlockOrdering(std::shared_ptr<peer::consensus::v2::OrderACB> callback) {
+        // we reuse the rpc port as the global broadcast port
+        auto portMap = getOrInitZMQPortUtilMap();
+        if (portMap == nullptr) {
+            return nullptr;
+        }
+        auto np = _properties->getNodeProperties();
+        auto localNode = np.getLocalNodeInfo();
+        auto localRegionNodes = np.getGroupNodesInfo(localNode->groupId);
+        auto localReceiverPorts = portMap->at(localNode->groupId)[localNode->nodeId]->getLocalServicePorts(util::PortType::LOCAL_BLOCK_ORDER);
+        auto [localReceivers, suc1] = util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes, localReceiverPorts);
+        if (!suc1) {
+            return nullptr;
+        }
+
+        std::vector<std::shared_ptr<util::NodeConfig>> multiRaftParticipantNodes;
+        std::vector<int> multiRaftParticipantPorts;
+        std::vector<int> multiRaftLeaderPos;
+        for (int i=0; i<(int)portMap->size(); i++) {
+            auto reserveCount = (int)portMap->at(i).size() / 3 + 1;  // at least f+1 receivers
+            auto raftNodes = np.getGroupNodesInfo(i);
+            auto raftPorts = portMap->at(i)[0]->getLocalServicePorts(util::PortType::CFT_PEER_TO_PEER);
+            multiRaftLeaderPos.push_back((int)multiRaftParticipantNodes.size());    // the first node in a region is a leader
+            for (int j=0; j<reserveCount; j++) {
+                multiRaftParticipantNodes.push_back(raftNodes[j]);
+                multiRaftParticipantPorts.push_back(raftPorts[j]);
+            }
+        }
+        // build the zmq port config
+        auto [multiRaftParticipant, suc2] = util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes, localReceiverPorts);
+        if (!suc2) {
+            return nullptr;
+        }
+        return peer::consensus::v2::BlockOrder::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(callback));
     }
 }

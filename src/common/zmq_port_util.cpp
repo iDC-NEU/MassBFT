@@ -59,7 +59,6 @@ namespace util {
             }
             // skip nodes with smaller id (in local region)
             tmpOffset += groupCount*_nodeId;
-            auto totalNodes = _regionsNodeCount.at(_groupId);
             std::vector<int> result(groupCount);
             for (int i=0; i<groupCount; i++) {
                 // as server, receive from multiple regions
@@ -177,6 +176,8 @@ namespace util {
         _localServicePortMapper[PortType::USER_REQ_COLLECTOR].push_back(_portCalculator->newHomogeneousLocalServicePorts());
         _localServicePortMapper[PortType::BFT_PAYLOAD].push_back(_portCalculator->newHomogeneousLocalServicePorts());
         _localServicePortMapper[PortType::BFT_RPC].push_back(_portCalculator->newHomogeneousLocalServicePorts());
+        _localServicePortMapper[PortType::CFT_PEER_TO_PEER].push_back(_portCalculator->newHomogeneousLocalServicePorts());
+        _localServicePortMapper[PortType::LOCAL_BLOCK_ORDER].push_back(_portCalculator->newHomogeneousLocalServicePorts());
         _remoteServicePortMapper[PortType::LOCAL_FRAGMENT_BROADCAST] = _portCalculator->newHomogeneousRemoteServicePorts();
         _remoteServicePortMapper[PortType::REMOTE_FRAGMENT_RECEIVE] = _portCalculator->newHomogeneousRemoteServicePorts();
     }
@@ -187,6 +188,8 @@ namespace util {
         _localServicePortMapper[PortType::USER_REQ_COLLECTOR].push_back(_portCalculator->newHeterogeneousLocalServicePorts());
         _localServicePortMapper[PortType::BFT_PAYLOAD].push_back(_portCalculator->newHeterogeneousLocalServicePorts());
         _localServicePortMapper[PortType::BFT_RPC].push_back(_portCalculator->newHeterogeneousLocalServicePorts());
+        _localServicePortMapper[PortType::CFT_PEER_TO_PEER].push_back(_portCalculator->newHeterogeneousLocalServicePorts());
+        _localServicePortMapper[PortType::LOCAL_BLOCK_ORDER].push_back(_portCalculator->newHeterogeneousLocalServicePorts());
         _remoteServicePortMapper[PortType::LOCAL_FRAGMENT_BROADCAST] = _portCalculator->newHeterogeneousRemoteServicePorts();
         _remoteServicePortMapper[PortType::REMOTE_FRAGMENT_RECEIVE] = _portCalculator->newHeterogeneousRemoteServicePorts();
     }

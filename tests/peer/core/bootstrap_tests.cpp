@@ -4,6 +4,7 @@
 
 #include "peer/core/bootstrap.h"
 #include "peer/core/single_pbft_controller.h"
+#include "peer/consensus/block_order/global_ordering.h"
 #include "tests/mock_property_generator.h"
 #include "common/reliable_zeromq.h"
 #include "common/meta_rpc_server.h"
@@ -50,6 +51,7 @@ protected:
 
 TEST_F(BootstrapTest, BasicTest) {
     tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
+    tests::MockPropertyGenerator::SetLocalId(0, 1);
     GetAndInitModules(false);
     GetAndInitModules(true);
 }
@@ -70,4 +72,15 @@ TEST_F(BootstrapTest, TestBFTController) {
     for (int i=0; i<4; i++) {
         bftControllerList[i]->waitUntilReady();
     }
+}
+
+TEST_F(BootstrapTest, TestGlobalOrdering) {
+    tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
+    tests::MockPropertyGenerator::SetLocalId(0, 1);
+    auto modules = GetAndInitModules(false);
+    auto orderCAB = std::make_shared<peer::consensus::v2::OrderACB>([](int regionId, int blockId) ->bool {
+        return true;
+    });
+    auto ret = modules->newGlobalBlockOrdering(orderCAB);
+    CHECK(ret != nullptr);
 }

@@ -196,7 +196,7 @@ namespace peer::core {
             }
         }
         // build the zmq port config
-        auto [multiRaftParticipant, suc2] = util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes, localReceiverPorts);
+        auto [multiRaftParticipant, suc2] = util::ZMQPortUtil::WrapPortWithConfig(multiRaftParticipantNodes, multiRaftParticipantPorts);
         if (!suc2) {
             return nullptr;
         }

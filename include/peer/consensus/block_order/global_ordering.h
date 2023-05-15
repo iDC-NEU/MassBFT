@@ -44,7 +44,7 @@ namespace peer::consensus::v2 {
                 // find local nodes position
                 int mePos = -1;
                 for (int i = 0; i < (int) localReceivers.size(); i++) {
-                    if (localReceivers[i]->nodeConfig == me) {
+                    if (*localReceivers[i]->nodeConfig == *me) {
                         mePos = i;
                         break;
                     }

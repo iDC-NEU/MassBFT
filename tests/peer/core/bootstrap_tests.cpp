@@ -83,4 +83,5 @@ TEST_F(BootstrapTest, TestGlobalOrdering) {
     });
     auto ret = modules->newGlobalBlockOrdering(orderCAB);
     CHECK(ret != nullptr);
+    sleep(1);
 }

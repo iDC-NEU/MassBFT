@@ -4,6 +4,7 @@
 
 #include "peer/replicator/replicator.h"
 #include "common/matrix_2d.h"
+#include "common/timer.h"
 
 #include "gtest/gtest.h"
 #include "tests/proto_block_utils.h"
@@ -21,7 +22,7 @@ protected:
     };
 
     void TearDown() override {
-        sleep(1);
+        util::Timer::sleep_sec(1);
         util::MetaRpcServer::Stop();
     };
 
@@ -74,13 +75,21 @@ protected:
             util::Matrix2D<std::unique_ptr<peer::Replicator>>& replicators)>& callback) {
         auto bccsp = CreateBCCSP();
         auto nodes = GenerateNodesMap();
+        // ---- init port map
+        std::unordered_map<int, int> regionNodesCount;
+        for (const auto& it: nodes) {
+            regionNodesCount[it.first] = (int)it.second.size();
+        }
+        auto zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(51200, regionNodesCount, false);
+        // ----
         auto startAt = GenerateStartAt();
         util::Matrix2D<std::unique_ptr<peer::Replicator>> matrix(3, 31);
         util::Matrix2D<std::shared_ptr<peer::MRBlockStorage>> storage(3, 31);
         for (int i=0; i<(int)nodes.size(); i++) {
             for (int j =0; j<(int)nodes[i].size(); j++) {
                 auto replicator = std::make_unique<peer::Replicator>(nodes, nodes[i][j]);
-                replicator->setBCCSP(bccsp);
+                replicator->setBCCSPWithThreadPool(bccsp, std::make_shared<util::thread_pool_light>());
+                replicator->setPortUtilMap(zmqPortUtilMap);
                 ASSERT_TRUE(replicator->initialize());
                 ASSERT_TRUE(replicator->startReceiver(startAt));
                 storage(i, j) = replicator->getStorage();
@@ -141,8 +150,16 @@ protected:
 TEST_F(ReplicatorTest, TestInitialize) {
     auto bccsp = CreateBCCSP();
     auto nodes = GenerateNodesMap();
+    // ---- init port map
+    std::unordered_map<int, int> regionNodesCount;
+    for (const auto& it: nodes) {
+        regionNodesCount[it.first] = (int)it.second.size();
+    }
+    auto zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(51200, regionNodesCount, false);
+    // ----
     auto replicator = std::make_unique<peer::Replicator>(nodes, nodes[0][0]);
-    replicator->setBCCSP(bccsp);
+    replicator->setBCCSPWithThreadPool(bccsp, std::make_shared<util::thread_pool_light>());
+    replicator->setPortUtilMap(zmqPortUtilMap);
     ASSERT_TRUE(replicator->initialize());
     auto startAt = GenerateStartAt();
     ASSERT_TRUE(replicator->startReceiver(startAt));

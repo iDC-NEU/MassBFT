@@ -186,6 +186,7 @@ namespace peer::consensus {
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaft;
         std::unique_ptr<v2::OrderAssigner> _localOrderAssigner;
         std::shared_ptr<AsyncAgreementCallback> _callback;
+        braft::PeerId _localPeerId;
 
     public:
         // groupCount: sub chain ids are from 0 to groupCount-1
@@ -193,8 +194,11 @@ namespace peer::consensus {
                                                                  std::shared_ptr<AsyncAgreementCallback> callback) {
             auto aa = std::make_unique<AsyncAgreement>();
             aa->_localConfig = std::move(localConfig);
-            aa->_callback = std::move(callback);
             auto& cfg = aa->_localConfig;
+            if (!PeerIdFromConfig(cfg->pubAddr(), cfg->port, cfg->nodeConfig->groupId, aa->_localPeerId)) {
+                return nullptr;
+            }
+            aa->_callback = std::move(callback);
             aa->_multiRaft = std::make_unique<util::raft::MultiRaftFSM>("blk_order_cluster");
             aa->_localOrderAssigner = std::make_unique<v2::OrderAssigner>();
             aa->_localOrderAssigner->setLocalChainId(cfg->nodeConfig->groupId);
@@ -217,9 +221,7 @@ namespace peer::consensus {
 
         // wait until I become the leader of the local raft group
         [[nodiscard]] bool ready() const {
-            braft::PeerId my;
-            PeerIdFromConfig(_localConfig->addr(), _localConfig->port, _localConfig->nodeConfig->groupId, my);
-            auto* fsm = dynamic_cast<AgreementRaftFSM*>(_multiRaft->find_fsm(my));
+            auto* fsm = dynamic_cast<AgreementRaftFSM*>(_multiRaft->find_fsm(_localPeerId));
             return fsm && fsm->ready();
         }
 
@@ -233,7 +235,7 @@ namespace peer::consensus {
                     myIdIndex = i;
                 }
                 // targetGroupId = the region id of leader, since each region has only one leader
-                if (!PeerIdFromConfig(nodes[i]->addr(), nodes[i]->port, nodes[leaderPos]->nodeConfig->groupId, peers[i])) {
+                if (!PeerIdFromConfig(nodes[i]->pubAddr(), nodes[i]->port, nodes[leaderPos]->nodeConfig->groupId, peers[i])) {
                     return false;
                 }
             }
@@ -302,11 +304,7 @@ namespace peer::consensus {
     protected:
         // thread safe, called by leader
         bool apply(std::string& content) {
-            braft::PeerId pc;
-            if (!PeerIdFromConfig(_localConfig->addr(), _localConfig->port, _localConfig->nodeConfig->groupId, pc)) {
-                return false;
-            }
-            auto* leader = _multiRaft->find_node(pc);
+            auto* leader = _multiRaft->find_node(_localPeerId);
             butil::IOBuf data;
             data.append(content);
             // TODO: use complex task.done

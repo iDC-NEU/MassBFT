@@ -26,7 +26,8 @@ namespace util {
 
         bool execute(const std::string &command);
 
-        bool read(std::string& buf, int errFlag, const std::function<bool(std::string_view append)>& callback=nullptr);
+        // When the buffer is not full, wait until timeout occurs
+        bool read(std::ostream& buf, int errFlag, const std::function<bool(std::string_view append)>& callback=nullptr);
 
         void setTimeout(int timeout) { _timeout = timeout; }
 

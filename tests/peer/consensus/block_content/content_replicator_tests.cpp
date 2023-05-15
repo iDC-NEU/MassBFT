@@ -58,7 +58,7 @@ protected:
             for (int i=0; i<200; i++) { // assume 4 nodes
                 batch.push_back(createSignedEnvelop(i%4));
             }
-            sm->pushUnorderedBlock<false>(std::move(batch));
+            sm->pushUnorderedBlock(std::move(batch), false);
         }
     }
 

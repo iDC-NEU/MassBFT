@@ -57,7 +57,8 @@ namespace tests {
                 auto nodeCfg = std::make_shared<util::NodeConfig>();
                 nodeCfg->groupId = groupId;
                 nodeCfg->nodeId = i;
-                nodeCfg->ip = "127.0.0.1";
+                nodeCfg->priIp = "127.0.0.1";
+                nodeCfg->pubIp = "127.0.0.1";
                 nodeCfg->ski = std::to_string(groupId) + "_" + std::to_string(i);
                 cfg->nodeConfig = std::move(nodeCfg);
                 cfg->port = 51200 + portOffset + i;
@@ -72,7 +73,8 @@ namespace tests {
                 auto nodeCfg = std::make_shared<util::NodeConfig>();
                 nodeCfg->groupId = groupId;
                 nodeCfg->nodeId = i;
-                nodeCfg->ip = "127.0.0.1";
+                nodeCfg->priIp = "127.0.0.1";
+                nodeCfg->pubIp = "127.0.0.1";
                 nodeCfg->ski = std::to_string(groupId) + "_" + std::to_string(i);
                 nodesConfig.push_back(std::move(nodeCfg));
             }

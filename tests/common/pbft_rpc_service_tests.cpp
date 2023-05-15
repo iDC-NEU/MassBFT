@@ -63,7 +63,8 @@ protected:
             cfg->nodeId = i;
             cfg->groupId = 0;
             cfg->ski = "0_" + std::to_string(i);
-            cfg->ip = "127.0.0.1";
+            cfg->priIp = "127.0.0.1";
+            cfg->pubIp = "";    // PBFTRPCService must not use public address
             auto key = bccsp->generateED25519Key(cfg->ski, false);
             CHECK(key != nullptr);
             localNodes.push_back(std::move(cfg));

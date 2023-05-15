@@ -3,6 +3,7 @@
 //
 
 #include "common/thread_local_store.h"
+#include "common/timer.h"
 
 #include "gtest/gtest.h"
 #include "lightweightsemaphore.h"
@@ -42,7 +43,7 @@ protected:
 
 TEST_F(TLSTest, MultiGetStore) {
     start(100);
-    sleep(1);
+    util::Timer::sleep_sec(1);
     sema_.signal((int)t_list_.size());
-    sleep(1);
+    util::Timer::sleep_sec(1);
 }

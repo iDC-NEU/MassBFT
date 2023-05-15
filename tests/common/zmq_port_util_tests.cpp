@@ -27,19 +27,40 @@ TEST_F(ZMQPortUtilTest, IntrgrateTest4_4) {
     util::Matrix2D<std::unique_ptr<util::ZMQPortUtil>> matrix(3, 6);
     for (const auto& it: regionsNodeCount) {
         for (int i=0; i<it.second; i++) {
-            matrix(it.first, i) = std::make_unique<util::SingleServerZMQPortUtil>(regionsNodeCount, it.first, i, portOffset);
+            matrix(it.first, i) = util::ZMQPortUtil::NewZMQPortUtil(regionsNodeCount, it.first, i, portOffset, false);
         }
     }
-    int offset = 75;
-    ASSERT_TRUE(matrix(0, 0)->getFRServerPort(0) == offset + 0);
-    ASSERT_TRUE(matrix(0, 0)->getRFRServerPort(0) == offset + 3);
-    ASSERT_TRUE(matrix(0, 1)->getFRServerPort(0) == offset + 6);
-    ASSERT_TRUE(matrix(0, 1)->getRFRServerPort(0) == offset + 9);
-    ASSERT_TRUE(matrix(1, 0)->getFRServerPort(0) == offset + 24);
-    ASSERT_TRUE(matrix(1, 0)->getRFRServerPort(0) == offset + 27);
-    ASSERT_TRUE(matrix(2, 0)->getFRServerPort(0) == offset + 54);
-    ASSERT_TRUE(matrix(2, 0)->getRFRServerPort(0) == offset + 57);
-    ASSERT_TRUE(matrix(2, 5)->getFRServerPort(2) == offset + 86);
-    ASSERT_TRUE(matrix(2, 5)->getRFRServerPort(2) == offset + 89);
+    std::vector<bool> portOpen(65536);
+    for (const auto& it: regionsNodeCount) {
+        for (int i=0; i<it.second; i++) {
+            auto stsPort = matrix(it.first, i)->getLocalServicePorts(util::PortType::SERVER_TO_SERVER)[i];
+            auto ctsPort = matrix(it.first, i)->getLocalServicePorts(util::PortType::CLIENT_TO_SERVER)[i];
+            auto rcPort = matrix(it.first, i)->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[i];
+            auto bpPort = matrix(it.first, i)->getLocalServicePorts(util::PortType::BFT_PAYLOAD)[i];
+            auto brPort = matrix(it.first, i)->getLocalServicePorts(util::PortType::BFT_RPC)[i];
+            auto frList = matrix(it.first, i)->getRemoteServicePorts(util::PortType::LOCAL_FRAGMENT_BROADCAST);
+            auto rfrList = matrix(it.first, i)->getRemoteServicePorts(util::PortType::REMOTE_FRAGMENT_RECEIVE);
 
+            for (auto port: {stsPort, ctsPort, rcPort, bpPort, brPort}) {
+                if (portOpen[port] != false) {
+                    CHECK(false) << "port re-open!";
+                }
+                portOpen[port] = true;
+            }
+
+            for (auto port: frList) {
+                if (portOpen[port.second] != false) {
+                    CHECK(false) << "port re-open!";
+                }
+                portOpen[port.second] = true;
+            }
+
+            for (auto port: rfrList) {
+                if (portOpen[port.second] != false) {
+                    CHECK(false) << "port re-open!";
+                }
+                portOpen[port.second] = true;
+            }
+        }
+    }
 }

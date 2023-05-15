@@ -20,7 +20,9 @@ public:
         std::vector<int> regionServerCount {4, 4, 4};
         int offset = 51200;
         for (int i=0; i<4; i++) {
-            portsConfig.emplace_back(new util::SingleServerZMQPortUtil(regionServerCount, 0, i, offset));
+            auto ret = util::ZMQPortUtil::NewZMQPortUtil(regionServerCount, 0, i, offset, false);
+            CHECK(ret);
+            portsConfig.emplace_back(std::move(ret));
         }
 
         auto ms = std::make_unique<util::DefaultKeyStorage>();
@@ -74,9 +76,9 @@ protected:
 };
 
 TEST_F(LocalPBFTControllerTest, TestCreate) {
-    auto client0 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[0]);
-    auto client1 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[1]);
-    auto client2 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getRequestCollectorPorts()[2]);
+    auto client0 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[0]);
+    auto client1 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[1]);
+    auto client2 = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", portsConfig[0]->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[2]);
     util::Timer::sleep_sec(30);  // run TEST_F(ControllerTest, StartDemoInstance) for fast distribution
     for (int i=0; i<200 * 100; i++) {
         auto envelop = createSignedEnvelop(i%4);

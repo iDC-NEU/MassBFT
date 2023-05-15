@@ -101,7 +101,7 @@ namespace peer {
                 for (int i=0; i<(int)it.second.size(); i++) {
                     auto zmqInstanceConfig = std::make_unique<util::ZMQInstanceConfig>();
                     zmqInstanceConfig->nodeConfig = _nodeConfigs.at(it.first)[i];
-                    zmqInstanceConfig->port = _zmqPortsConfig->at(it.first)[i]->getRFRServerPort(groupId);
+                    zmqInstanceConfig->port = _zmqPortsConfig->at(it.first)[i]->getRemoteServicePort(util::PortType::REMOTE_FRAGMENT_RECEIVE, groupId);
                     remoteReceiverConfigs[it.first].push_back(std::move(zmqInstanceConfig));
                 }
             }
@@ -129,15 +129,15 @@ namespace peer {
             auto& nodeId = _localNodeConfig->nodeId;
             auto& localZmqConfig = *_zmqPortsConfig->at(groupId)[nodeId];
             // broadcast in the local zone, key region id, value port (as ZMQServer)
-            std::unordered_map<int, int> frServerPorts = localZmqConfig.getFRServerPorts();
+            auto frServerPorts = localZmqConfig.getRemoteServicePorts(util::PortType::LOCAL_FRAGMENT_BROADCAST);
             // receive from crossRegionSender (as ReliableZmqServer)
-            std::unordered_map<int, int> rfrServerPorts = localZmqConfig.getRFRServerPorts();
+            auto rfrServerPorts = localZmqConfig.getRemoteServicePorts(util::PortType::REMOTE_FRAGMENT_RECEIVE);
 
             // init _localBroadcastConfigs
             // For mr receivers, local servers broadcast ports, key is remote region id (multi-master)
             ZMQConfigMap localBroadcastConfigs;
             for (int i=0; i<(int)_nodeConfigs.at(groupId).size(); i++) {
-                for (const auto& it: _zmqPortsConfig->at(groupId)[i]->getFRServerPorts()) {
+                for (const auto& it: _zmqPortsConfig->at(groupId)[i]->getRemoteServicePorts(util::PortType::LOCAL_FRAGMENT_BROADCAST)) {
                     auto zmqInstanceConfig = std::make_unique<util::ZMQInstanceConfig>();
                     zmqInstanceConfig->nodeConfig = _nodeConfigs.at(groupId)[i];
                     zmqInstanceConfig->port = it.second;

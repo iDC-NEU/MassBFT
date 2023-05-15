@@ -35,22 +35,22 @@ namespace peer::consensus {
             // generate the corresponding zmq configs
             std::vector<std::shared_ptr<util::ZMQInstanceConfig>> payloadZMQConfigs;
             if (!util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,
-                                                           localPortConfig->getBFTPayloadSeparationPorts(),
+                                                           localPortConfig->getLocalServicePorts(util::PortType::BFT_PAYLOAD),
                                                            payloadZMQConfigs)) {
                 LOG(ERROR) << "generate BFTPayloadSeparationPorts zmq config failed!";
                 return nullptr;
             }
             std::vector<std::shared_ptr<util::ZMQInstanceConfig>> collectorZMQConfigs;
             if (!util::ZMQPortUtil::WrapPortWithConfig(localRegionNodes,
-                                                           localPortConfig->getRequestCollectorPorts(),
-                                                           collectorZMQConfigs)) {
+                                                       localPortConfig->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR),
+                                                       collectorZMQConfigs)) {
                 LOG(ERROR) << "generate RequestCollectorPorts zmq config failed!";
                 return nullptr;
             }
             // Init ContentReplicator
             auto sm = std::make_unique<ContentReplicator>(payloadZMQConfigs, localId);
             sm->setBCCSPWithThreadPool(bccsp, std::move(threadPoolForBCCSP));
-            auto rc = std::make_unique<RequestCollector>(batchConfig, localPortConfig->getRequestCollectorPorts()[localId]);
+            auto rc = std::make_unique<RequestCollector>(batchConfig, localPortConfig->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[localId]);
             std::unique_ptr<LocalPBFTController> controller(
                     new LocalPBFTController(std::move(sm),
                                             std::move(rc),
@@ -68,7 +68,7 @@ namespace peer::consensus {
                 LOG(ERROR) << "Fail to start PBFTRPCService!";
                 return nullptr;
             }
-            auto rpcPort = localPortConfig->getBFTRpcPorts().at(localId);
+            auto rpcPort = localPortConfig->getLocalServicePorts(util::PortType::BFT_RPC).at(localId);
             controller->rpcServerPort = rpcPort;
             if (util::DefaultRpcServer::AddService(service, rpcPort) != 0) {
                 LOG(ERROR) << "Fail to add globalControlService!";

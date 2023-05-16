@@ -46,7 +46,8 @@ namespace peer::core {
         std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> getOrInitZMQPortUtilMap();
 
         // groupId: the bft group id (not region id!)
-        std::unique_ptr<::peer::core::SinglePBFTController> newReplicatorBFTController(int groupId=0);
+        // bft instance runningPath = std::filesystem::current_path();
+        std::unique_ptr<::peer::core::SinglePBFTController> newReplicatorBFTController(int groupId);
 
         std::unique_ptr<::peer::consensus::v2::BlockOrder> newGlobalBlockOrdering(std::shared_ptr<peer::consensus::v2::OrderACB> callback);
 

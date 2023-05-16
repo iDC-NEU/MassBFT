@@ -14,6 +14,11 @@ namespace peer {
     // the block storage for ALL regions(include this one)
     class MRBlockStorage {
     public:
+        // the return value of subscriberWaitForBlock
+        // int: region id, default -1
+        // std::shared_ptr<proto::Block>: default nullptr
+        using SubscriberContent = std::pair<int, std::shared_ptr<proto::Block>>;
+
         explicit MRBlockStorage(int regionCount)
                 : blockStorage(regionCount)
                 , newBlockFutexList(regionCount) {
@@ -43,19 +48,19 @@ namespace peer {
         [[nodiscard]] int newSubscriber() {
             std::unique_lock lock(mutex);
             auto id = (int)subscriberList.size();
-            subscriberList.push_back(std::make_unique<util::BlockingConcurrentQueue<std::shared_ptr<proto::Block>>>());
+            subscriberList.push_back(std::make_unique<util::BlockingConcurrentQueue<SubscriberContent>>());
             return id;
         }
 
         // timeoutMs == 0, try dequeue
         // timeoutMs < 0, wait dequeue
         // timeoutMs > 0, wait dequeue timed
-        std::shared_ptr<proto::Block> subscriberWaitForBlock(int subscriberId, int timeoutMs) {
+        SubscriberContent subscriberWaitForBlock(int subscriberId, int timeoutMs) {
             std::shared_lock lock(mutex);
-            if (subscriberId >= (int)subscriberList.size()) {
-                return nullptr;
+            if (subscriberId >= (int)subscriberList.size() || subscriberId < 0) {
+                return {-1, nullptr};
             }
-            std::shared_ptr<proto::Block> block = nullptr;
+            SubscriberContent block{};
             if (timeoutMs == 0) {
                 subscriberList[subscriberId]->try_dequeue(block);
                 return block;
@@ -103,11 +108,11 @@ namespace peer {
             {   // notify all consumers
                 std::shared_lock lock(mutex);
                 for (auto& it: subscriberList) {
-                    it->enqueue(block);
+                    it->enqueue({regionId, block});
                 }
             }
             auto blockNumber = block->header.number;
-            blockStorage[regionId].try_emplace(blockNumber, BlockCell{false, std::move(block)});
+            blockStorage[regionId].try_emplace(blockNumber, BlockCell{std::move(block)});
             auto blockNumberInt = (int) blockNumber;
             auto& futex = newBlockFutexList[regionId];
             futex->store(blockNumberInt);
@@ -116,8 +121,6 @@ namespace peer {
 
     private:
         struct BlockCell {
-            // block replicated successfully over n/2 regions
-            bool persist = false;
             // the deserialized block and the related raw form
             std::shared_ptr<proto::Block> block = nullptr;
         };
@@ -128,6 +131,6 @@ namespace peer {
         // change when block updated
         std::vector<butil::atomic<int>*> newBlockFutexList;
         std::shared_mutex mutex;
-        std::vector<std::unique_ptr<util::BlockingConcurrentQueue<std::shared_ptr<proto::Block>>>> subscriberList;
+        std::vector<std::unique_ptr<util::BlockingConcurrentQueue<SubscriberContent>>> subscriberList;
     };
 }

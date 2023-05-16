@@ -95,8 +95,7 @@ TEST_F(BlockSenderTestV2, IntrgrateTest4_4) {
         std::unique_ptr<proto::Block> regionBlock(new proto::Block);
         regionBlock->deserializeFromString(std::string(regionBlockRaw));
         // Region r broadcasts block to all other regions
-        storageList->insertBlock(0, std::move(regionBlock));
-        storageList->onReceivedNewBlock(0, bkNum);
+        storageList->insertBlockAndNotify(0, std::move(regionBlock));
         // receive the data
         for (int i = 1; i < 3; i++) {
             auto message = receivers(i, 1)->waitReady();

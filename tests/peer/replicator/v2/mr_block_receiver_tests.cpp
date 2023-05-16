@@ -157,16 +157,13 @@ TEST_F(MRBlockReceiverTestV2, TestBlockSignValidate) {
         mockLocalSender(1, i)->send(std::move(serializedFragment[1]));
     }
 
-    // region count-1=number of blocks
-    for (int i=0; i<2; i++) {
-        storage->waitForNewBlock(i, nullptr);
-    }
-
-    for (int i=1; i<3; i++) {   // skip local region
-        auto maxId = storage->getMaxStoredBlockNumber(i);
-        ASSERT_TRUE(maxId == 0) << "store block failed, id: " << maxId;
-        auto recBlock = storage->getBlock(i, 0);
+    for (int i=1; i<3; i++) {
+        auto recBlock = storage->waitForBlock(i, 0);
         ASSERT_TRUE(*recBlock->getSerializedMessage() == regionBlockRaw[i]);
     }
 
+    for (int i=1; i<3; i++) {
+        auto maxId = storage->getMaxStoredBlockNumber(i);
+        ASSERT_TRUE(maxId == 0) << "store block failed, id: " << maxId;
+    }
 }

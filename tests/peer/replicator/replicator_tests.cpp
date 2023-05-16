@@ -120,15 +120,13 @@ protected:
             // region 0 send block to other regions
             auto blockForRo = CreateMockBlock(0, 0, 4, bccsp);
             for (int j = (senderCrash ? 1 : 0); j < (int)nodes.at(0).size(); j++) {
-                storage(0, j)->insertBlock(0, blockForRo);
-                storage(0, j)->onReceivedNewBlock(0, blockForRo->header.number);
+                storage(0, j)->insertBlockAndNotify(0, blockForRo);
             }
             std::string blockForRoRaw;
             blockForRo->serializeToString(&blockForRoRaw);
             // region 2 can still generate message
             for (int j = (receiverCrash ? 3 : 0); j < (int) nodes.at(1).size(); j++) {
-                storage(2, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
-                auto ret = storage(2, j)->getBlock(0, blockForRo->header.number);
+                auto ret = storage(2, j)->waitForBlock(0, (int)blockForRo->header.number);
                 ASSERT_TRUE(ret != nullptr);
                 std::string retRaw;
                 ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
@@ -136,8 +134,7 @@ protected:
             }
             // region 1 must be alright
             for (int j = 0; j < (int) nodes.at(1).size(); j++) {
-                storage(1, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
-                auto ret = storage(1, j)->getBlock(0, blockForRo->header.number);
+                auto ret = storage(1, j)->waitForBlock(0, (int)blockForRo->header.number);
                 ASSERT_TRUE(ret != nullptr);
                 std::string retRaw;
                 ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
@@ -193,22 +190,19 @@ TEST_F(ReplicatorTest, TestSenderByzantineWithReceiverCrash) {
         // Byzantine sender, no signature
         auto fakeBlock = CreateMockBlock(0, 0, 0, bccsp);
         fakeBlock->header.previousHash = {"fakeHash"};
-        storage(0, (int)nodes.at(0).size()-1)->insertBlock(0, fakeBlock);
-        storage(0, (int)nodes.at(0).size()-1)->onReceivedNewBlock(0, fakeBlock->header.number);
+        storage(0, (int)nodes.at(0).size()-1)->insertBlockAndNotify(0, fakeBlock);
 
         // Honest nodes in region 0 send block to other regions
         auto blockForRo = CreateMockBlock(0, 0, 4, bccsp);
         for (int j =0; j<(int)nodes.at(0).size()-1; j++) {
-            storage(0, j)->insertBlock(0, blockForRo);
-            storage(0, j)->onReceivedNewBlock(0, blockForRo->header.number);
+            storage(0, j)->insertBlockAndNotify(0, blockForRo);
         }
 
         std::string blockForRoRaw;
         blockForRo->serializeToString(&blockForRoRaw);
         // region 2 can still generate message
         for (int j = 0; j < 8; j++) {
-            storage(2, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
-            auto ret = storage(2, j)->getBlock(0, blockForRo->header.number);
+            auto ret = storage(2, j)->waitForBlock(0, (int)blockForRo->header.number);
             ASSERT_TRUE(ret != nullptr);
             std::string retRaw;
             ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
@@ -216,8 +210,7 @@ TEST_F(ReplicatorTest, TestSenderByzantineWithReceiverCrash) {
         }
         // region 1 must be alright
         for (int j = 0; j < (int) nodes.at(1).size(); j++) {
-            storage(1, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
-            auto ret = storage(1, j)->getBlock(0, blockForRo->header.number);
+            auto ret = storage(1, j)->waitForBlock(0, (int)blockForRo->header.number);
             ASSERT_TRUE(ret != nullptr);
             std::string retRaw;
             ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
@@ -242,15 +235,13 @@ TEST_F(ReplicatorTest, TestSenderByzantineWithReceiverCrashMultipleBlocks) {
             // Byzantine sender, no signature
             auto fakeBlock = CreateMockBlock(0, 0, 0, bccsp);
             fakeBlock->header.previousHash = {"fakeHash"};
-            storage(0, (int)nodes.at(0).size()-1)->insertBlock(0, fakeBlock);
-            storage(0, (int)nodes.at(0).size()-1)->onReceivedNewBlock(0, fakeBlock->header.number);
+            storage(0, (int)nodes.at(0).size()-1)->insertBlockAndNotify(0, fakeBlock);
             byzantineBlocks.push_back(std::move(fakeBlock));
 
             // Honest nodes in region 0 send block to other regions
             auto blockForRo = CreateMockBlock(0, 0, 4, bccsp);
             for (int j =0; j<(int)nodes.at(0).size()-1; j++) {
-                storage(0, j)->insertBlock(0, blockForRo);
-                storage(0, j)->onReceivedNewBlock(0, blockForRo->header.number);
+                storage(0, j)->insertBlockAndNotify(0, blockForRo);
             }
             honestBlocks.push_back(std::move(blockForRo));
         }
@@ -262,8 +253,7 @@ TEST_F(ReplicatorTest, TestSenderByzantineWithReceiverCrashMultipleBlocks) {
             blockForRo->serializeToString(&blockForRoRaw);
             // region 2 can still generate message
             for (int j = 0; j < 8; j++) {
-                storage(2, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
-                auto ret = storage(2, j)->getBlock(0, blockForRo->header.number);
+                auto ret = storage(2, j)->waitForBlock(0, (int)blockForRo->header.number);
                 ASSERT_TRUE(ret != nullptr);
                 std::string retRaw;
                 ASSERT_TRUE(ret->serializeToString(&retRaw).valid);
@@ -271,8 +261,7 @@ TEST_F(ReplicatorTest, TestSenderByzantineWithReceiverCrashMultipleBlocks) {
             }
             // region 1 must be alright
             for (int j = 0; j < (int) nodes.at(1).size(); j++) {
-                storage(1, j)->waitForNewBlock(0, (int)blockForRo->header.number, nullptr);
-                auto ret = storage(1, j)->getBlock(0, blockForRo->header.number);
+                auto ret = storage(1, j)->waitForBlock(0, (int)blockForRo->header.number);
                 ASSERT_TRUE(ret != nullptr);
                 std::string retRaw;
                 ASSERT_TRUE(ret->serializeToString(&retRaw).valid);

@@ -110,11 +110,7 @@ namespace peer::consensus {
                 }, _replicator->getThreadPoolForBCCSP());
             }
             _replicator->setDeliverCallback([this](std::shared_ptr<::proto::Block> block, const ::util::NodeConfigPtr& localNode) {
-                auto blockNumber = block->header.number;
-                _storage->insertBlock(localNode->groupId, std::move(block));
-                // wake up all consumer
-                _storage->onReceivedNewBlock(localNode->groupId, blockNumber);
-                _storage->onReceivedNewBlock();
+                _storage->insertBlockAndNotify(localNode->groupId, std::move(block));
                 return true;
             });
             _replicator->setLeaderChangeCallback([this](auto&&, auto&& newLeaderNode, int) {

@@ -120,10 +120,7 @@ namespace peer::v2 {
                         }
                     }
 
-                    storage->insertBlock(idx, std::move(block));
-                    // wake up all consumer
-                    storage->onReceivedNewBlock(idx, blockNumber);
-                    storage->onReceivedNewBlock();
+                    storage->insertBlockAndNotify(idx, std::move(block));
                     return true;
                 };  // end of lambda
                 regions[i]->blockReceiver->setValidateFunc(std::move(validateFunc));

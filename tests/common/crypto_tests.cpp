@@ -104,11 +104,11 @@ TEST_F(CryptoTest, TestED25519SaveAndLoadWithPasswd) {
 
 // Testcase from https://cryptobook.nakov.com/digital-signatures/eddsa-sign-verify-examples
 TEST_F(CryptoTest, TestED25519Verify) {
-    std::string hexPriKey =util::OpenSSLED25519::toHex("1498b5467a63dffa2dc9d9e069caf075d16fc33fdd4c3b01bfadae6433767d93");
-    std::string hexPubKey =util::OpenSSLED25519::toHex("b7a3c12dc0c8c748ab07525b701122b88bd78f600c76342d27f25e5f92444cde");
+    std::string hexPriKey = OpenSSL::stringToBytes("1498b5467a63dffa2dc9d9e069caf075d16fc33fdd4c3b01bfadae6433767d93");
+    std::string hexPubKey = OpenSSL::stringToBytes("b7a3c12dc0c8c748ab07525b701122b88bd78f600c76342d27f25e5f92444cde");
 
     auto msg = std::string("Message for Ed25519 signing");
-    auto sig = util::OpenSSLED25519::toHex("6dd355667fae4eb43c6e0ab92e870edb2de0a88cae12dbd8591507f584fe4912babff497f1b8edf9567d2483d54ddc6459bea7855281b7a246a609e3001a4e08");
+    auto sig = OpenSSL::stringToBytes("6dd355667fae4eb43c6e0ab92e870edb2de0a88cae12dbd8591507f584fe4912babff497f1b8edf9567d2483d54ddc6459bea7855281b7a246a609e3001a4e08");
 
     util::OpenSSLED25519::initCrypto();
     // Init signer and validator
@@ -276,4 +276,12 @@ TEST_F(CryptoTest, TestED25519SignBenchmark) {
     util::wait_for_sema(stopSema, threadCount);
     LOG(INFO) << "Concurrent validate cost: " << timer.end() << " second";
     LOG(INFO) << "Validate Performance " << timer.end()*10e6 / (dataPerRound*round) << " us";
+}
+
+TEST_F(CryptoTest, TestED25519Covert) {
+    util::OpenSSLED25519::initCrypto();
+    std::string readablePriKey = "1498b5467a63dffa2dc9d9e069caf075d16fc33fdd4c3b01bfadae6433767d93";
+    std::string hexPriKey = OpenSSL::stringToBytes(readablePriKey);
+    auto rhs = OpenSSL::bytesToString(hexPriKey);
+    ASSERT_TRUE(readablePriKey == rhs);
 }

@@ -266,14 +266,9 @@ namespace peer::v2 {
             auto nextBlockNumber = startFromBlock;
             LOG(INFO) << "BlockSender start from block: " << nextBlockNumber;
             while(!_tearDownSignal) {
-                auto timeout = butil::milliseconds_to_timespec(1000);
-                if (!_storage->waitForNewBlock(_localRegionId, nextBlockNumber, &timeout)) {
+                auto block = _storage->waitForBlock(_localRegionId, nextBlockNumber, 1000);
+                if (block == nullptr) {
                     continue;   // unexpected wakeup
-                }
-                auto block = _storage->getBlock(_localRegionId, nextBlockNumber);
-                if (!block) {
-                    LOG(INFO) << "Can not get block, retrying: " << nextBlockNumber;
-                    continue;
                 }
                 bthread::CountdownEvent countdown((int)_senderMap.size());
                 bool allSuccess = true;

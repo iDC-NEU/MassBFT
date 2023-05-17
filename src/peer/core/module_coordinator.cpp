@@ -67,7 +67,7 @@ namespace peer::core {
         // Todo: bind real element, handle the block to executor
         auto realBlock = _contentStorage->waitForBlock(regionId, blockId, 0);
         CHECK(realBlock != nullptr && (int)realBlock->header.number == blockId);
-        DLOG(INFO) << "Finally receive a block (" << regionId << ", " << blockId << ")" << ", threadId: " << std::this_thread::get_id();
+        LOG(INFO) << "Finally receive a block (" << regionId << ", " << blockId << ", " << realBlock->body.userRequests.size() << ")" << ", threadId: " << std::this_thread::get_id();
         return true;
     }
 

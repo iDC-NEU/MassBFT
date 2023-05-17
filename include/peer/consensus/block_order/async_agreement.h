@@ -35,14 +35,15 @@ namespace peer::consensus {
             bthread::butex_destroy(_running);
         }
 
-        bool ready() const {
+        bool ready(int retryTimes=10) const {
             auto status = _running->load(std::memory_order_relaxed);
-            auto timeSpec = butil::milliseconds_from_now(1000);
-            while (status == (int)Status::INIT) {
+            for (int i=0; i<retryTimes && status == (int)Status::INIT; i++) {
+                auto timeSpec = butil::milliseconds_from_now(1000);
                 bthread::butex_wait(_running, status, &timeSpec);
                 status = _running->load(std::memory_order_relaxed);
-                LOG(INFO) << "Waiting leader to be ready: " << _leaderId;
+                LOG(INFO) << "Waiting leader to be ready: " << _leaderId << ", status: " << status;
             }
+            _running->store((int)Status::READY);
             return _myId == _leaderId;
         }
 

@@ -83,7 +83,7 @@ namespace peer {
             timespec timeoutSpec{};
             timespec* timeoutSpecPtr = nullptr;
             if (timeoutMs > 0) {
-                timeoutSpec = butil::milliseconds_to_timespec(timeoutMs);
+                timeoutSpec = butil::milliseconds_from_now(timeoutMs);
                 timeoutSpecPtr = &timeoutSpec;
             }
             auto& futex = newBlockFutexList[regionId];

@@ -10,6 +10,7 @@
 
 namespace util {
     class Properties;
+    class NodeConfig;
 }
 
 namespace peer {
@@ -57,5 +58,7 @@ namespace peer::core {
         std::shared_ptr<::peer::MRBlockStorage> _contentStorage;
         std::unique_ptr<::peer::consensus::v2::BlockOrder> _gbo;
         std::unique_ptr<::peer::core::SinglePBFTController> _localContentBFT;
+        // for debug
+        std::shared_ptr<util::NodeConfig> _localNode;
     };
 }

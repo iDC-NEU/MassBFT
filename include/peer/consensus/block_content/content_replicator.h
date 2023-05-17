@@ -268,6 +268,7 @@ namespace peer::consensus {
             auto block = eraseCachedBlock(header.dataHash);
             CHECK(block != nullptr) << "Block mut be not null!" << util::OpenSSLSHA256::toString(header.dataHash);
             block->metadata.consensusSignatures = std::move(signatures);
+            DLOG(INFO) << "Block delivered by BFT, groupId: " << localNode->groupId << " blk number:" << block->header.number;
             // local consensus complete
             if (_deliverCallback != nullptr) {
                 _deliverCallback(block, std::move(localNode));
@@ -314,6 +315,7 @@ namespace peer::consensus {
                 block->header.previousHash = _proposedLastBlock->header.dataHash;
                 block->header.number = _proposedLastBlock->header.number + 1;
             }
+            // LOG(INFO) << "Leader of local group " << localNode->groupId << " created a block, number: " << block->header.number;
             _proposedLastBlock = block;
             // LOG(INFO) << "request proposal, block number: " << block->header.number;
             auto serializedBlock = block->getSerializedMessage();

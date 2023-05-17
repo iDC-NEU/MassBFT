@@ -48,8 +48,7 @@ namespace OpenSSL {
     template <int N>
     using digestType = std::array<uint8_t, N>;
 
-    template <int N>
-    inline auto bytesToString(const digestType<N>& md) {
+    inline auto bytesToString(const auto& md) {
         // build output string
         static const auto hAlpha{"0123456789abcdef"};
         std::string result;
@@ -59,6 +58,18 @@ namespace OpenSSL {
             result.push_back(hAlpha[b & 0xF]);
         }
         return result;
+    }
+
+    inline auto stringToBytes(std::string_view readable) {
+        std::string str;
+        str.reserve(readable.size()/2);
+        char target[3] {'\0', '\0', '\0'};
+        for (std::size_t i = 0; i < readable.size(); i += 2) {
+            target[0] = readable[i];
+            target[1] = readable[i+1];
+            str.push_back((char)std::strtol(target, nullptr, 16));
+        }
+        return str;
     }
 }
 
@@ -82,7 +93,7 @@ namespace util {
         }
 
         static inline auto toString(const digestType& md) {
-            return OpenSSL::bytesToString<N>(md);
+            return OpenSSL::bytesToString(md);
         }
 
         static inline void initCrypto() {
@@ -213,20 +224,12 @@ namespace util {
             return std::make_pair(publicKeyStr, privateKeyStr);
         }
 
-        static inline auto toString(const digestType& md) {
-            return OpenSSL::bytesToString<N>(md);
+        static inline auto toString(std::string_view md) {
+            return OpenSSL::bytesToString(md);
         }
 
-        static std::string toHex(std::string_view readable) {
-            std::string str;
-            str.reserve(readable.size()/2);
-            char target[3] {'\0', '\0', '\0'};
-            for (std::size_t i = 0; i < readable.size(); i += 2) {
-                target[0] = readable[i];
-                target[1] = readable[i+1];
-                str.push_back((char)std::strtol(target, nullptr, 16));
-            }
-            return str;
+        static inline auto toString(const digestType& md) {
+            return OpenSSL::bytesToString(md);
         }
 
         static inline void initCrypto() {

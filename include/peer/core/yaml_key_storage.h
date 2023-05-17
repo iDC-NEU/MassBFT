@@ -23,7 +23,7 @@ namespace peer::core {
                 }
             }
             YAML::Node node;
-            node["raw"] = std::string(raw);
+            node["raw"] = OpenSSL::bytesToString(raw);
             node["private"] = isPrivate;
             keyMap[skiStr] = node;
             return true;
@@ -35,7 +35,7 @@ namespace peer::core {
             try {
                 std::string skiStr(ski);
                 auto node = keyMap[skiStr];
-                ret.first = node["raw"].as<std::string>();
+                ret.first = OpenSSL::stringToBytes(node["raw"].as<std::string>());
                 ret.second = node["private"].as<bool>();
             } catch (const YAML::Exception &e) {
                 LOG(WARNING) << "Can not load key: " << e.what();

@@ -113,8 +113,11 @@ namespace peer::v2 {
         public:
             // call by producer
             bool push(proto::BlockNumber blockNumber, T&& element) {
-                if (blockNumber >= low+cap || blockNumber<low) {
+                if (blockNumber >= low+cap) {
                     return false;
+                }
+                if (blockNumber < low) {
+                    return true;
                 }
                 data[blockNumber & mask].enqueue(std::move(element));
                 return true;

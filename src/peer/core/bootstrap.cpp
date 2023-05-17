@@ -84,9 +84,6 @@ namespace peer::core {
         if (!replicator->startReceiver(startAt)) {
             return nullptr;
         }
-        if (!replicator->startSender((int)startAt.at(localNode->groupId))) {
-            return nullptr;
-        }
         _replicator = replicator;
         return replicator;
     }
@@ -111,6 +108,9 @@ namespace peer::core {
                 localNode->nodeId,
                 runningPath,
                 _properties->getJVMPath());
+        if (!ic) {
+            return nullptr;
+        }
         // generate host file
         auto portMap = getOrInitZMQPortUtilMap();
         if (!portMap) {
@@ -204,5 +204,12 @@ namespace peer::core {
             return nullptr;
         }
         return peer::consensus::v2::BlockOrder::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(callback));
+    }
+
+    bool ModuleFactory::startReplicatorSender() {
+        auto nodeProperties = _properties->getNodeProperties();
+        auto localNode = nodeProperties.getLocalNodeInfo();
+        auto initialBlockHeight = _properties->getStartBlockNumber(localNode->groupId);
+        return _replicator->startSender(initialBlockHeight);
     }
 }

@@ -208,7 +208,7 @@ namespace peer::v2 {
                 auto sender = BlockSender::NewBlockSender(regionsFragmentConfig.at(it.first), getZMQConfigById);
                 if (sender == nullptr) {
                     LOG(WARNING) << "Sender failed to connect to remote address, id: " << it.first;
-                    continue;
+                    return nullptr;
                 }
                 mrBlockSender->_senderMap[it.first] = std::move(sender);
             }

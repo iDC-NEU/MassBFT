@@ -38,6 +38,8 @@ namespace peer::core {
         // Called after PBFT consensuses a block
         std::shared_ptr<::peer::Replicator> getOrInitReplicator();
 
+        bool startReplicatorSender();
+
         std::pair<std::shared_ptr<::util::BCCSP>,
                 std::shared_ptr<::util::thread_pool_light>> getOrInitBCCSPAndThreadPool();
 

@@ -66,7 +66,8 @@ namespace peer::core {
     bool ModuleCoordinator::onConsensusBlockOrder(int regionId, int blockId) {
         // Todo: bind real element, handle the block to executor
         auto realBlock = _contentStorage->waitForBlock(regionId, blockId, 0);
-        CHECK(realBlock != nullptr);
+        CHECK(realBlock != nullptr && (int)realBlock->header.number == blockId);
+        DLOG(INFO) << "Finally receive a block (" << regionId << ", " << blockId << ")" << ", threadId: " << std::this_thread::get_id();
         return true;
     }
 
@@ -77,7 +78,7 @@ namespace peer::core {
             if (block == nullptr) {
                 continue;   // retry after 1000 ms
             }
-            DLOG(INFO) << "Receive a block, regionId: " << regionId << ", block number: " << block->header.number;
+            // DLOG(INFO) << "Receive a block, regionId: " << regionId << ", block number: " << block->header.number << ", threadId: " << std::this_thread::get_id();
             auto blockId = (int)block->header.number;
             // push it into the global ordering module
             auto ret = _gbo->voteNewBlock(regionId, blockId);
@@ -97,6 +98,9 @@ namespace peer::core {
     }
 
     void ModuleCoordinator::startInstance() {
+        if (!_moduleFactory->startReplicatorSender()) {
+            CHECK(false) << "ReplicatorSender client start failed!";
+        }
         _localContentBFT->startInstance();
     }
 }

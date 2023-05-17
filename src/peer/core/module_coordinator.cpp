@@ -43,10 +43,10 @@ namespace peer::core {
         }
         // 1.4 init user request collector
         auto nodeProperties = properties->getNodeProperties();
-        auto localNode = nodeProperties.getLocalNodeInfo();
+        mc->_localNode = nodeProperties.getLocalNodeInfo();
         auto totalGroup = nodeProperties.getGroupCount();
         // the bftController id is 0
-        auto bftController = mc->_moduleFactory->newReplicatorBFTController(0*totalGroup + localNode->groupId);
+        auto bftController = mc->_moduleFactory->newReplicatorBFTController(0*totalGroup + mc->_localNode->groupId);
         if (bftController == nullptr) {
             return nullptr;
         }
@@ -67,7 +67,9 @@ namespace peer::core {
         // Todo: bind real element, handle the block to executor
         auto realBlock = _contentStorage->waitForBlock(regionId, blockId, 0);
         CHECK(realBlock != nullptr && (int)realBlock->header.number == blockId);
-        LOG(INFO) << "Finally receive a block (" << regionId << ", " << blockId << ", " << realBlock->body.userRequests.size() << ")" << ", threadId: " << std::this_thread::get_id();
+        if (_localNode->groupId == 0 && _localNode->nodeId == 0) {
+            DLOG(INFO) << "Finally receive a block (" << regionId << ", " << blockId << ", " << realBlock->body.userRequests.size() << ")" << ", threadId: " << std::this_thread::get_id();
+        }
         return true;
     }
 

@@ -35,9 +35,9 @@ namespace peer::consensus {
             bthread::butex_destroy(_running);
         }
 
-        bool ready(int retryTimes=10) const {
+        bool ready() const {
             auto status = _running->load(std::memory_order_relaxed);
-            for (int i=0; i<retryTimes && status == (int)Status::INIT; i++) {
+            while (status == (int)Status::INIT) {
                 auto timeSpec = butil::milliseconds_from_now(1000);
                 bthread::butex_wait(_running, status, &timeSpec);
                 status = _running->load(std::memory_order_relaxed);
@@ -57,7 +57,10 @@ namespace peer::consensus {
                     return; // raft group is stop, return
                 }
                 LOG(INFO) << "Transfer leader to: " << _leaderId;
-                _multiRaftFsm->find_node(_myId)->transfer_leadership_to(_leaderId);
+                while (_multiRaftFsm->find_node(_myId)->transfer_leadership_to(_leaderId) != 0) {
+                    LOG(ERROR) << "Transfer leader failed: (" << _myId << " => " << _leaderId << ")";
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
             } else {
                 LOG(INFO) << "I am the expected leader, " << _leaderId;
                 _running->store((int)Status::READY);

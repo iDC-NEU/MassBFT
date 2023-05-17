@@ -88,11 +88,17 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
     }
     util::Timer::sleep_sec(1);
     auto [bccsp, tp] = mcList[0]->getModuleFactory().getOrInitBCCSPAndThreadPool();
-    for (int i=0; i<200 * 100; i++) {
+    std::vector<std::string> bufList;
+    for (int i=0; i< 200 * 100; i++) {
         auto envelop = CreateSignedEnvelop("0_0", bccsp);
         std::string buf;
         CHECK(envelop->serializeToString(&buf));
-        clientList[i%clientList.size()]->send(std::move(buf));
+        bufList.push_back(std::move(buf));
     }
+    LOG(INFO) << "Test start!";
+    for (int i=0; i<(int)bufList.size(); i++) {
+        clientList[i%clientList.size()]->send(bufList[i]);
+    }
+    LOG(INFO) << "Send finished!";
     util::Timer::sleep_sec(10);
 }

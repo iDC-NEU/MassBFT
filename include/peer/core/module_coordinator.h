@@ -33,6 +33,7 @@ namespace peer::core {
 
         ModuleCoordinator(ModuleCoordinator&&) noexcept = delete;
 
+        [[nodiscard]] auto& getModuleFactory() const { return *_moduleFactory; }
 
         void startInstance();
 

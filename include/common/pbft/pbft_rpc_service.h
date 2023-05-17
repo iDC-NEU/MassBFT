@@ -44,7 +44,7 @@ namespace util::pbft {
                              ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
-            DLOG(INFO) << "requestProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
+            DLOG(INFO) << "requestProposal, sequence: " << request->sequence()  << ", threadId: " << std::this_thread::get_id();
 
             if ((int)_localNodes.size() <= request->localid()) {
                 LOG(WARNING) << "localId error.";
@@ -65,7 +65,7 @@ namespace util::pbft {
                             ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
-            DLOG(INFO) << "verifyProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
+            // DLOG(INFO) << "verifyProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
 
             if ((int)_localNodes.size() <= request->localid()) {
                 LOG(WARNING) << "localId error.";
@@ -86,7 +86,7 @@ namespace util::pbft {
                           ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
-            DLOG(INFO) << "signProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
+            // DLOG(INFO) << "signProposal, Node: " << request->localid() << ", sequence: " << request->sequence();
             auto nodeId = request->localid();
             if ((int)_localNodes.size() <= nodeId) {
                 LOG(WARNING) << "Wrong node id.";
@@ -106,7 +106,7 @@ namespace util::pbft {
                      ::google::protobuf::Closure* done) override {
             brpc::ClosureGuard guard(done);
             response->set_success(false);
-            DLOG(INFO) << "deliver, Node: " << request->localid() << ", sequence: " << request->sequence();
+            // DLOG(INFO) << "deliver, Node: " << request->localid() << ", sequence: " << request->sequence();
             // unwrap the content
             proto::Proposal proposal;
             if(!proposal.ParseFromString(request->proposevalue())) {

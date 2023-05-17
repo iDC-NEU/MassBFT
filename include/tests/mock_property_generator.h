@@ -27,6 +27,11 @@ namespace tests {
                     cfg->priIp = "127.0.0." + std::to_string(j+1);
                     cfg->pubIp = "127.0.0." + std::to_string(j+1);
                     nodeProperties.setSingleNodeInfo(cfg);
+                    // init bccsp
+                    YAML::Node node;
+                    node["raw"] = "1498b5467a63dffa2dc9d9e069caf075d16fc33fdd4c3b01bfadae6433767d93";
+                    node["private"] = true;
+                    bccspProperties[cfg->ski] = node;
                 }
             }
             std::filesystem::path newDir = "/home/user/nc_bft";

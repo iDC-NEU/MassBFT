@@ -24,17 +24,18 @@ namespace peer::consensus {
         }
 
         bool ready() const {
-            if (!init) {    // already inited
-                return _myId == _leaderId;
-            }
-            ce.wait();
+            while (ce.timed_wait(butil::milliseconds_from_now(1000)) != 0);
             return _myId == _leaderId;
         }
 
     protected:
         void on_leader_start(int64_t term) override {
             util::raft::SingleRaftFSM::on_leader_start(term);
-            if (init && _myId != _leaderId) {
+            if (_myId != _leaderId) {
+                if (!running) {
+                    // TODO: stop this raft group
+                    return; // raft group is stop, return
+                }
                 LOG(INFO) << "Transfer leader to: " << _leaderId;
                 _multiRaftFsm->find_node(_myId)->transfer_leadership_to(_leaderId);
             } else {
@@ -47,15 +48,16 @@ namespace peer::consensus {
             if (ctx.leader_id() == _leaderId) {
                 // emit a view change
                 LOG(ERROR) << "Remote leader contains error, " << _leaderId;
-                ce.reset(1);
+                running = false;
+                ce.reset(1);    // as follower: is not ready
             }
         }
 
         void on_start_following(const ::braft::LeaderChangeContext& ctx) override {
             if (ctx.leader_id() == _leaderId) {
                 LOG(INFO) << "Start following remote leader, " << _leaderId;
-                init = false;
-                ce.signal();
+                running = true;
+                ce.signal();    // as follower: is ready
             }
         }
 
@@ -73,7 +75,7 @@ namespace peer::consensus {
 
     private:
         mutable bthread::CountdownEvent ce;
-        bool init = true;
+        bool running = true;
         braft::PeerId _myId;
         braft::PeerId _leaderId;
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaftFsm;

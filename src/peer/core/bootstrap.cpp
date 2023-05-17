@@ -84,6 +84,9 @@ namespace peer::core {
         if (!replicator->startReceiver(startAt)) {
             return nullptr;
         }
+        if (!replicator->startSender((int)startAt.at(localNode->groupId))) {
+            return nullptr;
+        }
         _replicator = replicator;
         return replicator;
     }

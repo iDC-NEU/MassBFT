@@ -9,7 +9,6 @@
 #include "common/property.h"
 #include "common/bccsp.h"
 #include "common/phmap.h"
-#include "common/timer.h"
 #include "common/thread_pool_light.h"
 #include "common/concurrent_queue.h"
 
@@ -343,22 +342,18 @@ namespace peer::consensus {
     protected:
         // returned block may be nullptr
         std::shared_ptr<proto::Block> loadCachedBlock(const proto::HashString& hash) {
-            int64_t endTime = util::Timer::time_now_ms() + _verifyProposalTimeout;
+            auto timeout = butil::milliseconds_from_now(_verifyProposalTimeout);
             while(true) {
-                auto span = endTime - util::Timer::time_now_ms();
-                if (span < 0) {
-                    LOG(ERROR) << "Can not get the block in specific timeout!";
-                    return nullptr;
-                }
                 auto currentBlockCount = _cache.first->load(std::memory_order_acquire);
                 std::shared_ptr<proto::Block> block = nullptr;
                 _cache.second.if_contains(hash, [&block](const auto& v) { block = v.second; });
-                if (block == nullptr) {
-                    auto timeout = butil::milliseconds_to_timespec(span);
-                    bthread::butex_wait(_cache.first, currentBlockCount, &timeout);
-                    continue;
+                if (block != nullptr) {
+                    return block;
                 }
-                return block;
+                if (bthread::butex_wait(_cache.first, currentBlockCount, &timeout) != 0 && errno == ETIMEDOUT) {
+                    LOG(ERROR) << "Can not get the block in specific timeout!";
+                    return nullptr;
+                }
             }
         }
 

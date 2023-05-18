@@ -35,7 +35,7 @@ namespace util::raft {
 
         void on_leader_start(int64_t term) override {
             _leader_term = term;
-            LOG(INFO) << "addr " << address << " becomes leader";
+            DLOG(INFO) << "addr " << address << " becomes leader";
         }
 
         void on_leader_stop(const butil::Status&) override {
@@ -52,8 +52,8 @@ namespace util::raft {
 
         void on_apply(::braft::Iterator& iter) override {
             for (; iter.valid(); iter.next()) {
-                LOG(INFO) << "addr " << address  << " apply " << iter.index() << " data_size " << iter.data().size();
-                DLOG(INFO) << "data " << iter.data();
+                DLOG(INFO) << "addr " << address  << " apply " << iter.index() << " data_size " << iter.data().size()
+                           << "data " << iter.data();
                 ::braft::AsyncClosureGuard closure_guard(iter.done());
                 logs.write([&](auto* raw){
                     raw->push_back(iter.data());
@@ -65,7 +65,7 @@ namespace util::raft {
         }
 
         void on_shutdown() override {
-            LOG(INFO) << "addr " << address << " is down";
+            DLOG(INFO) << "addr " << address << " is down";
         }
 
         void on_snapshot_save(::braft::SnapshotWriter* writer, ::braft::Closure* done) override {
@@ -73,7 +73,7 @@ namespace util::raft {
             file_path.append("/data");
             brpc::ClosureGuard done_guard(done);
 
-            LOG(INFO) << "on_snapshot_save to " << file_path;
+            DLOG(INFO) << "on_snapshot_save to " << file_path;
 
             int fd = ::creat(file_path.c_str(), 0644);
             if (fd < 0) {
@@ -99,7 +99,7 @@ namespace util::raft {
             std::string file_path = reader->get_path();
             file_path.append("/data");
 
-            LOG(INFO) << "on_snapshot_load from " << file_path;
+            DLOG(INFO) << "on_snapshot_load from " << file_path;
 
             int fd = ::open(file_path.c_str(), O_RDONLY);
             if (fd < 0) {
@@ -123,19 +123,19 @@ namespace util::raft {
         }
 
         void on_start_following(const ::braft::LeaderChangeContext& start_following_context) override {
-            LOG(INFO) << "address " << address << " start following new leader: "
-                      <<  start_following_context;
+            DLOG(INFO) << "address " << address << " start following new leader: "
+                       <<  start_following_context;
             ++_on_start_following_times;
         }
 
         void on_stop_following(const ::braft::LeaderChangeContext& stop_following_context) override {
-            LOG(INFO) << "address " << address << " stop following old leader: "
-                      <<  stop_following_context;
+            DLOG(INFO) << "address " << address << " stop following old leader: "
+                       <<  stop_following_context;
             ++_on_stop_following_times;
         }
 
         void on_configuration_committed(const ::braft::Configuration& conf, int64_t index) override {
-            LOG(INFO) << "address " << address << " commit conf: " << conf << " at index " << index;
+            DLOG(INFO) << "address " << address << " commit conf: " << conf << " at index " << index;
         }
 
     private:

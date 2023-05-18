@@ -190,7 +190,7 @@ namespace peer {
                 auto dataSize=fragmentLen;
                 std::vector<std::future<bool>> futureList(_ecConfig.instanceCount);
                 for(auto i=0; i<_ecConfig.instanceCount; i++) {     // (int)svListPartialView.size()
-                    if (i == _ecConfig.instanceCount - 1) {
+                    if (i == _ecConfig.instanceCount - 1) { // adjust the size of the last fragment
                         dataSize=(int)bufferOut.size() - i*fragmentLen;
                     }
                     futureList[i] = wpForMTAndEC->submit([&, dataSize=dataSize, idx=i]() {
@@ -394,7 +394,7 @@ namespace peer {
             CHECK(wpForMTAndEC != nullptr) << "Thread pool unset, can not start bfg";
             int max_x = 0, max_y = 0;
             for (const auto& cfg: cfgList) {
-                CHECK(cfg.dataShardCnt > 0 && cfg.parityShardCnt > 0) << "Shard input error!";
+                CHECK(cfg.dataShardCnt > 0 && cfg.parityShardCnt >= 0) << "Shard input error!";
                 if (cfg.dataShardCnt > max_x) {
                     max_x = cfg.dataShardCnt;
                 }
@@ -402,13 +402,12 @@ namespace peer {
                     max_y = cfg.parityShardCnt;
                 }
             }
-            ecMap.reset(max_x, max_y);
-            semaMap.reset(max_x, max_y);
+            ecMap.reset(max_x + 1, max_y + 1);
+            semaMap.reset(max_x + 1, max_y + 1);
 
             for (const auto& cfg: cfgList) {
-                // index=actual-1
-                auto x = cfg.dataShardCnt - 1;
-                auto y = cfg.parityShardCnt - 1;
+                auto x = cfg.dataShardCnt;
+                auto y = cfg.parityShardCnt;
                 auto totalInstanceCount = cfg.instanceCount*cfg.concurrency;
                 std::unique_ptr<ECListType> queue = nullptr;
                 if (ecMap(x, y) != nullptr) {
@@ -441,8 +440,8 @@ namespace peer {
         // The caller must ensure the total acquire instance is smaller than the remain instance!
         // Or there may be a deadlock!
         [[nodiscard]] std::shared_ptr<Context> getEmptyContext(const Config& cfg) {
-            auto x = cfg.dataShardCnt - 1;
-            auto y = cfg.parityShardCnt - 1;
+            auto x = cfg.dataShardCnt;
+            auto y = cfg.parityShardCnt;
             if (ecMap.x() < x+1 ||ecMap.y() < y+1) {
                 LOG(ERROR) << "ecMap index out of range.";
                 return nullptr;
@@ -460,8 +459,8 @@ namespace peer {
 
     protected:
         bool freeContext(std::unique_ptr<Context> context) {
-            auto x = context->_ecConfig.dataShardCnt - 1;
-            auto y = context->_ecConfig.parityShardCnt - 1;
+            auto x = context->_ecConfig.dataShardCnt;
+            auto y = context->_ecConfig.parityShardCnt;
             // restore all ec
             for(int i=0; i<context->_ecConfig.instanceCount; i++) {
                 ecMap(x, y)->push(std::move(context->ec[i]));

@@ -56,13 +56,13 @@ namespace peer::consensus {
                     // TODO: stop this raft group
                     return; // raft group is stop, return
                 }
-                LOG(INFO) << "Transfer leader to: " << _leaderId;
+                DLOG(INFO) << "Transfer leader to: " << _leaderId;
                 while (_multiRaftFsm->find_node(_myId)->transfer_leadership_to(_leaderId) != 0) {
                     LOG(ERROR) << "Transfer leader failed: (" << _myId << " => " << _leaderId << ")";
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
             } else {
-                LOG(INFO) << "I am the expected leader, " << _leaderId;
+                DLOG(INFO) << "I am the expected leader, " << _leaderId;
                 _running->store((int)Status::READY);
                 bthread::butex_wake_all(_running);
             };
@@ -79,7 +79,7 @@ namespace peer::consensus {
 
         void on_start_following(const ::braft::LeaderChangeContext& ctx) override {
             if (ctx.leader_id() == _leaderId) {
-                LOG(INFO) << "Start following remote leader, " << _leaderId;
+                DLOG(INFO) << "Start following remote leader, " << _leaderId;
                 _running->store((int)Status::READY);
                 bthread::butex_wake_all(_running);
             }

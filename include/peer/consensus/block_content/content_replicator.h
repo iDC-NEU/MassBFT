@@ -85,8 +85,8 @@ namespace peer::consensus {
     public:
         // In order to separate the payload from the consensus,
         // the local cluster needs to establish a set of zmq ports, which are stored in targetNodes
-        ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId, int64_t timeoutMs=100)
-                : _verifyProposalTimeout(timeoutMs), _running(false) {
+        ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId)
+                : _running(false) {
             _sender = std::make_unique<ContentSender>(targetNodes, localId);
             _receiver = std::make_unique<ContentReceiver>(targetNodes[localId]->port);
             _receiver->setCallback([this](auto&& raw){ this->validateUnorderedBlock(std::forward<decltype(raw)>(raw)); });
@@ -249,7 +249,7 @@ namespace peer::consensus {
             // Find the target block in block pool (wait timed),
             // the other thread will validate the block,
             // so if we find the block, we can return safely.
-            auto block = loadCachedBlock(header.dataHash);
+            auto block = loadCachedBlock(header.dataHash, 500); // wait for 500 ms
             if (block == nullptr) {
                 return false;
             }
@@ -341,8 +341,8 @@ namespace peer::consensus {
 
     protected:
         // returned block may be nullptr
-        std::shared_ptr<proto::Block> loadCachedBlock(const proto::HashString& hash) {
-            auto timeout = butil::milliseconds_from_now(_verifyProposalTimeout);
+        std::shared_ptr<proto::Block> loadCachedBlock(const proto::HashString& hash, int timeoutMs) {
+            auto timeout = butil::milliseconds_from_now(timeoutMs);
             while(true) {
                 auto currentBlockCount = _cache.first->load(std::memory_order_acquire);
                 std::shared_ptr<proto::Block> block = nullptr;
@@ -371,7 +371,6 @@ namespace peer::consensus {
         }
 
     private:
-        const int64_t _verifyProposalTimeout; // ms
         std::atomic<bool> _running;
         // Check if the node is leader
         std::shared_mutex _isLeaderMutex;

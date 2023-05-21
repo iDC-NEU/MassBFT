@@ -10,7 +10,8 @@
 #include <yaml-cpp/yaml.h>
 
 int main(int argc, char *argv[]) {
-    auto n = util::Properties::GetProperties()->getYCSBProperties();
+    // auto n = util::Properties::GetProperties()->getYCSBProperties();
+    YAML::Node n;
 
     //get number of threads, target and db
     auto threadCount = n[ycsb::core::Client::THREAD_COUNT_PROPERTY].as<int>(1);

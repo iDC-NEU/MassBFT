@@ -9,6 +9,7 @@
 #include "lightweightsemaphore.h"
 #include "db.h"
 #include "ycsb/core/workload/workload.h"
+#include "ycsb/core/workload/core_workload.h"
 #include "common/timer.h"
 
 namespace ycsb::core {
@@ -22,7 +23,7 @@ namespace ycsb::core {
         bool spinSleep;
         std::unique_ptr<DB> db;
         bool doTransactions;
-        workload::Workload* workload;
+        workload::CoreWorkload* workload;
         int opCount;
         double targetOpsPerMs;
         int opsDone;
@@ -42,7 +43,7 @@ namespace ycsb::core {
          * @param targetperthreadperms target number of operations per thread per ms
          * @param completeLatch        The latch tracking the completion of all clients.
          */
-        ClientThread(std::unique_ptr<DB> db, bool doTransactions, workload::Workload* workload, const YAML::Node& props, int opCount,
+        ClientThread(std::unique_ptr<DB> db, bool doTransactions, workload::CoreWorkload* workload, const YAML::Node& props, int opCount,
                      double targetPerThreadPerms, moodycamel::LightweightSemaphore& completeLatch)
                      :completeLatch(completeLatch), db(std::move(db)), doTransactions(doTransactions),
                      workload(workload), opCount(opCount), opsDone(0), props(props) {

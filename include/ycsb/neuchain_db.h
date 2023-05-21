@@ -18,31 +18,19 @@ namespace ycsb::client {
 
         core::Status read(const std::string& table, const std::string& key,
                           const std::vector<std::string>& fields,
-                          utils::ByteIteratorMap& result) override {
-            // TODO: send a request to blockchain system.
-            return core::STATUS_OK;
-        }
+                          utils::ByteIteratorMap& result) override;
 
         core::Status scan(const std::string& table, const std::string& startkey, uint64_t recordcount,
                                            const std::vector<std::string>& fields,
-                                           std::vector<utils::ByteIteratorMap>& result) override {
-            return core::STATUS_OK;
-        }
+                                           std::vector<utils::ByteIteratorMap>& result) override;
 
         core::Status update(const std::string& table, const std::string& key,
-                                             const utils::ByteIteratorMap& values) override {
-            return core::STATUS_OK;
-        }
+                                             const utils::ByteIteratorMap& values) override;
 
         core::Status insert(const std::string& table, const std::string& key,
-                                             const utils::ByteIteratorMap& values) override {
-            return core::STATUS_OK;
+                                             const utils::ByteIteratorMap& values) override;
 
-        }
-
-        core::Status remove(const std::string& table, const std::string& key) override {
-            return core::STATUS_OK;
-        }
+        core::Status remove(const std::string& table, const std::string& key) override;
     };
 }
 

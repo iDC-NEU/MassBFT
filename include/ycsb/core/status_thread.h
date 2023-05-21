@@ -9,6 +9,9 @@
 #include "ycsb/core/measurements/measurements.h"
 #include <vector>
 #include <memory>
+#include "fmt/format.h"
+
+using fmt::format;
 
 namespace ycsb::core {
 /**
@@ -57,7 +60,83 @@ namespace ycsb::core {
          */
     public:
         void run() {
+            const long startTimeMs = util::Timer::time_now_ms();
+            const long startTimeNanos = util::Timer::time_now_ms();
+            long deadline = startTimeNanos + sleepTimeNs;
+            long startIntervalMs = startTimeMs;
+            long lastTotalOps = 0;
 
+            bool allDone;
+
+            do {
+                long nowMs = util::Timer::time_now_ms();
+
+                lastTotalOps = computeStats(startTimeMs, startIntervalMs, nowMs, lastTotalOps);
+
+                allDone = waitForClientsUntil(double(deadline));
+
+                startIntervalMs = nowMs;
+                deadline += sleepTimeNs;
+            }
+            while (!allDone);
+
+            // Print the final stats.
+            computeStats(startTimeMs, startIntervalMs, util::Timer::time_now_ms(), lastTotalOps);
+        }
+
+        /**
+       * Computes and prints the stats.
+       *
+       * @param startTimeMs     The start time of the test.
+       * @param startIntervalMs The start time of this interval.
+       * @param endIntervalMs   The end time (now) for the interval.
+       * @param lastTotalOps    The last total operations count.
+       * @return The current operation count.
+       */
+    private:
+            long computeStats(const long startTimeMs, long startIntervalMs, long endIntervalMs,
+                              long lastTotalOps) {
+            // SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+
+            long totalOps = 0;
+            long todoOps = 0;
+
+            // Calculate the total number of operations completed.
+            for (auto &t : clients) {
+                totalOps += t.first->getOpsDone();
+                todoOps += t.first->getOpsTodo();
+            }
+
+            long interval = endIntervalMs - startTimeMs;
+            double throughput = 1000.0 * (((double) totalOps) / (double) interval);
+            double curThroughput = 1000.0 * (((double) (totalOps - lastTotalOps)) /
+                                             ((double) (endIntervalMs - startIntervalMs)));
+            long estRemaining = (long) ceil(todoOps / throughput);
+
+            time_t now = time(nullptr);
+            std::string labelString = this->label + ctime(&now);
+
+
+            std::string msg = labelString;
+            msg = msg + " " + std::to_string(interval / 1000) + " sec: ";
+            msg = msg + std::to_string(totalOps) + " operations; ";
+
+            if (totalOps != 0) {
+                msg.append(format("{:.2f}", curThroughput)).append(" current ops/sec; ");
+            }
+            if (todoOps != 0) {
+                //TODO:: RemainingFormatter need to realize in client.h
+                msg = msg + "est completion in " + std::to_string(estRemaining);
+            }
+
+            // msg.append(measurements->getMeasurements().);
+
+            LOG(ERROR) << msg;
+
+            if (standardStatus) {
+                LOG(INFO) << msg;
+            }
+            return totalOps;
         }
 
         /**

@@ -13,6 +13,7 @@
 #include "yaml-cpp/yaml.h"
 #include "glog/logging.h"
 #include "ycsb/core/workload/workload.h"
+#include "ycsb/core/workload/core_workload.h"
 #include "ycsb/core/db_factory.h"
 #include "client_thread.h"
 
@@ -45,7 +46,7 @@ namespace ycsb::core {
         // each worker instance is assigned with a unique db instance created by dbName
         static auto initDB(const std::string& dbName, const YAML::Node& n,
                                                int threadCount, double targetPerThreadPerms,
-                                               workload::Workload* workload,
+                                               workload::CoreWorkload* workload,
                                                moodycamel::LightweightSemaphore& completeLatch) {
             bool doTransaction = n[DO_TRANSACTIONS_PROPERTY].as<bool>(true);
             uint64_t opCount;

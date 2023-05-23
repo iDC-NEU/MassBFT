@@ -61,7 +61,7 @@ namespace ycsb::core {
     public:
         void run() {
             const long startTimeMs = util::Timer::time_now_ms();
-            const long startTimeNanos = util::Timer::time_now_ms();
+            const long startTimeNanos = util::Timer::time_now_ns();
             long deadline = startTimeNanos + sleepTimeNs;
             long startIntervalMs = startTimeMs;
             long lastTotalOps = 0;

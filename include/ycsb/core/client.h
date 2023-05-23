@@ -46,7 +46,7 @@ namespace ycsb::core {
         // each worker instance is assigned with a unique db instance created by dbName
         static auto initDB(const std::string& dbName, const YAML::Node& n,
                                                int threadCount, double targetPerThreadPerms,
-                                               workload::CoreWorkload* workload,
+                                               workload::Workload* workload,
                                                moodycamel::LightweightSemaphore& completeLatch) {
             bool doTransaction = n[DO_TRANSACTIONS_PROPERTY].as<bool>(true);
             uint64_t opCount;

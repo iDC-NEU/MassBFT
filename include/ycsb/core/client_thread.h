@@ -13,126 +13,54 @@
 #include "common/timer.h"
 
 namespace ycsb::core {
-/**
- * A thread for executing transactions or data inserts to the database.
- */
     class ClientThread {
     private:
-        // Counts down each of the clients completing.
-        moodycamel::LightweightSemaphore &completeLatch;
-        bool spinSleep;
         std::unique_ptr<DB> db;
-        bool doTransactions;
         workload::Workload* workload;
+        int seed = 0;
         int opCount;
-        double targetOpsPerMs;
         int opsDone;
-        int tid;
-        int threadCount;
-        const YAML::Node& props;
+        double targetOpsPerMs;
         uint64_t targetOpsTickNs;
+
     public:
-        /**
-         * Constructor.
-         *
-         * @param db                   the DB implementation to use
-         * @param dotransactions       true to do transactions, false to insert data
-         * @param workload             the workload to use
-         * @param props                the properties defining the experiment
-         * @param opcount              the number of operations (transactions or inserts) to do
-         * @param targetperthreadperms target number of operations per thread per ms
-         * @param completeLatch        The latch tracking the completion of all clients.
-         */
-        ClientThread(std::unique_ptr<DB> db, bool doTransactions, workload::Workload* workload, const YAML::Node& props, int opCount,
-                     double targetPerThreadPerms, moodycamel::LightweightSemaphore& completeLatch)
-                     :completeLatch(completeLatch), db(std::move(db)), doTransactions(doTransactions),
-                     workload(workload), opCount(opCount), opsDone(0), props(props) {
-            if (targetPerThreadPerms > 0) {
-                targetOpsPerMs = targetPerThreadPerms;
-                targetOpsTickNs = (uint64_t) (1000000 / targetOpsPerMs);
-            }
-            spinSleep = props["spin.sleep"].as<bool>(false);
-            tid = 0;
-            threadCount = 0;
-        }
-        inline void setThreadId(int id) {
-            this->tid = id;
-        }
-        inline void setThreadCount(int tc) {
-            threadCount = tc;
+        ClientThread(std::unique_ptr<DB> db,
+                     workload::Workload* workload,
+                     int opCount,
+                     double tps)
+                : db(std::move(db)), workload(workload), opCount(opCount), opsDone(0) {
+            CHECK(tps > 0);
+            targetOpsPerMs = tps * 1000;
+            targetOpsTickNs = (uint64_t) (1000000 / targetOpsPerMs);
         }
 
-        [[nodiscard]] inline int getOpsDone() const {
-            return opsDone;
-        }
+        inline void setSeed(int id) { this->seed = id; }
 
         // return a running thread instance
-        inline auto run() {
-            DCHECK(tid != 0);
-            DCHECK(threadCount != 0);
-            return std::make_unique<std::thread>(&ClientThread::doWork, this);
-        }
+        inline auto run() { return std::make_unique<std::thread>(&ClientThread::doWork, this); }
 
-        /**
-         * The total amount of work this thread is still expected to do.
-         */
-        [[nodiscard]] inline int getOpsTodo() const {
-            auto todo = opCount - opsDone;
-            return todo < 0 ? 0 : todo;
-        }
+        [[nodiscard]] inline int getOpsTodo() const { return std::max(opCount - opsDone, 0); }
 
-        ClientThread(const ClientThread&) = delete;
-
+        [[nodiscard]] inline int getOpsDone() const { return opsDone; }
 
     private:
         void doWork() {
-            // set thread local seed, use tid as seed, the delay is unique
-            utils::RandomUINT64::GetThreadLocalRandomGenerator()->seed(tid);
-            db->init();
-            auto workloadState = workload->initThread(props, tid, threadCount);
-            // TODO: destroy workloadState
-            if (workloadState == nullptr) {
-                CHECK(false) << "init workload failed, tid: " << tid;
-            }
-            //NOTE: Switching to using nanoTime and parkNanos for time management here such that the measurements
-            // and the client thread have the same view on time.
-
-            // spread the thread operations out, so they don't all hit the DB at the same time
-            // GH issue 4 - throws exception if _target>1 because random.nextInt argument must be >0
-            // and the sleep() doesn't make sense for granularities < 1 ms anyway
-            if ((targetOpsPerMs > 0) && (targetOpsPerMs <= 1.0)) {
+            utils::RandomUINT64::GetThreadLocalRandomGenerator()->seed(seed);
+            if (targetOpsPerMs <= 1.0) {
                 auto randGen = utils::RandomUINT64::NewRandomUINT64();
                 auto randomMinorDelay = randGen->nextValue() % targetOpsTickNs;
                 util::Timer::sleep_ns((long)randomMinorDelay);
             }
-            try {
-                auto startTimeNanos = util::Timer::time_now_ns();
-                if (doTransactions) {
-                    // opCount == 0 inf ops
-                    while (((opCount == 0) || (opsDone < opCount)) && !workload->isStopRequested()) {
-
-                        if (!workload->doTransaction(db.get(), workloadState)) {
-                            LOG(ERROR) << "Do transaction failed, opsDone: " << opsDone;
-                            break;
-                        }
-                        opsDone++;
-                        throttleNanos(startTimeNanos);
-                    }
-                } else {
-                    while (((opCount == 0) || (opsDone < opCount)) && !workload->isStopRequested()) {
-                        if (!workload->doInsert(db.get(), workloadState)) {
-                            LOG(ERROR) << "Do insert failed, opsDone: " << opsDone;
-                            break;
-                        }
-                        opsDone++;
-                        throttleNanos(startTimeNanos);
-                    }
+            auto startTimeNanos = util::Timer::time_now_ns();
+            // opCount == 0 inf ops
+            while ((opCount == 0 || opsDone < opCount) && !workload->isStopRequested()) {
+                if (!workload->doTransaction(db.get())) {
+                    LOG(ERROR) << "Do transaction failed, opsDone: " << opsDone;
+                    break;
                 }
-                db->cleanup();
-            } catch (...) {
-                LOG(ERROR) << "Exception caught, opsDone: " << opsDone;
+                opsDone++;
+                throttleNanos(startTimeNanos);
             }
-            completeLatch.signal();
         }
 
         inline void throttleNanos(time_t startTimeNanos) const {
@@ -145,4 +73,5 @@ namespace ycsb::core {
         }
     };
 }
+
 #endif //NEUCHAIN_PLUS_CLIENT_THREAD_H

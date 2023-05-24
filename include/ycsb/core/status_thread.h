@@ -4,158 +4,80 @@
 
 #pragma once
 
-#include "lightweightsemaphore.h"
-#include "client_thread.h"
-#include "ycsb/core/measurements/measurements.h"
+#include "ycsb/core/client_thread.h"
 #include <vector>
 #include <memory>
-#include "fmt/format.h"
-
-using fmt::format;
 
 namespace ycsb::core {
-/**
- * A thread to periodically show the status of the experiment to reassure you that progress is being made.
- */
     class StatusThread {
-    public:
-        using ClientPairList = std::vector<std::pair<std::unique_ptr<ClientThread>, std::unique_ptr<std::thread>>>;
     private:
-        // Counts down each of the clients completing.
-        moodycamel::LightweightSemaphore &completeLatch;
+        std::atomic<bool> running;
+        std::shared_ptr<Measurements> measurements;
 
-        // Stores the measurements for the run
-        Measurements *measurements;
+        uint64_t blockHeight = 0;
+        uint64_t txCountCommit = 0;
+        uint64_t txCountAbort = 0;
+        uint64_t latencySum = 0;
+        uint64_t latencySampleCount = 1;
 
-        // The clients that are running.
-        ClientPairList clients;
-
-        const std::string label;
-        bool standardStatus{};
-
-        // The interval for reporting status.
-        time_t sleepTimeNs{};
-
-
-        /**
-         * Creates a new StatusThread without JVM stat tracking.
-         *
-         * @param completeLatch         The latch that each client thread will {@link CountDownLatch#countDown()}
-         *                              as they complete.
-         * @param clients               The clients to collect metrics from.
-         * @param label                 The label for the status.
-         * @param standardstatus        If true the status is printed to stdout in addition to stderr.
-         * @param statusIntervalSeconds The number of seconds between status updates.
-         */
     public:
-        StatusThread(moodycamel::LightweightSemaphore &completeLatch, ClientPairList clients,
-                     const auto &label, bool standardStatus, int statusIntervalSeconds)
-                : completeLatch(completeLatch), clients(std::move(clients)), label(label),
-                  standardStatus(standardStatus), sleepTimeNs(statusIntervalSeconds * 1000000000) {
-            measurements = Measurements::getMeasurements();
+        explicit StatusThread(std::shared_ptr<Measurements> m) : measurements(std::move(m)) { }
+
+        void runStatus() {
+            pthread_setname_np(pthread_self(), "print_thread");
+            util::Timer timer;
+            size_t lastTimeCommit = 0;
+            size_t lastTimeAbort = 0;
+            size_t lastTimePending = 0;
+            auto sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
+
+            while(running) {
+                std::this_thread::sleep_until(sleepUntil);
+                sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
+                auto currentSecCommit = txCountCommit - lastTimeCommit;
+                auto currentSecAbort = txCountAbort - lastTimeAbort;
+                auto pendingTxnSize = measurements->getPendingTransactionCount();
+                auto currentTimePending = pendingTxnSize - lastTimePending;
+                LOG(INFO) << "In the last 1s, commit+abort_no_retry: " << currentSecCommit
+                          << ", abort: " << currentSecAbort
+                          << ", send rate: " << currentSecCommit + currentSecAbort + currentTimePending
+                          << ", latency: " << (double) latencySum / (double) latencySampleCount
+                          << ", pendingTx: " << pendingTxnSize;
+                lastTimeCommit = txCountCommit;
+                lastTimeAbort = txCountAbort;
+                lastTimePending = pendingTxnSize;
+            }
+            LOG(INFO) << "Detail summary:";
+            LOG(INFO) << "# Transaction throughput (KTPS): " << (double) txCountCommit / timer.end() / 1000;
+            LOG(INFO) << "  Abort rate (KTPS): " << (double) txCountAbort / timer.end() / 1000;
+            LOG(INFO) << "  Send rate (KTPS): " << static_cast<double>(txCountCommit + txCountAbort + measurements->getPendingTransactionCount()) / timer.end() / 1000;
+            LOG(INFO) << "Avg committed latency: " << (double) latencySum / (double) latencySampleCount << " sec.";
         }
 
-        /**
-         * Run and periodically report status.
-         */
-    public:
-        void run() {
-            const long startTimeMs = util::Timer::time_now_ms();
-            const long startTimeNanos = util::Timer::time_now_ns();
-            long deadline = startTimeNanos + sleepTimeNs;
-            long startIntervalMs = startTimeMs;
-            long lastTotalOps = 0;
-
-            bool allDone;
-
-            do {
-                long nowMs = util::Timer::time_now_ms();
-
-                lastTotalOps = computeStats(startTimeMs, startIntervalMs, nowMs, lastTotalOps);
-
-                allDone = waitForClientsUntil(double(deadline));
-
-                startIntervalMs = nowMs;
-                deadline += sleepTimeNs;
-            }
-            while (!allDone);
-
-            // Print the final stats.
-            computeStats(startTimeMs, startIntervalMs, util::Timer::time_now_ms(), lastTotalOps);
-        }
-
-        /**
-       * Computes and prints the stats.
-       *
-       * @param startTimeMs     The start time of the test.
-       * @param startIntervalMs The start time of this interval.
-       * @param endIntervalMs   The end time (now) for the interval.
-       * @param lastTotalOps    The last total operations count.
-       * @return The current operation count.
-       */
-    private:
-            long computeStats(const long startTimeMs, long startIntervalMs, long endIntervalMs,
-                              long lastTotalOps) {
-            // SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
-
-            long totalOps = 0;
-            long todoOps = 0;
-
-            // Calculate the total number of operations completed.
-            for (auto &t : clients) {
-                totalOps += t.first->getOpsDone();
-                todoOps += t.first->getOpsTodo();
-            }
-
-            long interval = endIntervalMs - startTimeMs;
-            double throughput = 1000.0 * (((double) totalOps) / (double) interval);
-            double curThroughput = 1000.0 * (((double) (totalOps - lastTotalOps)) /
-                                             ((double) (endIntervalMs - startIntervalMs)));
-            long estRemaining = (long) ceil(todoOps / throughput);
-
-            time_t now = time(nullptr);
-            std::string labelString = this->label + ctime(&now);
-
-
-            std::string msg = labelString;
-            msg = msg + " " + std::to_string(interval / 1000) + " sec: ";
-            msg = msg + std::to_string(totalOps) + " operations; ";
-
-            if (totalOps != 0) {
-                msg.append(format("{:.2f}", curThroughput)).append(" current ops/sec; ");
-            }
-            if (todoOps != 0) {
-                //TODO:: RemainingFormatter need to realize in client.h
-                msg = msg + "est completion in " + std::to_string(estRemaining);
-            }
-
-            // msg.append(measurements->getMeasurements().);
-
-            LOG(ERROR) << msg;
-
-            if (standardStatus) {
-                LOG(INFO) << msg;
-            }
-            return totalOps;
-        }
-
-        /**
-         * Waits for all of the client to finish or the deadline to expire.
-         *
-         * @param deadline The current deadline.
-         * @return True if all of the clients completed.
-         */
-        bool waitForClientsUntil(double deadline) {
-            auto timer = util::Timer();
-            // wait for all threads is complete
-            for (auto i = clients.size();
-                 i > 0; i -= completeLatch.waitMany((int) i, time_t((deadline - timer.end())) * 1000000)) {
-                if (deadline - timer.end() < 0) {
-                    // time up
-                    return false;
+        void runMonitor(const utils::YCSBProperties &n) {
+            auto db = DBFactory::NewDB("", n);  // each client create a connection
+            pthread_setname_np(pthread_self(), "monitor_thread");
+            while (running) {
+                std::unique_ptr<proto::Block> block = db->getBlock((int)blockHeight);
+                auto latencyList  = measurements->onReceiveBlock(*block);
+                auto userRequestSize = block->body.userRequests.size();
+                LOG(INFO) << "polled blockHeight: " << blockHeight << ", size: " << userRequestSize;
+                blockHeight++;
+                CHECK(userRequestSize == block->executeResult.transactionFilter.size());
+                CHECK(userRequestSize == latencyList.size());   // TODO: optimize
+                // calculate txCountCommit, txCountAbort, latency
+                for (auto& it: block->executeResult.transactionFilter) {
+                    if (static_cast<bool>(it) == true) {
+                        txCountCommit += 1;
+                        continue;
+                    }
+                    txCountAbort += 1;
+                }
+                for (auto& it: latencyList) {
+                    latencySum += it;
+                    latencySampleCount += 1;
                 }
             }
-            return true;
         }
     };
 }

@@ -55,7 +55,7 @@ namespace peer::consensus {
             return _batchCallback;
         }
 
-        // If you want to validate an envelop in place
+        // If you want to validate an envelope in place
         void setValidateCallback(auto callback, std::shared_ptr<util::thread_pool_light> threadPool) {
             _validateCallback = std::move(callback);
             _threadPoolForBCCSP = std::move(threadPool);

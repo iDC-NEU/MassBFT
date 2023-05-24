@@ -19,9 +19,8 @@ namespace ycsb::core {
         DBFactory() = default;
 
     public:
-        static auto NewDB(const std::string &dbname, const YAML::Node &properties) {
+        static auto NewDB(const std::string &, const utils::YCSBProperties &properties) {
             auto ret = std::make_unique<ycsb::client::NeuChainDB>();
-            ret->properties = &properties;
             return ret;
         }
     };

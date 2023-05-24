@@ -20,12 +20,6 @@ namespace ycsb::core {
      * Alternatively, 1/gamma is the average length of an interval.
      */
     class ExponentialGenerator : public NumberGenerator {
-    public:
-        constexpr static const auto EXPONENTIAL_PERCENTILE_PROPERTY = "exponential.percentile";
-        constexpr static const double EXPONENTIAL_PERCENTILE_DEFAULT = 95;
-        // What fraction of the dataset should be accessed exponential.percentile of the time?
-        constexpr static const auto EXPONENTIAL_FRAC_PROPERTY = "exponential.frac";
-        constexpr static const auto EXPONENTIAL_FRAC_DEFAULT = 0.8571428571;  // 1/7
     private:
         /**
          * The exponential constant to use.

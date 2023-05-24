@@ -9,7 +9,6 @@
 #include "common/property.h"
 #include "common/bccsp.h"
 #include "common/phmap.h"
-#include "common/timer.h"
 #include "common/thread_pool_light.h"
 #include "common/concurrent_queue.h"
 
@@ -86,8 +85,8 @@ namespace peer::consensus {
     public:
         // In order to separate the payload from the consensus,
         // the local cluster needs to establish a set of zmq ports, which are stored in targetNodes
-        ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId, int64_t timeoutMs=100)
-                : _verifyProposalTimeout(timeoutMs), _running(false) {
+        ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId)
+                : _running(false) {
             _sender = std::make_unique<ContentSender>(targetNodes, localId);
             _receiver = std::make_unique<ContentReceiver>(targetNodes[localId]->port);
             _receiver->setCallback([this](auto&& raw){ this->validateUnorderedBlock(std::forward<decltype(raw)>(raw)); });
@@ -250,7 +249,7 @@ namespace peer::consensus {
             // Find the target block in block pool (wait timed),
             // the other thread will validate the block,
             // so if we find the block, we can return safely.
-            auto block = loadCachedBlock(header.dataHash);
+            auto block = loadCachedBlock(header.dataHash, 500); // wait for 500 ms
             if (block == nullptr) {
                 return false;
             }
@@ -268,6 +267,7 @@ namespace peer::consensus {
             auto block = eraseCachedBlock(header.dataHash);
             CHECK(block != nullptr) << "Block mut be not null!" << util::OpenSSLSHA256::toString(header.dataHash);
             block->metadata.consensusSignatures = std::move(signatures);
+            DLOG(INFO) << "Block delivered by BFT, groupId: " << localNode->groupId << " blk number:" << block->header.number;
             // local consensus complete
             if (_deliverCallback != nullptr) {
                 _deliverCallback(block, std::move(localNode));
@@ -314,6 +314,7 @@ namespace peer::consensus {
                 block->header.previousHash = _proposedLastBlock->header.dataHash;
                 block->header.number = _proposedLastBlock->header.number + 1;
             }
+            LOG(INFO) << "Leader of local group " << localNode->groupId << " created a block, number: " << block->header.number;
             _proposedLastBlock = block;
             // LOG(INFO) << "request proposal, block number: " << block->header.number;
             auto serializedBlock = block->getSerializedMessage();
@@ -340,23 +341,19 @@ namespace peer::consensus {
 
     protected:
         // returned block may be nullptr
-        std::shared_ptr<proto::Block> loadCachedBlock(const proto::HashString& hash) {
-            int64_t endTime = util::Timer::time_now_ms() + _verifyProposalTimeout;
+        std::shared_ptr<proto::Block> loadCachedBlock(const proto::HashString& hash, int timeoutMs) {
+            auto timeout = butil::milliseconds_from_now(timeoutMs);
             while(true) {
-                auto span = endTime - util::Timer::time_now_ms();
-                if (span < 0) {
-                    LOG(ERROR) << "Can not get the block in specific timeout!";
-                    return nullptr;
-                }
                 auto currentBlockCount = _cache.first->load(std::memory_order_acquire);
                 std::shared_ptr<proto::Block> block = nullptr;
                 _cache.second.if_contains(hash, [&block](const auto& v) { block = v.second; });
-                if (block == nullptr) {
-                    auto timeout = butil::milliseconds_to_timespec(span);
-                    bthread::butex_wait(_cache.first, currentBlockCount, &timeout);
-                    continue;
+                if (block != nullptr) {
+                    return block;
                 }
-                return block;
+                if (bthread::butex_wait(_cache.first, currentBlockCount, &timeout) != 0 && errno == ETIMEDOUT) {
+                    LOG(ERROR) << "Can not get the block in specific timeout!";
+                    return nullptr;
+                }
             }
         }
 
@@ -374,7 +371,6 @@ namespace peer::consensus {
         }
 
     private:
-        const int64_t _verifyProposalTimeout; // ms
         std::atomic<bool> _running;
         // Check if the node is leader
         std::shared_mutex _isLeaderMutex;

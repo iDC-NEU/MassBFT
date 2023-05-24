@@ -12,6 +12,7 @@
 #include <optional>
 #include <vector>
 #include "glog/logging.h"
+#include "ed25519_signature.h"
 
 namespace OpenSSL {
     struct DeleteMdCtx {
@@ -48,8 +49,7 @@ namespace OpenSSL {
     template <int N>
     using digestType = std::array<uint8_t, N>;
 
-    template <int N>
-    inline auto bytesToString(const digestType<N>& md) {
+    inline auto bytesToString(const auto& md) {
         // build output string
         static const auto hAlpha{"0123456789abcdef"};
         std::string result;
@@ -59,6 +59,18 @@ namespace OpenSSL {
             result.push_back(hAlpha[b & 0xF]);
         }
         return result;
+    }
+
+    inline auto stringToBytes(std::string_view readable) {
+        std::string str;
+        str.reserve(readable.size()/2);
+        char target[3] {'\0', '\0', '\0'};
+        for (std::size_t i = 0; i < readable.size(); i += 2) {
+            target[0] = readable[i];
+            target[1] = readable[i+1];
+            str.push_back((char)std::strtol(target, nullptr, 16));
+        }
+        return str;
     }
 }
 
@@ -82,7 +94,7 @@ namespace util {
         }
 
         static inline auto toString(const digestType& md) {
-            return OpenSSL::bytesToString<N>(md);
+            return OpenSSL::bytesToString(md);
         }
 
         static inline void initCrypto() {
@@ -135,7 +147,7 @@ namespace util {
 
 
     // Crypto for ECDSA and RSA
-    template <auto& mdDigestType, int N>
+    template <auto& mdDigestType, int N, class Derived>
     class OpenSSLPKCS {
     public:
         using digestType = OpenSSL::digestType<N>;
@@ -213,20 +225,12 @@ namespace util {
             return std::make_pair(publicKeyStr, privateKeyStr);
         }
 
-        static inline auto toString(const digestType& md) {
-            return OpenSSL::bytesToString<N>(md);
+        static inline auto toString(std::string_view md) {
+            return OpenSSL::bytesToString(md);
         }
 
-        static std::string toHex(std::string_view readable) {
-            std::string str;
-            str.reserve(readable.size()/2);
-            char target[3] {'\0', '\0', '\0'};
-            for (std::size_t i = 0; i < readable.size(); i += 2) {
-                target[0] = readable[i];
-                target[1] = readable[i+1];
-                str.push_back((char)std::strtol(target, nullptr, 16));
-            }
-            return str;
+        static inline auto toString(const digestType& md) {
+            return OpenSSL::bytesToString(md);
         }
 
         static inline void initCrypto() {
@@ -310,54 +314,38 @@ namespace util {
             return buf;
         }
 
-        template<decltype(EVP_PKEY_get_raw_public_key) Func>
-        [[nodiscard]] inline std::shared_ptr<std::string> getRawHexFromPKey() const {
-            size_t len;
-            // get the length
-            auto ret = Func(pkey.get(), nullptr, &len);
-            if (ret != 1) { // operation not support
-                return nullptr;
-            }
-            auto buffer = std::make_shared<std::string>(len, '\0');
-            // get the data
-            Func(pkey.get(), reinterpret_cast<unsigned char *>(buffer->data()), &len);
-            return buffer;
-        }
-
     public:
-        explicit OpenSSLPKCS(EVP_PKEY* pkey_) :pkey(pkey_) { }
+        explicit OpenSSLPKCS(EVP_PKEY* pkey) :_pkey(pkey) { }
 
-        OpenSSLPKCS(OpenSSLPKCS&& rhs) noexcept {
-            this->pkey = std::move(rhs.pkey);
-        }
+        OpenSSLPKCS(OpenSSLPKCS&& rhs) noexcept = default;
 
-        static std::unique_ptr<OpenSSLPKCS> NewFromPemString(std::string_view pemString, std::string_view password) {
+        static std::unique_ptr<Derived> NewFromPemString(std::string_view pemString, std::string_view password) {
             auto key = OpenSSLPKCS::decodePEM(pemString, password);
             if (key == nullptr) {
                 return nullptr;
             }
-            return std::make_unique<OpenSSLPKCS>(key);
+            return std::unique_ptr<Derived>(new Derived(key));
         }
 
-        static std::unique_ptr<OpenSSLPKCS> NewPrivateKeyFromHex(std::string_view hex) {
+        static std::unique_ptr<Derived> NewPrivateKeyFromHex(std::string_view hex) {
             auto key = EVP_PKEY_new_raw_private_key_ex(nullptr, mdDigestType, nullptr, reinterpret_cast<const unsigned char *>(hex.data()), hex.size());
             if (key == nullptr) {
                 LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
                 return nullptr;
             }
-            return std::make_unique<OpenSSLPKCS>(key);
+            return std::unique_ptr<Derived>(new Derived(key));
         }
 
-        static std::unique_ptr<OpenSSLPKCS> NewPublicKeyFromHex(std::string_view hex) {
+        static std::unique_ptr<Derived> NewPublicKeyFromHex(std::string_view hex) {
             auto key = EVP_PKEY_new_raw_public_key_ex(nullptr, mdDigestType, nullptr, reinterpret_cast<const unsigned char *>(hex.data()), hex.size());
             if (key == nullptr) {
                 LOG(WARNING) << ERR_error_string(ERR_get_error(), nullptr);
                 return nullptr;
             }
-            return std::make_unique<OpenSSLPKCS>(key);
+            return std::unique_ptr<Derived>(new Derived(key));
         }
 
-        static std::unique_ptr<OpenSSLPKCS> NewFromPemFile(std::string_view pemPath, std::string_view password) {
+        static std::unique_ptr<Derived> NewFromPemFile(std::string_view pemPath, std::string_view password) {
             auto ret = OpenSSLPKCS::loadPemFile(pemPath);
             if(!ret) {
                 return nullptr;
@@ -369,26 +357,80 @@ namespace util {
 
         ~OpenSSLPKCS() = default;
 
-        [[nodiscard]] inline std::optional<OpenSSL::digestType<N>> sign(const void *d, size_t cnt) const {
-            return OpenSSLPKCS::doSign(pkey.get(), d, cnt);
+        [[nodiscard]] inline std::shared_ptr<std::string> getHexFromKey(bool isPrivate) const {
+            auto * func = &EVP_PKEY_get_raw_private_key;
+            if (!isPrivate) {
+                func = &EVP_PKEY_get_raw_public_key;
+            }
+            size_t len;
+            // get the length
+            auto ret = (*func)(_pkey.get(), nullptr, &len);
+            if (ret != 1) { // operation not support
+                return nullptr;
+            }
+            auto buffer = std::make_shared<std::string>(len, '\0');
+            // get the data
+            (*func)(_pkey.get(), reinterpret_cast<unsigned char *>(buffer->data()), &len);
+            return buffer;
         }
 
-        [[nodiscard]] inline bool verify(const OpenSSL::digestType<N>& md, const void *d, size_t cnt) const {
-            return OpenSSLPKCS::doVerify(pkey.get(), md, d, cnt);
-        }
-
-        [[nodiscard]] inline auto getHexFromPublicKey() const {
-            return getRawHexFromPKey<EVP_PKEY_get_raw_public_key>();
-        }
-
-        [[nodiscard]] inline auto getHexFromPrivateKey() const {
-            return getRawHexFromPKey<EVP_PKEY_get_raw_private_key>();
-        }
-
-    private:
-        OpenSSL::EVP_PKEY_ptr pkey;
+    protected:
+        OpenSSL::EVP_PKEY_ptr _pkey;
     };
 
-    using OpenSSLED25519 = OpenSSLPKCS<OpenSSL::ED25519, 64>;
+    class DefaultED25519 : public OpenSSLPKCS<OpenSSL::ED25519, 64, DefaultED25519> {
+    public:
+        explicit DefaultED25519(EVP_PKEY* pkey) :OpenSSLPKCS(pkey) { }
 
+        [[nodiscard]] inline std::optional<DefaultED25519::digestType> sign(const void *d, size_t cnt) const {
+            return OpenSSLPKCS::doSign(_pkey.get(), d, cnt);
+        }
+
+        [[nodiscard]] inline bool verify(const DefaultED25519::digestType& md, const void *d, size_t cnt) const {
+            return OpenSSLPKCS::doVerify(_pkey.get(), md, d, cnt);
+        }
+
+        [[nodiscard]] inline auto getHexFromPublicKey() const { return getHexFromKey(false); }
+
+        [[nodiscard]] inline auto getHexFromPrivateKey() const { return getHexFromKey(true); }
+    };
+
+    class LightweightED25519 : public OpenSSLPKCS<OpenSSL::ED25519, 64, LightweightED25519> {
+    public:
+        explicit LightweightED25519(EVP_PKEY* pkey) :OpenSSLPKCS(pkey) {
+            _rawPubKey = getHexFromKey(false);
+            _rawPriKey = getHexFromKey(true);
+        }
+
+        [[nodiscard]] inline std::optional<DefaultED25519::digestType> sign(const void *d, size_t cnt) const {
+            return OpenSSLPKCS::doSign(_pkey.get(), d, cnt);
+        }
+//        [[nodiscard]] inline std::optional<DefaultED25519::digestType> sign(const void *d, size_t cnt) const {
+//            if (_rawPriKey == nullptr) {
+//                return std::nullopt;
+//            }
+//            DefaultED25519::digestType md;
+//            ed25519_SignMessage(md.data(),
+//                                reinterpret_cast<const unsigned char*>(_rawPriKey->data()),
+//                                nullptr,
+//                                reinterpret_cast<const unsigned char*>(d), cnt);
+//            return md;
+//        }
+
+        [[nodiscard]] inline bool verify(const LightweightED25519::digestType& md, const void *d, size_t cnt) const {
+            return ed25519_VerifySignature(md.data(),
+                                           reinterpret_cast<const unsigned char*>(_rawPubKey->data()),
+                                           reinterpret_cast<const unsigned char*>(d), cnt) == 1;
+        }
+
+        [[nodiscard]] inline auto getHexFromPublicKey() const { return _rawPubKey; }
+
+        [[nodiscard]] inline auto getHexFromPrivateKey() const { return _rawPriKey; }
+
+    private:
+        std::shared_ptr<std::basic_string<char>> _rawPubKey;
+        std::shared_ptr<std::basic_string<char>> _rawPriKey;    // the layout is different, so we don't use the pri key
+    };
+
+    using OpenSSLED25519 = LightweightED25519;
 }

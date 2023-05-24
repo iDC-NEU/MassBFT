@@ -85,7 +85,7 @@ namespace ca {
                 }
             }
             // 2. start the server
-            LOG(INFO) << "Preparing to start instance:, groupId: " << _groupId << ", process id:" << _processId;
+            DLOG(INFO) << "Preparing to start instance: groupId: " << _groupId << ", process id:" << _processId;
             std::vector<std::string> builder {
                     "cd",
                     _runningPath.string(),
@@ -115,11 +115,11 @@ namespace ca {
             if (_bftInstanceChannel == nullptr) {
                 return false;
             }
-            auto callback = [&](std::string_view sv) {
-                if (sv.empty()) {
+            auto callback = [&](std::string_view bftLog) {
+                if (bftLog.empty()) {
                     return false;
                 }
-                LOG(INFO) << sv;
+                DLOG(INFO) << bftLog;
                 return true;
             };
             // do not catch the return value!

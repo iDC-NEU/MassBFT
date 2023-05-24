@@ -205,7 +205,7 @@ namespace util::raft {
         // default node config
         const int32_t _election_timeout_ms = 3000;
         const int32_t _max_clock_drift_ms = 1000;
-        const int _snapshot_interval_s = 30;
+        const int _snapshot_interval_s = 3600;
         braft::SnapshotThrottle* _throttle;
 
         // vector of all local raft instance, and lock

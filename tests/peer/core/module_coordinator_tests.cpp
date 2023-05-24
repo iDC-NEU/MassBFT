@@ -40,6 +40,8 @@ protected:
         auto key = bccsp->GetKey(ski);
         CHECK(key->Private());
         std::string payload("payload for an envelop" + std::to_string(rand()));
+        payload.resize(150);
+        payload += "eof";
         auto ret = key->Sign(payload.data(), payload.size());
         CHECK(ret != std::nullopt);
         sig.digest = *ret;

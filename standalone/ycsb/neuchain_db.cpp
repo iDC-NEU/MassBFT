@@ -45,5 +45,8 @@ ycsb::client::NeuChainDB::insert(const std::string& table, const std::string& ke
 
 ycsb::core::Status
 ycsb::client::NeuChainDB::remove(const std::string& table, const std::string& key) {
+    proto::UserRequest request;
+    request.setFuncName("del");
+
     return core::STATUS_OK;
 }

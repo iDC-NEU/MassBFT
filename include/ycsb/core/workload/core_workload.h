@@ -4,11 +4,11 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <vector>
 #include "ycsb/core/workload/workload.h"
-#include "ycsb/core/common/fnv_hash.h"
-#include "ycsb/core/common/byte_iterator.h"
+#include "ycsb/core/client_thread.h"
+#include "ycsb/core/measurements.h"
+#include "ycsb/core/db.h"
+#include "ycsb/core/status.h"
 #include "ycsb/core/generator/constant_integer_generator.h"
 #include "ycsb/core/generator/uniform_long_generator.h"
 #include "ycsb/core/generator/counter_generator.h"
@@ -18,11 +18,9 @@
 #include "ycsb/core/generator/skewed_latest_generator.h"
 #include "ycsb/core/generator/hot_spot_interger_generator.h"
 #include "ycsb/core/generator/acknowledge_counter_generator.h"
-#include "ycsb/core/client.h"
-#include "ycsb/core/status.h"
-#include "ycsb/core/measurements.h"
-#include "ycsb/core/db.h"
 #include "ycsb/core/generator/scrambled_zipfian_generator.h"
+#include "ycsb/core/common/fnv_hash.h"
+#include "ycsb/core/common/byte_iterator.h"
 
 namespace ycsb::core::workload {
     class CoreWorkload: public Workload {
@@ -99,7 +97,7 @@ namespace ycsb::core::workload {
                 // the keyspace doesn't change from the perspective of the scrambled zipfian generator
                 const auto insertProportion = n.getProportion().insertProportion;
                 auto opCount = n.getOperationCount();
-                auto expectedNewKeys = (int) ((opCount) * insertProportion * 2.0); // 2 is fudge factor
+                auto expectedNewKeys =  (int)((double)opCount * insertProportion * 2.0); // 2 is fudge factor
                 return ScrambledZipfianGenerator::NewScrambledZipfianGenerator(insertStart, insertStart + insertCount + expectedNewKeys);
             }
             if (requestDistrib == "latest") {
@@ -112,7 +110,7 @@ namespace ycsb::core::workload {
             return nullptr;
         }
 
-        std::unique_ptr<NumberGenerator> initScanLength(const utils::YCSBProperties& n) const {
+        static std::unique_ptr<NumberGenerator> initScanLength(const utils::YCSBProperties& n) {
             auto distrib = n.getScanLengthDistrib();
             auto [min, max] = n.getScanLength();
             if (distrib == "uniform") {
@@ -184,26 +182,24 @@ namespace ycsb::core::workload {
     private:
         void buildSingleValue(utils::ByteIteratorMap& value, const std::string& key) const {
             const auto& fieldKey = fieldnames[fieldChooser->nextValue()];
-            std::unique_ptr<utils::ByteIterator> data;
             if (dataIntegrity) {
-                data = std::make_unique<utils::StringByteIterator>(buildDeterministicValue(key, fieldKey));
+                value[fieldKey] = buildDeterministicValue(key, fieldKey);
             } else {
                 // fill with random data
-                data = std::make_unique<utils::RandomByteIterator>(fieldLengthGenerator->nextValue());
+                value[fieldKey] = utils::RandomString(fieldLengthGenerator->nextValue());
+                LOG(INFO) << value[fieldKey];
             }
-            value[fieldKey].swap(data);
         }
 
         void buildValues(utils::ByteIteratorMap& values, const std::string& key) const {
             for (const auto& fieldKey : fieldnames) {
-                std::unique_ptr<utils::ByteIterator> data;
                 if (dataIntegrity) {
-                    data = std::make_unique<utils::StringByteIterator>(buildDeterministicValue(key, fieldKey));
+                    values[fieldKey] = buildDeterministicValue(key, fieldKey);
                 } else {
                     // fill with random data
-                    data =  std::make_unique<utils::RandomByteIterator>(fieldLengthGenerator->nextValue());
+                    values[fieldKey] = utils::RandomString(fieldLengthGenerator->nextValue());
+                    LOG(INFO) << values[fieldKey];
                 }
-                values[fieldKey].swap(data);
             }
         }
 
@@ -298,7 +294,7 @@ namespace ycsb::core::workload {
             Status verifyStatus = STATUS_OK;
             if (!cells.empty()) {
                 for (auto& entry : cells) {
-                    if (entry.second->toString() != buildDeterministicValue(key, entry.first)) {
+                    if (entry.second != buildDeterministicValue(key, entry.first)) {
                         verifyStatus = UNEXPECTED_STATE;
                         break;
                     }

@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include <string>
 #include "proto/block.h"
 #include "common/timer.h"
 #include "common/phmap.h"

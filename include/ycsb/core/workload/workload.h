@@ -2,14 +2,11 @@
 // Created by peng on 10/18/22.
 //
 
-#ifndef BENCHMARKCLIENT_WORKLOAD_H
-#define BENCHMARKCLIENT_WORKLOAD_H
+#pragma once
 
-#include <string>
-#include <atomic>
 #include "ycsb/core/common/exception.h"
 #include "ycsb/core/common/ycsb_property.h"
-#include "yaml-cpp/yaml.h"
+#include <atomic>
 
 namespace ycsb::core {
     class DB;
@@ -40,4 +37,3 @@ namespace ycsb::core {
         };
     }
 }
-#endif //BENCHMARKCLIENT_WORKLOAD_H

@@ -8,7 +8,6 @@
 #include "ycsb/core/common/ycsb_property.h"
 
 #include "proto/block.h"
-#include "yaml-cpp/yaml.h"
 
 namespace ycsb::core {
     class Status;

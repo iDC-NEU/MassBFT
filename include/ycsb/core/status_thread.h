@@ -4,26 +4,34 @@
 
 #pragma once
 
-#include "ycsb/core/client_thread.h"
+#include "ycsb/core/measurements.h"
+#include "ycsb/core/db.h"
 #include <vector>
 #include <memory>
 
 namespace ycsb::core {
     class StatusThread {
-    private:
-        std::atomic<bool> running;
-        std::shared_ptr<Measurements> measurements;
-
-        uint64_t blockHeight = 0;
-        uint64_t txCountCommit = 0;
-        uint64_t txCountAbort = 0;
-        uint64_t latencySum = 0;
-        uint64_t latencySampleCount = 1;
-
     public:
-        explicit StatusThread(std::shared_ptr<Measurements> m) : measurements(std::move(m)) { }
+        StatusThread(std::shared_ptr<Measurements> m, std::unique_ptr<DB> db)
+                : measurements(std::move(m)), db(std::move(db)) { }
 
-        void runStatus() {
+        ~StatusThread() {
+            running = false;
+            if (_statusThread) {
+                _statusThread->join();
+            }
+            if (_monitorThread) {
+                _monitorThread->join();
+            }
+        }
+
+        inline void run() {
+            _statusThread = std::make_unique<std::thread>(&StatusThread::doStatus, this);
+            _monitorThread = std::make_unique<std::thread>(&StatusThread::doMonitor, this);
+        }
+
+    protected:
+        void doStatus() {
             pthread_setname_np(pthread_self(), "print_thread");
             util::Timer timer;
             size_t lastTimeCommit = 0;
@@ -31,7 +39,7 @@ namespace ycsb::core {
             size_t lastTimePending = 0;
             auto sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
 
-            while(running) {
+            while(running.load(std::memory_order_relaxed)) {
                 std::this_thread::sleep_until(sleepUntil);
                 sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
                 auto currentSecCommit = txCountCommit - lastTimeCommit;
@@ -54,10 +62,10 @@ namespace ycsb::core {
             LOG(INFO) << "Avg committed latency: " << (double) latencySum / (double) latencySampleCount << " sec.";
         }
 
-        void runMonitor(const utils::YCSBProperties &n) {
-            auto db = DB::NewDB("", n);  // each client create a connection
+        void doMonitor() {
             pthread_setname_np(pthread_self(), "monitor_thread");
-            while (running) {
+
+            while(running.load(std::memory_order_relaxed)) {
                 std::unique_ptr<proto::Block> block = db->getBlock((int)blockHeight);
                 auto txnCount = block->body.userRequests.size();
                 auto latencyList  = measurements->getTxnLatency(*block);
@@ -83,5 +91,19 @@ namespace ycsb::core {
                 blockHeight++;
             }
         }
+
+    private:
+        std::atomic<bool> running = true;
+        std::shared_ptr<Measurements> measurements;
+        std::unique_ptr<DB> db;
+
+        uint64_t blockHeight = 0;
+        uint64_t txCountCommit = 0;
+        uint64_t txCountAbort = 0;
+        uint64_t latencySum = 0;
+        uint64_t latencySampleCount = 1;
+
+        std::unique_ptr<std::thread> _statusThread;
+        std::unique_ptr<std::thread> _monitorThread;
     };
 }

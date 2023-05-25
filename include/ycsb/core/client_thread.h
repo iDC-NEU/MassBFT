@@ -2,76 +2,69 @@
 // Created by peng on 11/6/22.
 //
 
-#ifndef NEUCHAIN_PLUS_CLIENT_THREAD_H
-#define NEUCHAIN_PLUS_CLIENT_THREAD_H
+#pragma once
 
-#include <thread>
-#include "lightweightsemaphore.h"
-#include "db.h"
 #include "ycsb/core/workload/workload.h"
-#include "ycsb/core/workload/core_workload.h"
-#include "common/timer.h"
+#include "ycsb/core/db.h"
+#include <thread>
+#include <utility>
 
 namespace ycsb::core {
     class ClientThread {
-    private:
-        std::unique_ptr<DB> db;
-        workload::Workload* workload;
-        int seed = 0;
-        int opCount;
-        int opsDone;
-        double targetOpsPerMs;
-        uint64_t targetOpsTickNs;
-
     public:
         ClientThread(std::unique_ptr<DB> db,
-                     workload::Workload* workload,
-                     int opCount,
-                     double tps)
-                : db(std::move(db)), workload(workload), opCount(opCount), opsDone(0) {
-            CHECK(tps > 0);
-            targetOpsPerMs = tps * 1000;
-            targetOpsTickNs = (uint64_t) (1000000 / targetOpsPerMs);
+                     std::shared_ptr<workload::Workload> workload,
+                     int id,
+                     int txnCount,
+                     double txnPerSecond)
+                : _db(std::move(db)), _workload(std::move(workload)), _seed(id), _txnCount(txnCount), _txnDone(0) {
+            CHECK(txnPerSecond > 0);
+            _txnPerMs = txnPerSecond * 1000;
+            _txnTickNs = (int)(1000000 / _txnPerMs);
         }
 
-        inline void setSeed(int id) { this->seed = id; }
-
-        // return a running thread instance
-        inline auto run() { return std::make_unique<std::thread>(&ClientThread::doWork, this); }
-
-        [[nodiscard]] inline int getOpsTodo() const { return std::max(opCount - opsDone, 0); }
-
-        [[nodiscard]] inline int getOpsDone() const { return opsDone; }
-
-    private:
-        void doWork() {
-            utils::RandomUINT64::GetThreadLocalRandomGenerator()->seed(seed);
-            if (targetOpsPerMs <= 1.0) {
-                auto randGen = utils::RandomUINT64::NewRandomUINT64();
-                auto randomMinorDelay = randGen->nextValue() % targetOpsTickNs;
-                util::Timer::sleep_ns((long)randomMinorDelay);
+        ~ClientThread() {
+            if (_clientThread) {
+                _clientThread->join();
             }
-            auto startTimeNanos = util::Timer::time_now_ns();
+        }
+
+        inline void run() { _clientThread = std::make_unique<std::thread>(&ClientThread::doWork, this); }
+
+        [[nodiscard]] inline int getOpsTodo() const { return std::max(_txnCount - _txnDone, 0); }
+
+        [[nodiscard]] inline int getOpsDone() const { return _txnDone; }
+
+    protected:
+        void doWork() {
+            utils::RandomUINT64::GetThreadLocalRandomGenerator()->seed(_seed);
+            if (_txnPerMs <= 1.0) {
+                auto randGen = utils::RandomUINT64::NewRandomUINT64();
+                auto randomMinorDelay = randGen->nextValue() % _txnTickNs;
+                std::this_thread::sleep_for(std::chrono::nanoseconds(randomMinorDelay));
+            }
+            auto startTime = std::chrono::system_clock::now();
             // opCount == 0 inf ops
-            while ((opCount == 0 || opsDone < opCount) && !workload->isStopRequested()) {
-                if (!workload->doTransaction(db.get())) {
-                    LOG(ERROR) << "Do transaction failed, opsDone: " << opsDone;
+            while ((_txnCount == 0 || _txnDone < _txnCount) && !_workload->isStopRequested()) {
+                if (!_workload->doTransaction(_db.get())) {
+                    LOG(ERROR) << "Do transaction failed, opsDone: " << _txnDone;
                     break;
                 }
-                opsDone++;
-                throttleNanos(startTimeNanos);
+                _txnDone++;
+                // delay until next tick
+                auto deadline = startTime + std::chrono::nanoseconds(_txnDone * _txnTickNs);
+                std::this_thread::sleep_until(deadline);
             }
         }
 
-        inline void throttleNanos(time_t startTimeNanos) const {
-            //throttle the operations
-            if (targetOpsPerMs > 0) {
-                // delay until next tick
-                auto deadline = startTimeNanos + opsDone * targetOpsTickNs;
-                util::Timer::sleep_ns((long)deadline - util::Timer::time_now_ns());
-            }
-        }
+    private:
+        std::unique_ptr<DB> _db;
+        std::shared_ptr<workload::Workload> _workload;
+        int _seed;
+        int _txnCount;
+        int _txnDone;
+        double _txnPerMs;
+        int _txnTickNs;
+        std::unique_ptr<std::thread> _clientThread;
     };
 }
-
-#endif //NEUCHAIN_PLUS_CLIENT_THREAD_H

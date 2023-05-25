@@ -13,7 +13,6 @@
 
 namespace ycsb::core {
     class DB;
-    class Status;
     namespace workload {
         /**
         * One experiment scenario. One object of this type will

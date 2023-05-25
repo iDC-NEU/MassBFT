@@ -16,17 +16,22 @@ namespace ycsb::core {
             map[digest] = ts;
         }
 
-        std::vector<uint64_t> onReceiveBlock(const proto::Block& block) {
+        // If latency not found, it is set to 0.
+        std::vector<uint64_t> getTxnLatency(const proto::Block& block) {
             auto now = util::Timer::time_now_ns();
             std::vector<uint64_t> spanList;
             spanList.reserve(block.body.userRequests.size());
             for (auto& it: block.body.userRequests) {
                 auto& digest = it->getSignature().digest;
-                map.erase_if(std::string_view(reinterpret_cast<const char *>(digest.data()), digest.size()), [&](auto& v) {
+                auto ret = map.erase_if(std::string_view(reinterpret_cast<const char *>(digest.data()), digest.size()), [&](auto& v) {
                     spanList.push_back(now - v.second);
                     return true;
                 });
+                if (!ret) {
+                    spanList.push_back(0);
+                }
             }
+            CHECK(block.body.userRequests.size() == spanList.size());
             return spanList;
         }
 

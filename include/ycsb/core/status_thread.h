@@ -55,28 +55,32 @@ namespace ycsb::core {
         }
 
         void runMonitor(const utils::YCSBProperties &n) {
-            auto db = DBFactory::NewDB("", n);  // each client create a connection
+            auto db = DB::NewDB("", n);  // each client create a connection
             pthread_setname_np(pthread_self(), "monitor_thread");
             while (running) {
                 std::unique_ptr<proto::Block> block = db->getBlock((int)blockHeight);
-                auto latencyList  = measurements->onReceiveBlock(*block);
-                auto userRequestSize = block->body.userRequests.size();
-                LOG(INFO) << "polled blockHeight: " << blockHeight << ", size: " << userRequestSize;
-                blockHeight++;
-                CHECK(userRequestSize == block->executeResult.transactionFilter.size());
-                CHECK(userRequestSize == latencyList.size());   // TODO: optimize
+                auto txnCount = block->body.userRequests.size();
+                auto latencyList  = measurements->getTxnLatency(*block);
+                auto& filterList = block->executeResult.transactionFilter;
+                CHECK(txnCount == latencyList.size());
+                CHECK(txnCount == filterList.size());
+                LOG(INFO) << "polled blockHeight: " << blockHeight << ", size: " << txnCount;
                 // calculate txCountCommit, txCountAbort, latency
-                for (auto& it: block->executeResult.transactionFilter) {
-                    if (static_cast<bool>(it) == true) {
-                        txCountCommit += 1;
+                for (int i=0; i<(int)txnCount; i++) {
+                    if (latencyList[i] == 0) {
+                        DLOG(INFO) << "missing tx in tx map, please check if all txs is generated in a user.";
                         continue;
                     }
-                    txCountAbort += 1;
-                }
-                for (auto& it: latencyList) {
-                    latencySum += it;
+                    // We only calculate the latency of committed txn.
+                    if (static_cast<bool>(filterList[i]) == false) {
+                        txCountAbort += 1;
+                        continue;
+                    }
+                    txCountCommit += 1;
+                    latencySum += latencyList[i];
                     latencySampleCount += 1;
                 }
+                blockHeight++;
             }
         }
     };

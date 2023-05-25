@@ -194,9 +194,6 @@ namespace ycsb::core::workload {
             value[fieldKey].swap(data);
         }
 
-        /**
-         * Builds values for all fields.
-         */
         void buildValues(utils::ByteIteratorMap& values, const std::string& key) const {
             for (const auto& fieldKey : fieldnames) {
                 std::unique_ptr<utils::ByteIterator> data;
@@ -297,7 +294,7 @@ namespace ycsb::core::workload {
          * Bucket 1 means incorrect data was returned.
          * Bucket 2 means null data was returned when some data was expected.
          */
-        void verifyRow(const std::string& key, utils::ByteIteratorMap& cells) const {
+        Status verifyRow(const std::string& key, utils::ByteIteratorMap& cells) const {
             Status verifyStatus = STATUS_OK;
             if (!cells.empty()) {
                 for (auto& entry : cells) {
@@ -311,6 +308,7 @@ namespace ycsb::core::workload {
                 verifyStatus = ERROR;
                 LOG(INFO) << "Verify failed!";
             }
+            return verifyStatus;
         }
 
         uint64_t nextKeyNum() const {
@@ -334,11 +332,9 @@ namespace ycsb::core::workload {
         void doTransactionRead(DB* db) const {
             // choose a random key
             auto keyNum = nextKeyNum();
-
             auto keyName = CoreWorkload::buildKeyName(keyNum, zeroPadding, orderedInserts);
 
             std::vector<std::string> fields;
-
             if (!readAllFields) {
                 // read a random field
                 const auto& fieldName = fieldnames[fieldChooser->nextValue()];

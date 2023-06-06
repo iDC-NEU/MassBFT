@@ -17,6 +17,9 @@ namespace ycsb::core {
 
         virtual ~DB();
 
+        // initialize the invokeClients and queryClients
+        virtual core::Status db_connection();
+
         // fields: The list of fields to read, or null for all of them
         virtual core::Status read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) = 0;
 

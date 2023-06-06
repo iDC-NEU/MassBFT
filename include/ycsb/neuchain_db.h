@@ -9,14 +9,18 @@
 #include "ycsb/core/status.h"
 #include "proto/block.h"
 #include "common/zeromq.h"
+#include "proto/user_request.h"
 
 namespace ycsb::client {
     class NeuChainDB: public ycsb::core::DB {
 
     public:
         NeuChainDB() {
+            db_connection();
             LOG(INFO) << "Created a connection to NeuChainDB.";
         }
+
+        core::Status db_connection() override;
 
         core::Status read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) override;
 
@@ -35,8 +39,13 @@ namespace ycsb::client {
 
         std::unique_ptr<proto::Block> getBlock(int blockNumber) override;
 
+    protected:
+        std::function<void(proto::UserRequest &request)> sendInvokeRequest;
+
     private:
-        std::unique_ptr<util::ZMQInstance> rpcClient;
+        std::vector<std::pair<std::string, std::unique_ptr<util::ZMQInstance>>> rpcClient;
+        std::vector<std::pair<std::string, std::unique_ptr<util::ZMQInstance>>> invokeClient;
+        size_t trCount{};
     };
 }
 

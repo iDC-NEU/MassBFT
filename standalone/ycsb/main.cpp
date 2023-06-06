@@ -35,8 +35,15 @@ int main(int, char *[]) {
     auto clients = initClientThreads(*property, workload);
     LOG(INFO) << "Running test.";
 
-    auto db = core::DB::NewDB("", *property);  // each client create a connection
+    auto db = core::DB::NewDB("neuChain", *property);  // each client create a connection
     ycsb::core::StatusThread statusThread(measurements, std::move(db));
     // TODO: run the clients and status
+    LOG(INFO) << "all workers started";
+    for(auto &client :clients){
+        client->run();
+    }
+    LOG(INFO) << "all ClientThreads exited.";
+    statusThread.run();
+
     return 0;
 }

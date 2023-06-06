@@ -51,6 +51,15 @@ namespace proto {
             return _funcNameSV;
         }
 
+        void setTableName(std::string &&tableName) {
+            _tableName = tableName;
+            _tableNameSV = _tableName;
+        }
+
+        [[nodiscard]] const std::string_view &getTableNameSV() const {
+            return _tableNameSV;
+        }
+
         void setArgs(std::string &&args) {
             _args = std::move(args);
             _argsSV = _args;
@@ -62,7 +71,7 @@ namespace proto {
         friend zpp::bits::access;
 
         constexpr static auto serialize(auto &archive, UserRequest &t) {
-            return archive(t._ccNameSV, t._funcNameSV, t._argsSV);
+            return archive(t._ccNameSV, t._funcNameSV, t._tableNameSV, t._argsSV);
         }
 
     private:
@@ -70,6 +79,8 @@ namespace proto {
         std::string_view _ccNameSV;
         std::string _funcName;
         std::string_view _funcNameSV;
+        std::string _tableName;
+        std::string_view _tableNameSV;
         std::string _args;
         std::string_view _argsSV;
     };

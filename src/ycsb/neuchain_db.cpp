@@ -12,44 +12,67 @@ ycsb::core::Status
 ycsb::client::NeuChainDB::db_connection() {
     auto property = utils::YCSBProperties::NewFromProperty();
     rpcClient.emplace_back(property->getLocalBlockServerIP(),
-                             util::ZMQInstance::NewClient<zmq::socket_type::pub>(property->getLocalBlockServerIP(), 7003));
+                             util::ZMQInstance::NewClient<zmq::socket_type::push>(property->getLocalBlockServerIP(), 51200));
     if(property->sendToAllClientProxy()) {
         // load average
         for(const auto& ip: property->getBlockServerIPs()) {
-            invokeClient.emplace_back(ip, util::ZMQInstance::NewClient<zmq::socket_type::pub>(ip, 5001));
+            invokeClient.emplace_back(ip, util::ZMQInstance::NewClient<zmq::socket_type::push>(ip, 51200));
             // queryClient.emplace_back(ip, std::make_unique<ZMQClient>(ip, "7003"));
         }
-        sendInvokeRequest = [this](const proto::UserRequest &request) {
+        sendInvokeRequest = [this](proto::UserRequest &request) {
             size_t clientCount = invokeClient.size();
             size_t id = trCount % clientCount;
-            std::string&& payloadRaw = Utils::getTransactionPayloadRaw(trCount++, request);
-            auto&& invokeRequest = Utils::getUserInvokeRequest(payloadRaw, invokeClient[id].first);
-            addPendingTransactionHandle(invokeRequest.digest());
-            invokeClient[id].second->send(invokeRequest.SerializeAsString());
+
+            std::string requestRaw;
+            zpp::bits::out out(requestRaw);
+            CHECK(!failure(out(request)));
+            // wrap it
+            std::unique_ptr<proto::Envelop> envelop(new proto::Envelop);
+            envelop->setPayload(std::move(requestRaw));
+            // compute tid
+            proto::SignatureString signature;
+            // TODO:
+            auto digest = std::to_string(id);
+            std::copy(digest.begin(), digest.end(), signature.digest.data());
+            envelop->setSignature(std::move(signature));
+            // addPendingTransactionHandle(invokeRequest.digest());
+            std::string envelopRaw;
+            envelop->serializeToString(&envelopRaw);
+            invokeClient[id].second->send(envelopRaw);
         };
     } else {
         // single user
         const auto& ip = property->getLocalBlockServerIP();
-        invokeClient.emplace_back(ip, util::ZMQInstance::NewClient<zmq::socket_type::pub>(ip, 5001));
-        sendInvokeRequest = [this](const proto::UserRequest &request) {
-            std::string&& payloadRaw = Utils::getTransactionPayloadRaw(trCount++, request);
-            auto&& invokeRequest = Utils::getUserInvokeRequest(payloadRaw, invokeClient[0].first);
-            addPendingTransactionHandle(invokeRequest.digest());
-            invokeClient[0].second->send(invokeRequest.SerializeAsString());
+        invokeClient.emplace_back(ip, util::ZMQInstance::NewClient<zmq::socket_type::pub>(ip, 51200));
+        sendInvokeRequest = [this](proto::UserRequest &request) {
+            std::string requestRaw;
+            zpp::bits::out out(requestRaw);
+            CHECK(!failure(out(request)));
+            // wrap it
+            std::unique_ptr<proto::Envelop> envelop(new proto::Envelop);
+            envelop->setPayload(std::move(requestRaw));
+            // compute tid
+            proto::SignatureString signature;
+            auto digest = std::to_string(0);
+            std::copy(digest.begin(), digest.end(), signature.digest.data());
+            envelop->setSignature(std::move(signature));
+            // addPendingTransactionHandle(invokeRequest.digest());
+            std::string envelopRaw;
+            envelop->serializeToString(&envelopRaw);
+            invokeClient[0].second->send(std::move(envelopRaw));
         };
     }
+    return core::STATUS_OK;
 }
 
 ycsb::core::Status
 ycsb::client::NeuChainDB::read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) {
     proto::UserRequest request;
     request.setFuncName("read");
-    request.setTableName(const_cast<std::string &&>(table));
-    // TODO:
-
+    request.setCCName("ycsb");
     request.setArgs(const_cast<std::string &&>(key));
 
-    sendInvokeRequest(request);
+    // sendInvokeRequest(request);
     return core::STATUS_OK;
 }
 
@@ -62,7 +85,13 @@ ycsb::client::NeuChainDB::scan(const std::string& table, const std::string& star
 ycsb::core::Status
 ycsb::client::NeuChainDB::update(const std::string& table, const std::string& key,
                                  const utils::ByteIteratorMap& values) {
+    proto::UserRequest request;
+    request.setFuncName("write");
+    request.setCCName("ycsb");
+    request.setArgs(const_cast<std::string &&>(key));
 
+
+    // sendInvokeRequest(request);
     return core::STATUS_OK;
 }
 
@@ -77,9 +106,9 @@ ycsb::core::Status
 ycsb::client::NeuChainDB::remove(const std::string& table, const std::string& key) {
     proto::UserRequest request;
     request.setFuncName("del");
-    request.setTableName(const_cast<std::string &&>(table));
+    request.setCCName("ycsb");
     request.setArgs(const_cast<std::string &&>(key));
-    sendInvokeRequest(request);
+    // sendInvokeRequest(request);
     return core::STATUS_OK;
 }
 
@@ -97,9 +126,10 @@ std::unique_ptr<proto::Block> ycsb::client::NeuChainDB::getBlock(int blockNumber
     return block;
 }
 
-ycsb::core::Status ycsb::client::NeuChainDB::readModifyWrite(const std::string &table, const std::string &key,
-                                                             const std::vector<std::string> &readFields,
-                                                             const ycsb::utils::ByteIteratorMap &writeValues) {
+ycsb::core::Status
+ycsb::client::NeuChainDB::readModifyWrite(const std::string &table, const std::string &key,
+                                          const std::vector<std::string> &readFields,
+                                          const ycsb::utils::ByteIteratorMap &writeValues) {
 
     return core::STATUS_OK;
 }

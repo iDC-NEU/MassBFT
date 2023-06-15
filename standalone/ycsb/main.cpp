@@ -6,6 +6,7 @@
 #include "ycsb/core/client_thread.h"
 #include "ycsb/core/workload/core_workload.h"
 #include "ycsb/core/common/ycsb_property.h"
+#include "peer/consensus/block_content/request_collector.h"
 
 using namespace ycsb;
 
@@ -16,7 +17,7 @@ auto initClientThreads(const utils::YCSBProperties& n, const std::shared_ptr<cor
     auto tpsPerThread = n.getTargetTPSPerThread();
     std::vector<std::unique_ptr<core::ClientThread>> clients;
     for (int tid = 0; tid < threadCount; tid++) {   // create a set of clients
-        auto db = core::DB::NewDB("", n);  // each client create a connection
+        auto db = core::DB::NewDB("neuChain", n);  // each client create a connection
         // TODO: optimize zmq connection
         auto t = std::make_unique<core::ClientThread>(std::move(db), workload, tid, (int)threadOpCount, tpsPerThread);
         clients.emplace_back(std::move(t));
@@ -37,6 +38,21 @@ int main(int, char *[]) {
 
     auto db = core::DB::NewDB("neuChain", *property);  // each client create a connection
     ycsb::core::StatusThread statusThread(measurements, std::move(db));
+
+    LOG(INFO) << "RequestCollector started.";
+    peer::consensus::RequestCollector::Config config(100, 10);
+    peer::consensus::RequestCollector collector(config, 51200);
+
+    int totalRequests = 0;
+    int totalBatches = 0;
+    collector.setBatchCallback([&](const std::vector<std::unique_ptr<proto::Envelop>>& unorderedRequests) {
+        LOG(INFO) << "Get a batch, size: " << unorderedRequests.size();
+        totalRequests += (int)unorderedRequests.size();
+        totalBatches++;
+        return true;
+    });
+    collector.start();
+
     // TODO: run the clients and status
     LOG(INFO) << "all workers started";
     for(auto &client :clients){

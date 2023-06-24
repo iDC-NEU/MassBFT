@@ -26,17 +26,17 @@ auto initClientThreads(const utils::YCSBProperties& n, const std::shared_ptr<cor
 }
 
 int main(int, char *[]) {
-    auto property = utils::YCSBProperties::NewFromProperty();
+    auto ycsbProperty = utils::YCSBProperties::NewFromProperty();
     auto workload = std::make_shared<ycsb::core::workload::CoreWorkload>();
-    workload->init(*property);
+    workload->init(*ycsbProperty);
     auto measurements = std::make_shared<core::Measurements>();
     workload->setMeasurements(measurements);
 
     LOG(INFO) << "Starting test.";
-    auto clients = initClientThreads(*property, workload);
+    auto clients = initClientThreads(*ycsbProperty, workload);
     LOG(INFO) << "Running test.";
 
-    auto db = core::DB::NewDB("neuChain", *property);  // each client create a connection
+    auto db = core::DB::NewDB("neuChain", *ycsbProperty);  // each client create a connection
     ycsb::core::StatusThread statusThread(measurements, std::move(db));
 
     LOG(INFO) << "RequestCollector started.";
@@ -59,6 +59,8 @@ int main(int, char *[]) {
         client->run();
     }
     LOG(INFO) << "all ClientThreads exited.";
+
+    LOG(INFO) << "statusThread started";
     statusThread.run();
 
     return 0;

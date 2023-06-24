@@ -2,7 +2,8 @@
 // Created by user on 23-5-16.
 //
 
-#pragma once
+#ifndef NEUCHAIN_PLUS_MODULE_COORDINATOR
+#define NEUCHAIN_PLUS_MODULE_COORDINATOR
 
 #include <memory>
 #include <atomic>
@@ -62,3 +63,5 @@ namespace peer::core {
         std::shared_ptr<util::NodeConfig> _localNode;
     };
 }
+
+#endif

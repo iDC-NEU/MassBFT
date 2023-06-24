@@ -19,7 +19,7 @@ namespace ycsb::core {
                      double txnPerSecond)
                 : _db(std::move(db)), _workload(std::move(workload)), _seed(id), _txnCount(txnCount), _txnDone(0) {
             CHECK(txnPerSecond > 0);
-            _txnPerMs = txnPerSecond * 1000;
+            _txnPerMs = txnPerSecond / 1000.0;
             _txnTickNs = (int)(1000000 / _txnPerMs);
         }
 

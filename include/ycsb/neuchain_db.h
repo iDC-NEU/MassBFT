@@ -11,6 +11,9 @@
 #include "common/zeromq.h"
 #include "proto/user_request.h"
 
+
+enum class DBOperation { READ, WRITE };
+
 namespace ycsb::client {
     class NeuChainDB: public ycsb::core::DB {
 

@@ -148,9 +148,10 @@ namespace ycsb::utils {
         constexpr static const auto SEND_TO_ALL_CLIENT_PROXY = "send_to_all_proxy";
         constexpr static const auto SEND_TO_ALL_CLIENT_PROXY_DEFAULT = "false";
 
-        static std::unique_ptr<YCSBProperties> NewFromProperty() {
+        static std::shared_ptr<YCSBProperties> NewFromProperty() {
+            util::Properties::LoadProperties(); // init
             auto* prop = util::Properties::GetProperties();
-            auto ret = std::unique_ptr<YCSBProperties>(new YCSBProperties(prop->getCustomPropertiesOrPanic(YCSB_PROPERTIES)));
+            auto ret = std::shared_ptr<YCSBProperties>(new YCSBProperties(prop->getCustomProperties(YCSB_PROPERTIES)));
             return ret;
         }
 
@@ -169,7 +170,7 @@ namespace ycsb::utils {
         }
 
         double getTargetTPSPerThread() const {
-            auto target = n[TARGET_PROPERTY].as<int>(0);
+            auto target = n[TARGET_PROPERTY].as<int>(1000);  // testing targetTPS=1000
             auto threadCount = getThreadCount();
             return ((double) target) / threadCount;
         }
@@ -320,8 +321,7 @@ namespace ycsb::utils {
         }
 
         inline auto getBlockServerIPs() const {
-            // TODO
-            return n[BLOCK_SERVER_IPS].as<std::vector<std::string>>();
+            return n[BLOCK_SERVER_IPS].as<std::vector<std::string>>(std::vector<std::string>({"127.0.0.1", "127.0.0.1"}));
         }
 
         inline auto sendToAllClientProxy() const {

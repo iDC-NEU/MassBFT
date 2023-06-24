@@ -30,20 +30,21 @@ ycsb::client::NeuChainDB::db_connection() {
             std::unique_ptr<proto::Envelop> envelop(new proto::Envelop);
             envelop->setPayload(std::move(requestRaw));
             // compute tid
-            proto::SignatureString signature;
-            // TODO:
+
+            // TODO：
+            proto::SignatureString sig = {"ski", std::make_shared<std::string>(), {}};
             auto digest = std::to_string(id);
-            std::copy(digest.begin(), digest.end(), signature.digest.data());
-            envelop->setSignature(std::move(signature));
+            std::copy(digest.begin(), digest.end(), sig.digest.data());
+            envelop->setSignature(std::move(sig));
             // addPendingTransactionHandle(invokeRequest.digest());
             std::string envelopRaw;
             envelop->serializeToString(&envelopRaw);
-            invokeClient[id].second->send(envelopRaw);
+            invokeClient[id].second->send(std::move(envelopRaw));
         };
     } else {
         // single user
         const auto& ip = property->getLocalBlockServerIP();
-        invokeClient.emplace_back(ip, util::ZMQInstance::NewClient<zmq::socket_type::pub>(ip, 51200));
+        invokeClient.emplace_back(ip, util::ZMQInstance::NewClient<zmq::socket_type::push>(ip, 51200));
         sendInvokeRequest = [this](proto::UserRequest &request) {
             std::string requestRaw;
             zpp::bits::out out(requestRaw);
@@ -70,9 +71,17 @@ ycsb::client::NeuChainDB::read(const std::string& table, const std::string& key,
     proto::UserRequest request;
     request.setFuncName("read");
     request.setCCName("ycsb");
-    request.setArgs(const_cast<std::string &&>(key));
 
-    // sendInvokeRequest(request);
+    // args = key + 0(read) + fields(field + "-")
+    std::string args;
+    std::string separator = " ";
+    args.append(key).append(separator);
+    args.append(std::to_string(static_cast<double>(DBOperation::READ)));
+    for(const auto& pair: fields){
+        args.append(pair + separator +  "-");
+    }
+    request.setArgs(std::move(args));
+    sendInvokeRequest(request);
     return core::STATUS_OK;
 }
 
@@ -88,10 +97,17 @@ ycsb::client::NeuChainDB::update(const std::string& table, const std::string& ke
     proto::UserRequest request;
     request.setFuncName("write");
     request.setCCName("ycsb");
-    request.setArgs(const_cast<std::string &&>(key));
 
-
-    // sendInvokeRequest(request);
+    // args = key + 1(write) + values(field + value)
+    std::string args;
+    std::string separator = " ";
+    args.append(key).append(separator);
+    args.append(std::to_string(static_cast<double>(DBOperation::WRITE)));
+    for(const auto& pair: values){
+        args.append(pair.first + separator +  pair.second);
+    }
+    request.setArgs(std::move(args));
+    sendInvokeRequest(request);
     return core::STATUS_OK;
 }
 
@@ -108,7 +124,7 @@ ycsb::client::NeuChainDB::remove(const std::string& table, const std::string& ke
     request.setFuncName("del");
     request.setCCName("ycsb");
     request.setArgs(const_cast<std::string &&>(key));
-    // sendInvokeRequest(request);
+    sendInvokeRequest(request);
     return core::STATUS_OK;
 }
 

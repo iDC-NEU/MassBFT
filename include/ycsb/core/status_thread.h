@@ -80,7 +80,7 @@ namespace ycsb::core {
                         continue;
                     }
                     // We only calculate the latency of committed txn.
-                    if (!static_cast<bool>(filterList[i])) {
+                    if (static_cast<bool>(filterList[i]) == false) {
                         txCountAbort += 1;
                         continue;
                     }

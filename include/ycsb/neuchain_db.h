@@ -2,32 +2,22 @@
 // Created by peng on 11/6/22.
 //
 
-#ifndef NEUCHAIN_PLUS_NEUCHAIN_DB_H
-#define NEUCHAIN_PLUS_NEUCHAIN_DB_H
+#pragma once
 
 #include "ycsb/core/db.h"
 #include "ycsb/core/status.h"
 #include "proto/block.h"
 #include "common/zeromq.h"
-#include "proto/user_request.h"
-
-
-enum class DBOperation { READ, WRITE };
 
 namespace ycsb::client {
     class NeuChainDB: public ycsb::core::DB {
 
     public:
-        NeuChainDB() {
-            db_connection();
-            LOG(INFO) << "Created a connection to NeuChainDB.";
-        }
-
-        core::Status db_connection() override;
+        NeuChainDB();
 
         core::Status read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) override;
 
-        core::Status scan(const std::string& table, const std::string& startkey, uint64_t recordcount, const std::vector<std::string>& fields) override;
+        core::Status scan(const std::string& table, const std::string& startKey, uint64_t recordCount, const std::vector<std::string>& fields) override;
 
         core::Status update(const std::string& table, const std::string& key, const utils::ByteIteratorMap& values) override;
 
@@ -43,13 +33,11 @@ namespace ycsb::client {
         std::unique_ptr<proto::Block> getBlock(int blockNumber) override;
 
     protected:
-        std::function<void(proto::UserRequest &request)> sendInvokeRequest;
+        bool sendInvokeRequest(const proto::UserRequest &request);
 
     private:
-        std::vector<std::pair<std::string, std::unique_ptr<util::ZMQInstance>>> rpcClient;
-        std::vector<std::pair<std::string, std::unique_ptr<util::ZMQInstance>>> invokeClient;
-        size_t trCount{};
+        enum class Op { READ, WRITE };
+        std::unique_ptr<util::ZMQInstance> rpcClient;
+        std::unique_ptr<util::ZMQInstance> invokeClient;
     };
 }
-
-#endif //NEUCHAIN_PLUS_NEUCHAIN_DB_H

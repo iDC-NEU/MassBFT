@@ -139,19 +139,9 @@ namespace ycsb::utils {
         constexpr static const auto EXPONENTIAL_FRAC_PROPERTY = "exponential.frac";
         constexpr static const auto EXPONENTIAL_FRAC_DEFAULT = 0.8571428571;  // 1/7
 
-        // config for db connection
-        constexpr static const auto LOCAL_BLOCK_SERVER_IP = "local_block_server";
-        constexpr static const auto LOCAL_BLOCK_SERVER_IP_DEFAULT = "127.0.0.1";
-
-        constexpr static const auto BLOCK_SERVER_IPS = "block_server_ips";
-
-        constexpr static const auto SEND_TO_ALL_CLIENT_PROXY = "send_to_all_proxy";
-        constexpr static const auto SEND_TO_ALL_CLIENT_PROXY_DEFAULT = "false";
-
-        static std::shared_ptr<YCSBProperties> NewFromProperty() {
-            util::Properties::LoadProperties(); // init
+        static std::unique_ptr<YCSBProperties> NewFromProperty() {
             auto* prop = util::Properties::GetProperties();
-            auto ret = std::shared_ptr<YCSBProperties>(new YCSBProperties(prop->getCustomProperties(YCSB_PROPERTIES)));
+            auto ret = std::unique_ptr<YCSBProperties>(new YCSBProperties(prop->getCustomPropertiesOrPanic(YCSB_PROPERTIES)));
             return ret;
         }
 
@@ -314,18 +304,6 @@ namespace ycsb::utils {
 
         inline auto getInsertRetryInterval() const {
             return n[INSERTION_RETRY_INTERVAL].as<int>(3);  // ms
-        }
-
-        inline auto getLocalBlockServerIP() const {
-            return n[LOCAL_BLOCK_SERVER_IP].as<std::string>(LOCAL_BLOCK_SERVER_IP_DEFAULT);
-        }
-
-        inline auto getBlockServerIPs() const {
-            return n[BLOCK_SERVER_IPS].as<std::vector<std::string>>(std::vector<std::string>({"127.0.0.1", "127.0.0.1"}));
-        }
-
-        inline auto sendToAllClientProxy() const {
-            return n[SEND_TO_ALL_CLIENT_PROXY].as<bool>(SEND_TO_ALL_CLIENT_PROXY_DEFAULT);
         }
 
     protected:

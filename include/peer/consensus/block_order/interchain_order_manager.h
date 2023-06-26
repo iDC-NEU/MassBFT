@@ -229,10 +229,14 @@ namespace peer::consensus::v2 {
                     // ----compare vector clocks start
                     auto* rhs = findCell(i, lastFinished, false);
                     CHECK(rhs != nullptr) << "Impl error!";
-                    // Optimization, TODO: double check
-                    rhs->finalDecision[rhs->subChainId]++;
+                    // ----DEFAULT VERSION START
                     auto cmpResult = cell->operator<(rhs);
-                    rhs->finalDecision[rhs->subChainId]--;
+                    // ----DEFAULT VERSION END
+                    // ----Optimization 3 lines, TODO: double check
+                    // rhs->finalDecision[rhs->subChainId]++;
+                    // auto cmpResult = cell->operator<(rhs);
+                    // rhs->finalDecision[rhs->subChainId]--;
+                    // ----Optimization END
                     if (!cmpResult) {
                         // the block after res still may < than cell, still have to wait
                         return true;

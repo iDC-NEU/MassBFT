@@ -10,13 +10,14 @@ class CoreWorkloadTest : public ::testing::Test {
 protected:
     void SetUp() override {
         using namespace ycsb::core::workload;
-        n.reset();
-        n[CoreWorkload::READ_PROPORTION_PROPERTY] = 0.20;
-        n[CoreWorkload::UPDATE_PROPORTION_PROPERTY] = 0.20;
-        n[CoreWorkload::INSERT_PROPORTION_PROPERTY] = 0.20;
-        n[CoreWorkload::SCAN_PROPORTION_PROPERTY] = 0.20;
-        n[CoreWorkload::READMODIFYWRITE_PROPORTION_PROPERTY] = 0.20;
-        generator = CoreWorkload::createOperationGenerator(n);
+        n->NewFromProperty();
+        ycsb::utils::YCSBProperties::Proportion p{};
+        p.insertProportion = 0.20;
+        p.readModifyWriteProportion = 0.20;
+        p.readProportion = 0.20;
+        p.scanProportion = 0.20;
+        p.updateProportion = 0.20;
+        generator = CoreWorkload::createOperationGenerator(p);
     };
 
     void TearDown() override {
@@ -48,7 +49,7 @@ protected:
 protected:
     ycsb::core::workload::CoreWorkload coreWorkload;
     std::unique_ptr<ycsb::core::DiscreteGenerator> generator;
-    YAML::Node n;
+    std::shared_ptr<ycsb::utils::YCSBProperties> n;
 };
 
 TEST_F(CoreWorkloadTest, TestOperationGenerator) {
@@ -60,7 +61,7 @@ TEST_F(CoreWorkloadTest, TestOperationGenerator) {
 }
 
 TEST_F(CoreWorkloadTest, TestDefaultOperationGenerator) {
-    YAML::Node tmp;
+    ycsb::utils::YCSBProperties::Proportion tmp{};
     this->generator = ycsb::core::workload::CoreWorkload::createOperationGenerator(tmp);
     auto counts = TestOperationGenerator();
     EXPECT_TRUE(counts[0] < (double)10000*0.95*1.1) << "distribution test failed!";
@@ -77,11 +78,10 @@ TEST_F(CoreWorkloadTest, TestBuildKey) {
 }
 
 TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator1) {
-    YAML::Node tmp;
     using namespace ycsb::core::workload;
-    n[CoreWorkload::FIELD_LENGTH_DISTRIBUTION_PROPERTY] = "constant";
-    n[CoreWorkload::FIELD_LENGTH_PROPERTY] = 35;
-    auto gen = CoreWorkload::getFieldLengthGenerator(n);
+    n->setFieldLengthDistribution("constant");
+    n->setFieldLength(35);
+    auto gen = CoreWorkload::getFieldLengthGenerator(*n);
     const auto val = gen->nextValue();
     EXPECT_TRUE(val == 35);
     for (int i=0; i<1000; i++) {
@@ -90,12 +90,11 @@ TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator1) {
 }
 
 TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator2) {
-    YAML::Node tmp;
     using namespace ycsb::core::workload;
-    n[CoreWorkload::FIELD_LENGTH_DISTRIBUTION_PROPERTY] = "uniform";
-    n[CoreWorkload::FIELD_LENGTH_PROPERTY] = 50;
-    n[CoreWorkload::MIN_FIELD_LENGTH_PROPERTY] = 41;
-    auto gen = CoreWorkload::getFieldLengthGenerator(n);
+    n->setFieldLengthDistribution("uniform");
+    n->setFieldLength(50);
+    n->setMinFieldLength(41);
+    auto gen = CoreWorkload::getFieldLengthGenerator(*n);
     std::unordered_map<uint64_t, int> counts;
     for (int i=0; i<100000; i++) {
         auto val = gen->nextValue();

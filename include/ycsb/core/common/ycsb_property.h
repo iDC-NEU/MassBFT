@@ -185,24 +185,12 @@ namespace ycsb::utils {
             return n[FIELD_LENGTH_DISTRIBUTION_PROPERTY].as<std::string>("constant");
         }
 
-        inline auto setFieldLengthDistribution(const std::string& dis) const {
-            n[FIELD_LENGTH_DISTRIBUTION_PROPERTY].as<std::string>(dis);
-        }
-
         inline auto getFieldLength() const {
             return n[FIELD_LENGTH_PROPERTY].as<int>(100);
         }
 
-        inline auto setFieldLength(int length) const {
-            n[FIELD_LENGTH_PROPERTY].as<int>(length);
-        }
-
         inline auto getMinFieldLength() const {
             return n[MIN_FIELD_LENGTH_PROPERTY].as<int>(1);
-        }
-
-        inline auto setMinFieldLength(int minlength) {
-            n[MIN_FIELD_LENGTH_PROPERTY].as<int>(minlength);
         }
 
         inline auto getRecordCount() const {

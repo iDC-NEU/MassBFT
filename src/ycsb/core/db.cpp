@@ -3,12 +3,25 @@
 //
 
 #include "ycsb/core/db.h"
+#include "ycsb/neuchain_db.h"
+#include <memory>
 
 namespace ycsb::core {
+    std::unique_ptr<DB> DB::NewDB(const std::string &dbName, const utils::YCSBProperties &n) {
+        if(dbName == "neuChain") {
+            return std::make_unique<client::NeuChainDB>();
+        }
+        return nullptr;
+    }
 
     DB::~DB() = default;
 
-    std::unique_ptr<DB> DB::NewDB(const std::string &dbName, const utils::YCSBProperties &n) {
+    std::unique_ptr<DBStatus> DBStatus::NewDBStatus(const std::string &dbName) {
+        if(dbName == "neuChain") {
+            return std::make_unique<client::NeuChainStatus>();
+        }
         return nullptr;
     }
+
+    DBStatus::~DBStatus() = default;
 }

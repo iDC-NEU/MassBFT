@@ -51,13 +51,12 @@ namespace peer::cc {
             return true;
         }
 
-        std::tuple<bool,
-                std::vector<std::unique_ptr<proto::TxReadWriteSet>>,
-                std::vector<std::byte>>
-                processValidatedRequests(std::vector<std::unique_ptr<proto::Envelop>>& requests) {
+        bool processValidatedRequests(std::vector<std::unique_ptr<proto::Envelop>>& requests,
+                                 std::vector<std::unique_ptr<proto::TxReadWriteSet>>& retRWSets,
+                                 std::vector<std::byte>& retResults) {
             // return values
-            std::vector<std::unique_ptr<proto::TxReadWriteSet>> retRWSets(requests.size());
-            std::vector<std::byte> retResults(requests.size());
+            retRWSets.resize(requests.size());
+            retResults.resize(requests.size());
             // init
             int totalWorkerCount = (int)workerList.size();
             reserveTable->reset();
@@ -77,12 +76,12 @@ namespace peer::cc {
             auto ret = processParallel(InvokerCommand::START, ReceiverState::READY, afterStart);
             if (!ret) {
                 LOG(ERROR) << "init txnList failed!";
-                return {false, {}, {}};
+                return false;
             }
             ret = processParallel(InvokerCommand::EXEC, ReceiverState::FINISH_EXEC, nullptr);
             if (!ret) {
                 LOG(ERROR) << "exec txnList failed!";
-                return {false, {}, {}};
+                return false;
             }
             // move back
             auto afterCommit = [&](const Worker& worker, WorkerFSMImpl& fsm) {
@@ -106,9 +105,9 @@ namespace peer::cc {
             ret = processParallel(InvokerCommand::COMMIT, ReceiverState::FINISH_COMMIT, afterCommit);
             if (!ret) {
                 LOG(ERROR) << "commit txnList failed!";
-                return {false, {}, {}};
+                return false;
             }
-            return {true, retRWSets, retResults};
+            return true;
         }
 
         friend class Coordinator;

@@ -84,12 +84,12 @@ namespace peer::core {
         if (_localNode->groupId == 0 && _localNode->nodeId == 0) {
             LOG(INFO) << "Finally receive a block (" << regionId << ", " << blockId << ", " << realBlock->body.userRequests.size() << ")" << ", threadId: " << std::this_thread::get_id();
         }
-        auto [success, rwSets, results] = _cc->processValidatedRequests(realBlock->body.userRequests);
-        if (!success) {
+        // if success, txReadWriteSet and transactionFilter are the return values
+        if (!_cc->processValidatedRequests(realBlock->body.userRequests,
+                                           realBlock->executeResult.txReadWriteSet,
+                                           realBlock->executeResult.transactionFilter)) {
             return false;
         }
-        realBlock->executeResult.transactionFilter = std::move(results);
-        realBlock->executeResult.txReadWriteSet = std::move(rwSets);
         // TODO: store result into block and notify user
         return true;
     }

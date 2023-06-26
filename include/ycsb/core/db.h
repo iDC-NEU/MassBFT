@@ -36,6 +36,13 @@ namespace ycsb::core {
         virtual core::Status insert(const std::string& table, const std::string& key, const utils::ByteIteratorMap& values) = 0;
 
         virtual core::Status remove(const std::string& table, const std::string& key) = 0;
+    };
+
+    class DBStatus {
+    public:
+        static std::unique_ptr<DBStatus> NewDBStatus(const std::string & dbName);
+
+        virtual ~DBStatus();
 
         virtual std::unique_ptr<proto::Block> getBlock(int blockNumber) = 0;
     };

@@ -160,7 +160,7 @@ namespace ycsb::utils {
         }
 
         double getTargetTPSPerThread() const {
-            auto target = n[TARGET_PROPERTY].as<int>(0);
+            auto target = n[TARGET_PROPERTY].as<int>(1000);  // testing targetTPS=1000
             auto threadCount = getThreadCount();
             return ((double) target) / threadCount;
         }

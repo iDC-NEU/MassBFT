@@ -314,7 +314,7 @@ namespace peer::consensus {
                 block->header.previousHash = _proposedLastBlock->header.dataHash;
                 block->header.number = _proposedLastBlock->header.number + 1;
             }
-            // LOG(INFO) << "Leader of local group " << localNode->groupId << " created a block, number: " << block->header.number;
+            LOG(INFO) << "Leader of local group " << localNode->groupId << " created a block, number: " << block->header.number;
             _proposedLastBlock = block;
             // LOG(INFO) << "request proposal, block number: " << block->header.number;
             auto serializedBlock = block->getSerializedMessage();

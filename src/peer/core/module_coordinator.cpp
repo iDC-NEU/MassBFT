@@ -6,6 +6,7 @@
 #include "peer/core/bootstrap.h"
 #include "peer/core/single_pbft_controller.h"
 #include "peer/consensus/block_order/global_ordering.h"
+#include "peer/concurrency_control/deterministic/coordinator_impl.h"
 
 namespace peer::core {
 
@@ -18,6 +19,18 @@ namespace peer::core {
 
     std::unique_ptr<ModuleCoordinator> ModuleCoordinator::NewModuleCoordinator(const std::shared_ptr<util::Properties>& properties) {
         auto mc = std::unique_ptr<ModuleCoordinator>(new ModuleCoordinator);
+        auto nodeProperties = properties->getNodeProperties();
+        mc->_localNode = nodeProperties.getLocalNodeInfo();
+        // 1.01 init concurrency control
+        mc->_db = peer::db::RocksdbConnection::NewConnection(mc->_localNode->ski + "_db");
+        if (mc->_db == nullptr) {
+            return nullptr;
+        }
+        mc->_cc = peer::cc::CoordinatorImpl::NewCoordinator(mc->_db, std::max((int)std::thread::hardware_concurrency() / 4, 1));
+        if (mc->_cc == nullptr) {
+            return nullptr;
+        }
+        // 1.02 init factory
         mc->_moduleFactory = peer::core::ModuleFactory::NewModuleFactory(properties);
         if (mc->_moduleFactory == nullptr) {
             return nullptr;
@@ -29,7 +42,11 @@ namespace peer::core {
         }
         // 1.2 init GlobalBlockOrdering
         auto orderCAB = std::make_shared<peer::consensus::v2::OrderACB>([ptr = mc.get()](int chainId, int blockNumber) {
-            return ptr->onConsensusBlockOrder(chainId, blockNumber);
+            return ptr->_serialExecutor.addTask([=] {
+                if (!ptr->onConsensusBlockOrder(chainId, blockNumber)) {
+                    LOG(ERROR) << "Can not execute block.";
+                }
+            });
         });
         auto gbo = mc->_moduleFactory->newGlobalBlockOrdering(orderCAB);
         if (gbo == nullptr) {
@@ -42,8 +59,6 @@ namespace peer::core {
             return nullptr;
         }
         // 1.4 init user request collector
-        auto nodeProperties = properties->getNodeProperties();
-        mc->_localNode = nodeProperties.getLocalNodeInfo();
         auto totalGroup = nodeProperties.getGroupCount();
         // the bftController id is 0
         auto bftController = mc->_moduleFactory->newReplicatorBFTController(0*totalGroup + mc->_localNode->groupId);
@@ -64,12 +79,18 @@ namespace peer::core {
 
     // called after generated final block order by GlobalBlockOrdering
     bool ModuleCoordinator::onConsensusBlockOrder(int regionId, int blockId) {
-        // Todo: bind real element, handle the block to executor
         auto realBlock = _contentStorage->waitForBlock(regionId, blockId, 0);
         CHECK(realBlock != nullptr && (int)realBlock->header.number == blockId);
         if (_localNode->groupId == 0 && _localNode->nodeId == 0) {
             LOG(INFO) << "Finally receive a block (" << regionId << ", " << blockId << ", " << realBlock->body.userRequests.size() << ")" << ", threadId: " << std::this_thread::get_id();
         }
+        // if success, txReadWriteSet and transactionFilter are the return values
+        if (!_cc->processValidatedRequests(realBlock->body.userRequests,
+                                           realBlock->executeResult.txReadWriteSet,
+                                           realBlock->executeResult.transactionFilter)) {
+            return false;
+        }
+        // TODO: store result into block and notify user
         return true;
     }
 

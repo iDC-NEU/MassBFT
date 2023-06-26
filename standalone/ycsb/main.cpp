@@ -2,42 +2,66 @@
 // Created by peng on 11/6/22.
 //
 
-#include "ycsb/core/client.h"
-#include "ycsb/core/workload/core_workload.h"
 #include "ycsb/core/status_thread.h"
-#include "common/thread_pool_light.h"
-#include "common/property.h"
-#include <yaml-cpp/yaml.h>
+#include "ycsb/core/client_thread.h"
+#include "ycsb/core/workload/core_workload.h"
+#include "ycsb/core/common/ycsb_property.h"
+#include "peer/consensus/block_content/request_collector.h"
 
-int main(int argc, char *argv[]) {
-    auto n = util::Properties::GetProperties()->getYCSBProperties();
+using namespace ycsb;
 
-    //get number of threads, target and db
-    auto threadCount = n[ycsb::core::Client::THREAD_COUNT_PROPERTY].as<int>(1);
-    auto dbName = "site.ycsb.BasicDB";
-    auto target = n[ycsb::core::Client::TARGET_PROPERTY].as<int>(0);
-    auto label = n[ycsb::core::Client::LABEL_PROPERTY].as<std::string>("");
-    //compute the target throughput
-    double targetPerThreadPerms = -1;
-    if (target > 0) {
-        double targetPerThread = ((double) target) / ((double) threadCount);
-        targetPerThreadPerms = targetPerThread / 1000.0;
+auto initClientThreads(const utils::YCSBProperties& n, const std::shared_ptr<core::workload::Workload>& workload) {
+    auto operationCount = n.getOperationCount();
+    auto threadCount = std::min(n.getThreadCount(), (int)operationCount);
+    auto threadOpCount = operationCount / threadCount + 1;
+    auto tpsPerThread = n.getTargetTPSPerThread();
+    std::vector<std::unique_ptr<core::ClientThread>> clients;
+    for (int tid = 0; tid < threadCount; tid++) {   // create a set of clients
+        auto db = core::DB::NewDB("neuChain", n);  // each client create a connection
+        // TODO: optimize zmq connection
+        auto t = std::make_unique<core::ClientThread>(std::move(db), workload, tid, (int)threadOpCount, tpsPerThread);
+        clients.emplace_back(std::move(t));
     }
+    return clients;
+}
 
-    ycsb::core::workload::CoreWorkload workload;
-    workload.init(n);
+int main(int, char *[]) {
+    auto ycsbProperty = utils::YCSBProperties::NewFromProperty();
+    auto workload = std::make_shared<ycsb::core::workload::CoreWorkload>();
+    workload->init(*ycsbProperty);
+    auto measurements = std::make_shared<core::Measurements>();
+    workload->setMeasurements(measurements);
 
     LOG(INFO) << "Starting test.";
-    auto completeLatch = util::NewSema();
-    auto clients = ycsb::core::Client::initDB(dbName, n, threadCount, targetPerThreadPerms, &workload, completeLatch);
+    auto clients = initClientThreads(*ycsbProperty, workload);
+    LOG(INFO) << "Running test.";
 
-    // if measurement == time series, true
-    bool standardStatus = false;
-    if (n[ycsb::core::Measurements::MEASUREMENT_TYPE_PROPERTY].as<std::string>("") == "timeseries") {
-        standardStatus = true;
+    auto dbStatus = core::DBStatus::NewDBStatus("neuChain");  // each client create a connection
+    ycsb::core::StatusThread statusThread(measurements, std::move(dbStatus));
+
+    LOG(INFO) << "RequestCollector started.";
+    peer::consensus::RequestCollector::Config config(100, 10);
+    peer::consensus::RequestCollector collector(config, 51200);
+
+    int totalRequests = 0;
+    int totalBatches = 0;
+    collector.setBatchCallback([&](const std::vector<std::unique_ptr<proto::Envelop>>& unorderedRequests) {
+        LOG(INFO) << "Get a batch, size: " << unorderedRequests.size();
+        totalRequests += (int)unorderedRequests.size();
+        totalBatches++;
+        return true;
+    });
+    collector.start();
+
+    // TODO: run the clients and status
+    LOG(INFO) << "all workers started";
+    for(auto &client :clients){
+        client->run();
     }
-    int statusIntervalSeconds = n["status.interval"].as<int>(10);
-    ycsb::core::StatusThread statusThread(completeLatch, std::move(clients), label, standardStatus, statusIntervalSeconds);
+    LOG(INFO) << "all ClientThreads exited.";
+
+    LOG(INFO) << "statusThread started";
     statusThread.run();
+
     return 0;
 }

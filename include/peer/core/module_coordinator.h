@@ -7,6 +7,7 @@
 #include <memory>
 #include <atomic>
 #include <thread>
+#include "common/async_serial_executor.h"
 
 namespace util {
     class Properties;
@@ -17,6 +18,12 @@ namespace peer {
     class MRBlockStorage;
     namespace consensus::v2 {
         class BlockOrder;
+    }
+    namespace cc {
+        class CoordinatorImpl;
+    }
+    namespace db {
+        class RocksdbConnection;
     }
 }
 
@@ -60,5 +67,9 @@ namespace peer::core {
         std::unique_ptr<::peer::core::SinglePBFTController> _localContentBFT;
         // for debug
         std::shared_ptr<util::NodeConfig> _localNode;
+        // for concurrency control
+        std::shared_ptr<peer::db::RocksdbConnection> _db;
+        std::unique_ptr<peer::cc::CoordinatorImpl> _cc;
+        util::AsyncSerialExecutor _serialExecutor;
     };
 }

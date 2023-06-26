@@ -36,8 +36,8 @@ int main(int, char *[]) {
     auto clients = initClientThreads(*ycsbProperty, workload);
     LOG(INFO) << "Running test.";
 
-    auto db = core::DB::NewDB("neuChain", *ycsbProperty);  // each client create a connection
-    ycsb::core::StatusThread statusThread(measurements, std::move(db));
+    auto dbStatus = core::DBStatus::NewDBStatus("neuChain");  // each client create a connection
+    ycsb::core::StatusThread statusThread(measurements, std::move(dbStatus));
 
     LOG(INFO) << "RequestCollector started.";
     peer::consensus::RequestCollector::Config config(100, 10);

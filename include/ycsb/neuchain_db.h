@@ -11,7 +11,6 @@
 
 namespace ycsb::client {
     class NeuChainDB: public ycsb::core::DB {
-
     public:
         NeuChainDB();
 
@@ -30,14 +29,22 @@ namespace ycsb::client {
 
         core::Status remove(const std::string& table, const std::string& key) override;
 
-        std::unique_ptr<proto::Block> getBlock(int blockNumber) override;
-
     protected:
         bool sendInvokeRequest(const proto::UserRequest &request);
 
     private:
         enum class Op { READ, WRITE };
-        std::unique_ptr<util::ZMQInstance> rpcClient;
         std::unique_ptr<util::ZMQInstance> invokeClient;
+    };
+
+
+    class NeuChainStatus: public ycsb::core::DBStatus {
+    public:
+        NeuChainStatus();
+
+        std::unique_ptr<proto::Block> getBlock(int blockNumber) override;
+
+    private:
+        std::unique_ptr<util::ZMQInstance> rpcClient;
     };
 }

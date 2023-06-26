@@ -12,8 +12,8 @@
 namespace ycsb::core {
     class StatusThread {
     public:
-        StatusThread(std::shared_ptr<Measurements> m, std::unique_ptr<DB> db)
-                : measurements(std::move(m)), db(std::move(db)) { }
+        StatusThread(std::shared_ptr<Measurements> m, std::unique_ptr<DBStatus> dbStatus)
+                : measurements(std::move(m)), dbStatus(std::move(dbStatus)) { }
 
         ~StatusThread() {
             running = false;
@@ -66,7 +66,7 @@ namespace ycsb::core {
             pthread_setname_np(pthread_self(), "monitor_thread");
 
             while(running.load(std::memory_order_relaxed)) {
-                std::unique_ptr<proto::Block> block = db->getBlock((int)blockHeight);
+                std::unique_ptr<proto::Block> block = dbStatus->getBlock((int)blockHeight);
                 auto txnCount = block->body.userRequests.size();
                 auto latencyList  = measurements->getTxnLatency(*block);
                 auto& filterList = block->executeResult.transactionFilter;
@@ -95,7 +95,7 @@ namespace ycsb::core {
     private:
         std::atomic<bool> running = true;
         std::shared_ptr<Measurements> measurements;
-        std::unique_ptr<DB> db;
+        std::unique_ptr<DBStatus> dbStatus;
 
         uint64_t blockHeight = 0;
         uint64_t txCountCommit = 0;

@@ -64,20 +64,6 @@ ycsb::core::Status ycsb::client::NeuChainDB::remove(const std::string& table, co
     return core::STATUS_OK;
 }
 
-std::unique_ptr<proto::Block> ycsb::client::NeuChainDB::getBlock(int blockNumber) {
-    rpcClient->send("block_query_" + std::to_string(blockNumber));
-    auto reply = rpcClient->receive();
-    if (reply == std::nullopt) {
-        return nullptr;
-    }
-    auto block = std::make_unique<proto::Block>();
-    auto ret = block->deserializeFromString(reply->to_string());
-    if (!ret.valid) {
-        return nullptr;
-    }
-    return block;
-}
-
 ycsb::core::Status ycsb::client::NeuChainDB::readModifyWrite(const std::string &table, const std::string &key,
                                                              const std::vector<std::string> &readFields,
                                                              const ycsb::utils::ByteIteratorMap &writeValues) {
@@ -90,7 +76,6 @@ ycsb::client::NeuChainDB::NeuChainDB() {
     auto* prop = util::Properties::GetProperties();
     auto localNode = prop->getNodeProperties().getLocalNodeInfo();
     // TODO: set port
-    rpcClient = util::ZMQInstance::NewClient<zmq::socket_type::push>(localNode->priIp, 51200);
     invokeClient = util::ZMQInstance::NewClient<zmq::socket_type::push>(localNode->priIp, 51200);
 }
 
@@ -114,4 +99,26 @@ bool ycsb::client::NeuChainDB::sendInvokeRequest(const proto::UserRequest &reque
         return false;
     }
     return invokeClient->send(std::move(envelopRaw));
+}
+
+std::unique_ptr<proto::Block> ycsb::client::NeuChainStatus::getBlock(int blockNumber) {
+    rpcClient->send("block_query_" + std::to_string(blockNumber));
+    auto reply = rpcClient->receive();
+    if (reply == std::nullopt) {
+        return nullptr;
+    }
+    auto block = std::make_unique<proto::Block>();
+    auto ret = block->deserializeFromString(reply->to_string());
+    if (!ret.valid) {
+        return nullptr;
+    }
+    return block;
+}
+
+ycsb::client::NeuChainStatus::NeuChainStatus() {
+    LOG(INFO) << "Created a connection to NeuChainStatus.";
+    auto* prop = util::Properties::GetProperties();
+    auto localNode = prop->getNodeProperties().getLocalNodeInfo();
+    // TODO: set port
+    rpcClient = util::ZMQInstance::NewClient<zmq::socket_type::push>(localNode->priIp, 51200);
 }

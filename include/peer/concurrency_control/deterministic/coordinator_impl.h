@@ -52,8 +52,8 @@ namespace peer::cc {
         }
 
         bool processValidatedRequests(std::vector<std::unique_ptr<proto::Envelop>>& requests,
-                                 std::vector<std::unique_ptr<proto::TxReadWriteSet>>& retRWSets,
-                                 std::vector<std::byte>& retResults) {
+                                      std::vector<std::unique_ptr<proto::TxReadWriteSet>>& retRWSets,
+                                      std::vector<std::byte>& retResults) {
             // return values
             retRWSets.resize(requests.size());
             retResults.resize(requests.size());

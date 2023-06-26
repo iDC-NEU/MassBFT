@@ -98,23 +98,6 @@ namespace util {
         YAML::Node n;
     };
 
-    class YCSBProperties {
-    public:
-        YCSBProperties(const YCSBProperties& rhs) = default;
-
-        YCSBProperties(YCSBProperties&& rhs) noexcept : n(rhs.n) { }
-
-    public:
-
-    protected:
-        friend class Properties;
-
-        explicit YCSBProperties(const YAML::Node& node) :n(node) { }
-
-    private:
-        YAML::Node n;
-    };
-
     class NodeProperties {
     public:
         NodeProperties(const NodeProperties& rhs) = default;
@@ -241,7 +224,6 @@ namespace util {
         static inline std::shared_ptr<Properties> properties;
 
     public:
-        constexpr static const auto YCSB_PROPERTIES = "ycsb";
         constexpr static const auto CHAINCODE_PROPERTIES = "chaincode";
         constexpr static const auto NODES_PROPERTIES = "nodes";
         constexpr static const auto START_BLOCK_NUMBER = "start_at";
@@ -260,7 +242,6 @@ namespace util {
             if (fileName.empty()) {
                 properties = std::make_unique<Properties>();
                 YAML::Node node;
-                node[YCSB_PROPERTIES] = {};
                 node[CHAINCODE_PROPERTIES] = {};
                 node[NODES_PROPERTIES] = {};
                 properties->_node = node;
@@ -269,7 +250,6 @@ namespace util {
             properties = std::make_unique<Properties>();
             try {
                 auto node = YAML::LoadFile(fileName);
-                CHECK(node[YCSB_PROPERTIES].IsDefined() && !node[YCSB_PROPERTIES].IsNull());
                 CHECK(node[CHAINCODE_PROPERTIES].IsDefined() && !node[CHAINCODE_PROPERTIES].IsNull());
                 CHECK(node[NODES_PROPERTIES].IsDefined() && !node[NODES_PROPERTIES].IsNull());
                 properties->_node = node;
@@ -289,8 +269,6 @@ namespace util {
         }
 
         ~Properties() = default;
-
-        YCSBProperties getYCSBProperties() const { return YCSBProperties(_node[YCSB_PROPERTIES]); }
 
         ChaincodeProperties getChaincodeProperties() const { return ChaincodeProperties(_node[CHAINCODE_PROPERTIES]); }
 

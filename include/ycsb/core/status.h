@@ -2,8 +2,7 @@
 // Created by peng on 11/6/22.
 //
 
-#ifndef NEUCHAIN_PLUS_STATUS_H
-#define NEUCHAIN_PLUS_STATUS_H
+#pragma once
 
 #include <utility>
 #include <string>
@@ -11,36 +10,46 @@
 namespace ycsb::core {
     class Status {
     public:
-        Status(std::string name, std::string description)
-                : name(std::move(name)), description(std::move(description)){ }
+        enum class State {
+            OK,
+            BATCHED_OK,
+            ERROR,
+            NOT_FOUND,
+            NOT_IMPLEMENTED,
+            UNEXPECTED_STATE,
+        };
+
+        explicit Status(State name) : name(name) { }
 
         Status(const Status& rhs) = default;
 
         virtual ~Status() = default;
+
         [[nodiscard]] bool isOk () const {
-            return this->name == "OK" || this->name == "BATCHED_OK";
+            return this->name == State::OK || this->name == State::BATCHED_OK;
         }
+
         [[nodiscard]] const auto& getName() const {
             return name;
         }
-        [[nodiscard]] const auto& getDescription() const {
-            return description;
-        }
+
         [[nodiscard]] bool operator==(const Status& rhs) const {
             return this->name == rhs.name;
         }
+
+        void setDigest(auto&& rhs) { digest = std::forward<decltype(rhs)>(rhs); }
+
+        [[nodiscard]] const auto& getDigest() const { return digest; }
+
     private:
-        std::string name, description;
+        State name;
+        std::string digest;
     };
 
-    static const auto STATUS_OK = Status("OK", "The operation completed successfully.");
-    static const auto ERROR = Status("ERROR", "The operation failed.");
-    static const auto NOT_FOUND = Status("NOT_FOUND", "The requested record was not found.");
-    static const auto NOT_IMPLEMENTED = Status("NOT_IMPLEMENTED", "The operation is not implemented for the current binding.");
-    static const auto UNEXPECTED_STATE = Status("UNEXPECTED_STATE", "The operation reported success, but the result was not as expected.");
-    static const auto BAD_REQUEST = Status("BAD_REQUEST", "The request was not valid.");
-    static const auto FORBIDDEN = Status("FORBIDDEN", "The operation is forbidden.");
-    static const auto SERVICE_UNAVAILABLE = Status("SERVICE_UNAVAILABLE", "Dependant service for the current binding is not available.");
-    static const auto BATCHED_OK = Status("BATCHED_OK", "The operation has been batched by the binding to be executed later.");
+    static const auto STATUS_OK = Status(Status::State::OK);
+    static const auto ERROR = Status(Status::State::ERROR);
+    static const auto NOT_FOUND = Status(Status::State::NOT_FOUND);
+    static const auto NOT_IMPLEMENTED = Status(Status::State::NOT_IMPLEMENTED);
+    static const auto UNEXPECTED_STATE = Status(Status::State::UNEXPECTED_STATE);
+    static const auto BATCHED_OK = Status(Status::State::BATCHED_OK);
 }
-#endif //NEUCHAIN_PLUS_STATUS_H

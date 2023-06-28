@@ -46,7 +46,7 @@ namespace ycsb::core {
                 auto currentSecAbort = txCountAbort - lastTimeAbort;
                 auto pendingTxnSize = measurements->getPendingTransactionCount();
                 auto currentTimePending = pendingTxnSize - lastTimePending;
-                LOG(INFO) << "In the last 1s, commit+abort_no_retry: " << currentSecCommit
+                LOG(INFO) << "In the last 1s, commit: " << currentSecCommit
                           << ", abort: " << currentSecAbort
                           << ", send rate: " << currentSecCommit + currentSecAbort + currentTimePending
                           << ", latency: " << (double) latencySum / (double) latencySampleCount

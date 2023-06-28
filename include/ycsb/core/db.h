@@ -25,7 +25,7 @@ namespace ycsb::core {
         virtual core::Status read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) = 0;
 
         // fields: The list of fields to read, or null for all of them
-        virtual core::Status scan(const std::string& table, const std::string& startkey, uint64_t recordcount, const std::vector<std::string>& fields) = 0;
+        virtual core::Status scan(const std::string& table, const std::string& startKey, uint64_t recordCount, const std::vector<std::string>& fields) = 0;
 
         // values: A HashMap of field/value pairs to update in the record
         virtual core::Status update(const std::string& table, const std::string& key, const utils::ByteIteratorMap& values) = 0;

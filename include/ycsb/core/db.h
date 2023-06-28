@@ -5,16 +5,18 @@
 #pragma once
 
 #include "ycsb/core/common/byte_iterator.h"
-#include "ycsb/core/common/ycsb_property.h"
-
 #include "proto/block.h"
+#include "common/property.h"
+
+namespace util {
+    class ZMQPortUtil;
+    class BCCSP;
+}
 
 namespace ycsb::core {
     class Status;
     class DB {
     public:
-        static std::unique_ptr<DB> NewDB(const std::string & dbName, const utils::YCSBProperties &n);
-
         virtual ~DB();
 
         // fields: The list of fields to read, or null for all of them
@@ -40,11 +42,25 @@ namespace ycsb::core {
 
     class DBStatus {
     public:
-        static std::unique_ptr<DBStatus> NewDBStatus(const std::string & dbName);
-
         virtual ~DBStatus();
 
         virtual std::unique_ptr<proto::Block> getBlock(int blockNumber) = 0;
+    };
+
+    class DBFactory {
+    public:
+        explicit DBFactory(const util::Properties &n);
+
+        ~DBFactory();
+
+        [[nodiscard]] std::unique_ptr<DB> newDB() const;
+
+        [[nodiscard]] std::unique_ptr<DBStatus> newDBStatus() const;
+
+    private:
+        util::NodeConfigPtr server;
+        std::unique_ptr<util::ZMQPortUtil> portConfig;
+        std::unique_ptr<util::BCCSP> bccsp;
     };
 }
 

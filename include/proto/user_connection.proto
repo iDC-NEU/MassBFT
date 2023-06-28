@@ -1,0 +1,19 @@
+syntax = "proto2";
+
+package ycsb.client.proto;
+option cc_generic_services = true;
+
+message UserRequest {
+  optional bytes payload = 1;
+};
+
+message UserResponse {
+  optional bytes payload = 1;
+  required bool success = 2;
+};
+
+service UserService {
+  // Client test if the port is connectable
+  rpc hello(UserRequest) returns (UserResponse);
+  rpc pullBlock(UserRequest) returns (UserResponse);
+};

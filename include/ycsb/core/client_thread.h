@@ -7,13 +7,12 @@
 #include "ycsb/core/workload/workload.h"
 #include "ycsb/core/db.h"
 #include <thread>
-#include <utility>
 
 namespace ycsb::core {
     class ClientThread {
     public:
         ClientThread(std::unique_ptr<DB> db,
-                     std::shared_ptr<workload::Workload> workload,
+                     std::shared_ptr<const workload::Workload> workload,
                      int id,
                      int txnCount,
                      double txnPerSecond)
@@ -59,7 +58,7 @@ namespace ycsb::core {
 
     private:
         std::unique_ptr<DB> _db;
-        std::shared_ptr<workload::Workload> _workload;
+        std::shared_ptr<const workload::Workload> _workload;
         int _seed;
         int _txnCount;
         int _txnDone;

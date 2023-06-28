@@ -139,9 +139,8 @@ namespace ycsb::utils {
         constexpr static const auto EXPONENTIAL_FRAC_PROPERTY = "exponential.frac";
         constexpr static const auto EXPONENTIAL_FRAC_DEFAULT = 0.8571428571;  // 1/7
 
-        static std::unique_ptr<YCSBProperties> NewFromProperty() {
-            auto* prop = util::Properties::GetProperties();
-            auto ret = std::unique_ptr<YCSBProperties>(new YCSBProperties(prop->getCustomPropertiesOrPanic(YCSB_PROPERTIES)));
+        static std::unique_ptr<YCSBProperties> NewFromProperty(const util::Properties &n) {
+            auto ret = std::unique_ptr<YCSBProperties>(new YCSBProperties(n.getCustomPropertiesOrPanic(YCSB_PROPERTIES)));
             return ret;
         }
 

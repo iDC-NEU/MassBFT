@@ -17,6 +17,6 @@ protected:
 
 };
 
-TEST_F(YCSBTest, StartTest){
+TEST_F(YCSBTest, StartTest) {
 
 }

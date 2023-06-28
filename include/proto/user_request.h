@@ -51,8 +51,9 @@ namespace proto {
             return _funcNameSV;
         }
 
-        void setArgs(std::string &&args) {
-            _args = std::move(args);
+        // args has type std::string
+        void setArgs(auto &&args) {
+            _args = std::forward<decltype(args)>(args);
             _argsSV = _args;
         }
 
@@ -147,7 +148,7 @@ namespace proto {
     public:
         friend zpp::bits::access;
 
-        constexpr static auto serialize(auto &archive, Envelop &e) {
+        constexpr static auto serialize(auto &archive, auto &e) {
             return archive(e._payloadSV, e._signature);
         }
 

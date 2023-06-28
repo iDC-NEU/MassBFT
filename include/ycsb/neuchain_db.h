@@ -44,6 +44,8 @@ namespace ycsb::client {
 
         NeuChainDB(util::NodeConfigPtr server, int port, std::shared_ptr<const util::Key> priKey);
 
+        void stop() override;
+
         core::Status read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) override;
 
         core::Status scan(const std::string& table, const std::string& startKey, uint64_t recordCount, const std::vector<std::string>& fields) override;

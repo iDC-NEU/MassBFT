@@ -153,6 +153,12 @@ namespace ycsb::utils {
             return shared_from_this();
         }
 
+        static void SetYCSBProperties(auto&& key, auto&& value) {
+            auto* properties = util::Properties::GetProperties();
+            auto node = properties->getCustomProperties(ycsb::utils::YCSBProperties::YCSB_PROPERTIES);
+            node[key] = value;
+        }
+
     public:
         auto getThreadCount() const {
             return n[THREAD_COUNT_PROPERTY].as<int>((int)std::thread::hardware_concurrency());

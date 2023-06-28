@@ -32,7 +32,7 @@ namespace ycsb::core {
 
     protected:
         void doStatus() {
-            pthread_setname_np(pthread_self(), "print_thread");
+            pthread_setname_np(pthread_self(), "ycsb_print");
             util::Timer timer;
             size_t lastTimeCommit = 0;
             size_t lastTimeAbort = 0;
@@ -63,10 +63,13 @@ namespace ycsb::core {
         }
 
         void doMonitor() {
-            pthread_setname_np(pthread_self(), "monitor_thread");
-
+            pthread_setname_np(pthread_self(), "ycsb_monitor");
             while(running.load(std::memory_order_relaxed)) {
                 std::unique_ptr<proto::Block> block = dbStatus->getBlock((int)blockHeight);
+                if (block == nullptr) {
+                    LOG(ERROR) << "Get block failed!";
+                    continue;
+                }
                 auto txnCount = block->body.userRequests.size();
                 auto latencyList  = measurements->getTxnLatency(*block);
                 auto& filterList = block->executeResult.transactionFilter;

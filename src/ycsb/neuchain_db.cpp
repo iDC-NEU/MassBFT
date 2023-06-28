@@ -11,9 +11,13 @@
 ycsb::client::NeuChainDB::NeuChainDB(util::NodeConfigPtr server, int port, std::shared_ptr<const util::Key> priKey) {
     LOG(INFO) << "Created a connection to NeuChainDB.";
     CHECK(priKey->Private()) << "Can not sign using public key!";
-    _invokeClient = util::ZMQInstance::NewClient<zmq::socket_type::push>(server->priIp, port);
+    _invokeClient = util::ZMQInstance::NewClient<zmq::socket_type::pub>(server->priIp, port);
     _priKey = std::move(priKey);
     _serverConfig = std::move(server);
+}
+
+void ycsb::client::NeuChainDB::stop() {
+    _invokeClient->shutdown();
 }
 
 ycsb::core::Status ycsb::client::NeuChainDB::read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) {

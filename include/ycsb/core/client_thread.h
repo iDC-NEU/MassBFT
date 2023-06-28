@@ -23,6 +23,7 @@ namespace ycsb::core {
         }
 
         ~ClientThread() {
+            _db->stop();
             if (_clientThread) {
                 _clientThread->join();
             }
@@ -36,6 +37,7 @@ namespace ycsb::core {
 
     protected:
         void doWork() {
+            pthread_setname_np(pthread_self(), "ycsb_worker");
             utils::RandomUINT64::GetThreadLocalRandomGenerator()->seed(_seed);
             if (_txnPerMs <= 1.0) {
                 auto randGen = utils::RandomUINT64::NewRandomUINT64();
@@ -54,6 +56,7 @@ namespace ycsb::core {
                 auto deadline = startTime + std::chrono::nanoseconds(_txnDone * _txnTickNs);
                 std::this_thread::sleep_until(deadline);
             }
+            DLOG(INFO) << "Finished sending txn, opsDone: " << _txnDone;
         }
 
     private:

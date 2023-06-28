@@ -119,19 +119,19 @@ namespace util::pbft {
                 return;
             }
 
-            std::vector<::proto::SignatureString> consensusSignatures(request->contents_size());
+            std::vector<::proto::Block::SignaturePair> consensusSignatures(request->contents_size());
             // append signatures
             for (int i=0; i<request->contents_size(); i++) {
                 auto& it = consensusSignatures[i];
-                std::memcpy(it.digest.data(), request->signatures(i).data(), it.digest.size());
+                std::memcpy(it.second.digest.data(), request->signatures(i).data(), it.second.digest.size());
                 if ((int)_localNodes.size() <= request->localid()) {
                     LOG(WARNING) << "Signatures contains error.";
                     return;
                 }
-                it.ski = _localNodes.at(request->localid())->ski;
+                it.second.ski = _localNodes.at(request->localid())->ski;
                 // After consensus, the consensus service may not only sign the hash of the block,
                 // we need to keep the content corresponding to the signature for verification
-                it.content = std::make_unique<std::string>( request->contents(i));
+                it.first = request->contents(i);
             }
             if (!_stateMachine->OnDeliver(_localNodes.at(request->localid()), tomMessage.content(), std::move(consensusSignatures))) {
                 LOG(WARNING) << "Validate block error.";

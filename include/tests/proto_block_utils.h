@@ -32,13 +32,13 @@ namespace tests {
             b.executeResult.transactionFilter[1] = (std::byte)10;
             proto::SignatureString sig1 = {"ski", 1, {"sig1"}};
             proto::SignatureString sig2 = {"ski", 2, {"sig2"}};
-            b.metadata.consensusSignatures.emplace_back(sig1);
-            b.metadata.consensusSignatures.emplace_back(sig2);
+            b.metadata.consensusSignatures.emplace_back("", sig1);
+            b.metadata.consensusSignatures.emplace_back("", sig2);
 
             proto::SignatureString sig3 = {"ski", 3, {"sig3"}};
             proto::SignatureString sig4 = {"ski", 4, {"sig4"}};
-            b.metadata.validateSignatures.emplace_back(sig3);
-            b.metadata.validateSignatures.emplace_back(sig4);
+            b.metadata.validateSignatures.emplace_back("", sig3);
+            b.metadata.validateSignatures.emplace_back("", sig4);
 
             proto::SignatureString sig5 = {"ski", 5, {"sig4"}};
             std::unique_ptr<proto::Envelop> env1(new proto::Envelop());

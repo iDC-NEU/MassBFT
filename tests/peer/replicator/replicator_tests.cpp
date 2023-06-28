@@ -63,7 +63,7 @@ protected:
             std::string_view serHBody(blockRaw.data()+pos.headerPos, pos.execResultPos-pos.headerPos);
             auto ret = key->Sign(serHBody.data(), serHBody.size());
             CHECK(ret) << "Sig validate failed, ski: " << ski;
-            block->metadata.consensusSignatures.push_back({ski, 0, *ret});
+            block->metadata.consensusSignatures.emplace_back("", ::proto::SignatureString{ ski, 0, *ret });
         }
         return block;
     }

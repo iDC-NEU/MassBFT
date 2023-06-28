@@ -21,7 +21,7 @@ public:
 
     bool OnDeliver(::util::NodeConfigPtr,
                    const std::string&,
-                   std::vector<::proto::SignatureString>) override {
+                   std::vector<::proto::Block::SignaturePair>&& signatures) override {
         return true;
     }
 

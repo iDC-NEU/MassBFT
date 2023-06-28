@@ -39,7 +39,7 @@ namespace peer::v2 {
             for (int i=0; i<signatureCnt; i++) {
                 auto task = [&, i=i] {
                     do {
-                        auto& sig = block->metadata.consensusSignatures[i];
+                        auto& sig = block->metadata.consensusSignatures[i].second;
                         auto key = bccsp->GetKey(sig.ski);
                         if (key == nullptr) {
                             LOG(ERROR) << "Failed to found key, ski: " << sig.ski;

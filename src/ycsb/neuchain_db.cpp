@@ -14,7 +14,7 @@ ycsb::client::NeuChainDB::NeuChainDB(util::NodeConfigPtr server, int port, std::
     _invokeClient = util::ZMQInstance::NewClient<zmq::socket_type::pub>(server->priIp, port);
     _priKey = std::move(priKey);
     _serverConfig = std::move(server);
-    _nextNonce = std::hash<std::thread::id>{}(std::this_thread::get_id()) << 32;
+    _nextNonce = static_cast<int64_t>(std::hash<std::thread::id>{}(std::this_thread::get_id()) << 32);
 }
 
 void ycsb::client::NeuChainDB::stop() {
@@ -134,6 +134,12 @@ ycsb::core::Status ycsb::client::NeuChainDB::sendInvokeRequest(const std::string
     }
     EnvelopLikeStruct e;
     e._payloadSV = data;
+    // append the nonce
+    e._signature.nonce = _nextNonce;
+    if (failure(out(e._signature.nonce))) {
+        return core::ERROR;
+    }
+    _nextNonce += 1;
     // sign the envelope
     auto ret = _priKey->Sign(data.data(), data.size());
     if (ret == std::nullopt) {
@@ -141,7 +147,6 @@ ycsb::core::Status ycsb::client::NeuChainDB::sendInvokeRequest(const std::string
     }
     e._signature.digest = *ret;
     e._signature.ski = _serverConfig->ski;
-    e._signature.nonce = _nextNonce++;
     // serialize the data
     std::string dataEnvelop;
     zpp::bits::out outEnvelop(dataEnvelop);

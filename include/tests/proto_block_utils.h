@@ -30,17 +30,17 @@ namespace tests {
             b.executeResult.txReadWriteSet = std::move(rwSets);
             b.executeResult.transactionFilter.resize(2);
             b.executeResult.transactionFilter[1] = (std::byte)10;
-            proto::SignatureString sig1 = {"ski", std::make_shared<std::string>("public key1"), {"sig1"}};
-            proto::SignatureString sig2 = {"ski", std::make_shared<std::string>("public key2"), {"sig2"}};
+            proto::SignatureString sig1 = {"ski", 1, {"sig1"}};
+            proto::SignatureString sig2 = {"ski", 2, {"sig2"}};
             b.metadata.consensusSignatures.emplace_back(sig1);
             b.metadata.consensusSignatures.emplace_back(sig2);
 
-            proto::SignatureString sig3 = {"ski", std::make_shared<std::string>("public key3"), {"sig3"}};
-            proto::SignatureString sig4 = {"ski", std::make_shared<std::string>("public key4"), {"sig4"}};
+            proto::SignatureString sig3 = {"ski", 3, {"sig3"}};
+            proto::SignatureString sig4 = {"ski", 4, {"sig4"}};
             b.metadata.validateSignatures.emplace_back(sig3);
             b.metadata.validateSignatures.emplace_back(sig4);
 
-            proto::SignatureString sig5 = {"ski", std::make_shared<std::string>("public key4"), {"sig4"}};
+            proto::SignatureString sig5 = {"ski", 5, {"sig4"}};
             std::unique_ptr<proto::Envelop> env1(new proto::Envelop());
             env1->setSignature(std::move(sig5));
             std::string payload("payload for sig5");
@@ -82,9 +82,7 @@ namespace tests {
         }
 
         static std::unique_ptr<proto::Envelop> CreateMockEnvelop(int nonce = 0) {
-            proto::SignatureString sig5 = {"ski" + std::to_string(nonce),
-                                           std::make_shared<std::string>("public key" + std::to_string(nonce)),
-                                           {"sig"}};
+            proto::SignatureString sig5 = {"ski" + std::to_string(nonce), nonce, {"sig"}};
             std::unique_ptr<proto::Envelop> envelop(new proto::Envelop());
             envelop->setSignature(std::move(sig5));
             std::string payload("payload for sig" + std::to_string(nonce));

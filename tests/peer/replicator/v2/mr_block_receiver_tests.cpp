@@ -111,7 +111,7 @@ TEST_F(MRBlockReceiverTestV2, TestBlockSignValidate) {
             auto ret = key->Sign(serHBody.data(), serHBody.size());
             ASSERT_TRUE(ret) << "Sig validate failed, ski: " << ski;
             // push back the signature
-            block->metadata.consensusSignatures.push_back({ski, key->PublicBytes(), *ret});
+            block->metadata.consensusSignatures.push_back({ski, 0, *ret});
         }
         block->serializeToString(&regionBlockRaw[i]);
     }

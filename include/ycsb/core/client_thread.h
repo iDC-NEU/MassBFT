@@ -45,7 +45,7 @@ namespace ycsb::core {
                 auto randomMinorDelay = randGen->nextValue() % _txnTickNs;
                 std::this_thread::sleep_for(std::chrono::nanoseconds(randomMinorDelay));
             }
-            auto startTime = std::chrono::system_clock::now();
+            auto deadline = std::chrono::system_clock::now() + std::chrono::nanoseconds(_txnTickNs);
             // opCount == 0 inf ops
             while ((_txnCount == 0 || _txnDone < _txnCount) && !_workload->isStopRequested()) {
                 if (!_workload->doTransaction(_db.get())) {
@@ -54,7 +54,7 @@ namespace ycsb::core {
                 }
                 _txnDone++;
                 // delay until next tick
-                auto deadline = startTime + std::chrono::nanoseconds(_txnDone * _txnTickNs);
+                deadline += std::chrono::nanoseconds(_txnTickNs);
                 std::this_thread::sleep_until(deadline);
             }
             DLOG(INFO) << "Worker finished sending txn, opsDone: " << _txnDone;

@@ -54,7 +54,7 @@ TEST_F(BlockTest, SerializePartTest) {
     block->serializeToString(&raw2);
     ASSERT_TRUE(proto::Block::UpdateSerializedHeader(block->header, &raw1, 0).valid);
     ASSERT_TRUE(raw1 == raw2);
-    proto::SignatureString sig = {"ski", std::make_shared<std::string>("public key3"), {"sig3"}};
+    proto::SignatureString sig = {"ski", 1, {"sig3"}};
     block->metadata.validateSignatures.emplace_back(sig);
     auto position = block->serializeToString(&raw2);
     ASSERT_TRUE(proto::Block::AppendSerializedExecutionResult(*block, &raw1, position.execResultPos).valid);

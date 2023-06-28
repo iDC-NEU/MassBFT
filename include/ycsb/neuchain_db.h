@@ -63,6 +63,7 @@ namespace ycsb::client {
         core::Status sendInvokeRequest(const std::string& funcName, const std::string& args);
 
     private:
+        int64_t _nextNonce;
         std::unique_ptr<util::ZMQInstance> _invokeClient;
         std::shared_ptr<const util::Key> _priKey;
         util::NodeConfigPtr _serverConfig;

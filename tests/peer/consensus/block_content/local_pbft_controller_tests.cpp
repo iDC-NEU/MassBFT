@@ -45,9 +45,7 @@ public:
     auto createSignedEnvelop(int nodeId) {
         auto& ski = nodesConfig[nodeId]->ski;
         std::unique_ptr<proto::Envelop> envelop(new proto::Envelop());
-        proto::SignatureString sig = {
-                ski,
-                std::make_shared<std::string>()};
+        proto::SignatureString sig = { ski, 0 };
         auto key = bccsp->GetKey(ski);
         CHECK(key->Private());
         std::string payload("payload for an envelop" + std::to_string(rand()));

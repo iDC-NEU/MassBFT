@@ -14,6 +14,7 @@ ycsb::client::NeuChainDB::NeuChainDB(util::NodeConfigPtr server, int port, std::
     _invokeClient = util::ZMQInstance::NewClient<zmq::socket_type::pub>(server->priIp, port);
     _priKey = std::move(priKey);
     _serverConfig = std::move(server);
+    _nextNonce = std::hash<std::thread::id>{}(std::this_thread::get_id()) << 32;
 }
 
 void ycsb::client::NeuChainDB::stop() {
@@ -140,7 +141,7 @@ ycsb::core::Status ycsb::client::NeuChainDB::sendInvokeRequest(const std::string
     }
     e._signature.digest = *ret;
     e._signature.ski = _serverConfig->ski;
-    e._signature.content = std::make_shared<std::string>();
+    e._signature.nonce = _nextNonce++;
     // serialize the data
     std::string dataEnvelop;
     zpp::bits::out outEnvelop(dataEnvelop);
@@ -150,7 +151,7 @@ ycsb::core::Status ycsb::client::NeuChainDB::sendInvokeRequest(const std::string
     if (!_invokeClient->send(std::move(dataEnvelop))) {
         return core::ERROR;
     }
-    return core::STATUS_OK;
+    return core::Status(core::Status::State::OK, std::string(reinterpret_cast<const char *>(e._signature.digest.data()), e._signature.digest.size()));
 }
 
 ycsb::client::NeuChainStatus::NeuChainStatus(util::NodeConfigPtr server, int port, std::shared_ptr<const util::Key> priKey) {

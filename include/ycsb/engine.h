@@ -44,7 +44,10 @@ namespace ycsb {
         void initClients() {
             auto operationCount = ycsbProperties->getOperationCount();
             auto threadCount = std::min(ycsbProperties->getThreadCount(), (int)operationCount);
-            auto threadOpCount = operationCount / threadCount + 1;
+            auto threadOpCount = operationCount / threadCount;
+            if (threadOpCount <= 0) {
+                threadOpCount += 1;
+            }
             auto tpsPerThread = ycsbProperties->getTargetTPSPerThread();
             for (int tid = 0; tid < threadCount; tid++) {   // create a set of clients
                 auto db = factory.newDB();  // each client create a connection

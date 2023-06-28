@@ -12,14 +12,15 @@ namespace proto {
 
     // publicKeyHex, signature
     struct SignatureString {
-        std::string ski;
-        std::shared_ptr<std::string> content;
-        DigestString digest{};
     public:
+        std::string ski;
+        int64_t nonce;
+        DigestString digest{};
+
         friend zpp::bits::access;
 
         constexpr static auto serialize(auto &archive, SignatureString &s) {
-            return archive(s.ski, s.content, s.digest);
+            return archive(s.ski, s.nonce, s.digest);
         }
     };
 

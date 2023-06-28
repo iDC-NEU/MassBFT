@@ -21,6 +21,8 @@ namespace ycsb::core {
 
         explicit Status(State name) : name(name) { }
 
+        explicit Status(State name, auto&& rhs) : name(name), digest(std::forward<decltype(rhs)>(rhs)) { }
+
         Status(const Status& rhs) = default;
 
         virtual ~Status() = default;

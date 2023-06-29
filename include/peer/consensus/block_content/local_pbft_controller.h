@@ -74,10 +74,6 @@ namespace peer::consensus {
                 LOG(ERROR) << "Fail to add globalControlService!";
                 return nullptr;
             }
-            if (util::DefaultRpcServer::Start(rpcPort) != 0) {
-                LOG(ERROR) << "Fail to start DefaultRpcServer at port: " << rpcPort;
-                return nullptr;
-            }
             return controller;
         }
 
@@ -90,6 +86,15 @@ namespace peer::consensus {
                 _replicator->sendStopSignal();
                 util::DefaultRpcServer::Stop(rpcServerPort);
             }
+        }
+
+        // if other service shared the same server, call this method maybe unnecessary
+        [[nodiscard]] bool startRPCService() const {
+            if (util::DefaultRpcServer::Start(rpcServerPort) != 0) {
+                LOG(ERROR) << "Fail to start DefaultRpcServer at port: " << rpcServerPort;
+                return false;
+            }
+            return true;
         }
 
     protected:

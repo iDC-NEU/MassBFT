@@ -39,6 +39,7 @@ protected:
         proto::SignatureString sig = { ski, 0 };
         auto key = bccsp->GetKey(ski);
         CHECK(key->Private());
+        // TODO: use user request for payload
         std::string payload("payload for an envelop" + std::to_string(rand()));
         payload.resize(150);
         payload += "eof";

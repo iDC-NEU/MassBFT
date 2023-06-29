@@ -11,8 +11,6 @@
 #include "peer/chaincode/orm.h"
 #include "peer/chaincode/chaincode.h"
 
-#include "common/phmap.h"
-
 #include "proto/transaction.h"
 
 namespace peer::cc {

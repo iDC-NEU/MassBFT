@@ -151,7 +151,7 @@ namespace peer::core {
                 {_properties->getBlockBatchTimeoutMs(),
                  _properties->getBlockMaxBatchSize()},
                  _properties->validateOnReceive());
-        if (!pc) {
+        if (!pc || !pc->startRPCService()) {
             return nullptr;
         }
         return std::make_unique<SinglePBFTController>(std::move(ic), std::move(pc), localNode->groupId, localNode->nodeId, groupId);

@@ -67,7 +67,6 @@ namespace ycsb::core {
             while(running.load(std::memory_order_relaxed)) {
                 std::unique_ptr<proto::Block> block = dbStatus->getBlock((int)blockHeight);
                 if (block == nullptr) {
-                    LOG(ERROR) << "Get block failed!";
                     continue;
                 }
                 auto txnCount = block->body.userRequests.size();

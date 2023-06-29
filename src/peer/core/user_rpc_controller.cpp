@@ -24,9 +24,9 @@ namespace peer::core {
         }
     }
 
-    bool UserRPCController::startRPCService() const {
-        if (util::DefaultRpcServer::Start(_rpcServerPort) != 0) {
-            LOG(ERROR) << "Fail to start DefaultRpcServer at port: " << _rpcServerPort;
+    bool UserRPCController::StartRPCService(int rpcPort) {
+        if (util::DefaultRpcServer::Start(rpcPort) != 0) {
+            LOG(ERROR) << "Fail to start DefaultRpcServer at port: " << rpcPort;
             return false;
         }
         return true;

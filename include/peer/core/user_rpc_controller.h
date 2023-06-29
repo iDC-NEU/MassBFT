@@ -18,7 +18,7 @@ namespace peer::core {
 
         ~UserRPCController() override;
 
-        [[nodiscard]] bool startRPCService() const;
+        [[nodiscard]] static bool StartRPCService(int rpcPort);
 
     protected:
         UserRPCController() = default;

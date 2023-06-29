@@ -53,14 +53,17 @@ namespace util {
         static std::unique_ptr<ZMQInstance> NewServer(int port) {
             auto ctx = std::make_unique<zmq::context_t>();
             auto socket = std::make_unique<zmq::socket_t>(*ctx, socketType);
-            if (socketType == zmq::socket_type::sub || socketType == zmq::socket_type::xsub){
+            // how long pending messages which have yet to be sent to a peer shall linger in memory
+            // after a socket is closed with zmq_close(3)
+            socket->set(zmq::sockopt::linger, 0);
+            if (socketType == zmq::socket_type::sub || socketType == zmq::socket_type::xsub) {
                 socket->set(zmq::sockopt::subscribe, "");
                 socket->set(zmq::sockopt::rcvhwm, 0);
             }
             if (socketType == zmq::socket_type::push) {
                 socket->set(zmq::sockopt::sndhwm, 0);
             }
-            if (socketType == zmq::socket_type::pub || socketType == zmq::socket_type::xpub){
+            if (socketType == zmq::socket_type::pub || socketType == zmq::socket_type::xpub) {
                 socket->set(zmq::sockopt::sndhwm, 0);
             }
             try {

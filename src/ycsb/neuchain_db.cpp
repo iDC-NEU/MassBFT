@@ -133,7 +133,6 @@ ycsb::core::Status ycsb::client::NeuChainDB::sendInvokeRequest(const std::string
         return core::ERROR;
     }
     EnvelopLikeStruct e;
-    e._payloadSV = data;
     // append the nonce
     e._signature.nonce = _nextNonce;
     if (failure(out(e._signature.nonce))) {
@@ -145,6 +144,7 @@ ycsb::core::Status ycsb::client::NeuChainDB::sendInvokeRequest(const std::string
     if (ret == std::nullopt) {
         return core::ERROR;
     }
+    e._payloadSV = data;
     e._signature.digest = *ret;
     e._signature.ski = _serverConfig->ski;
     // serialize the data
@@ -190,15 +190,22 @@ std::unique_ptr<proto::Block> ycsb::client::NeuChainStatus::getBlock(int blockNu
     proto::PullBlockResponse response;
     brpc::Controller ctl;
     _stub->pullBlock(&ctl, &request, &response, nullptr);
-    if (!ctl.Failed() && response.success()) {
-        auto block = std::make_unique<::proto::Block>();
-        auto ret = block->deserializeFromString(std::move(*response.mutable_payload()));
-        if (ret.valid) {
-            return block;
-        }
+    if (ctl.Failed()) {
+        LOG(ERROR) << "Failed to get block: " << blockNumber << ", retry after 1 sec, " << ctl.ErrorText();
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        return nullptr;
     }
-    LOG(ERROR) << "Failed to get block: " << blockNumber;
-    return nullptr;
+    if (!response.success()) {
+        LOG(ERROR) << "Failed to get block: " << blockNumber << ", " << response.payload();
+        return nullptr;
+    }
+    auto block = std::make_unique<::proto::Block>();
+    auto ret = block->deserializeFromString(std::move(*response.mutable_payload()));
+    if (!ret.valid) {
+        LOG(ERROR) << "Failed to decode block: " << blockNumber;
+        return nullptr;
+    }
+    return block;
 }
 
 bool ycsb::client::NeuChainStatus::connect() {

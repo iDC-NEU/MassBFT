@@ -18,11 +18,7 @@ namespace peer::core {
         return true;
     }
 
-    UserRPCController::~UserRPCController() {
-        if (_rpcServerPort != -1) {
-            util::DefaultRpcServer::Stop(_rpcServerPort);
-        }
-    }
+    UserRPCController::~UserRPCController() = default;
 
     bool UserRPCController::StartRPCService(int rpcPort) {
         if (util::DefaultRpcServer::Start(rpcPort) != 0) {

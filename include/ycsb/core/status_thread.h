@@ -49,7 +49,7 @@ namespace ycsb::core {
                 LOG(INFO) << "In the last 1s, commit: " << currentSecCommit
                           << ", abort: " << currentSecAbort
                           << ", send rate: " << currentSecCommit + currentSecAbort + currentTimePending
-                          << ", latency: " << (double) latencySum / (double) latencySampleCount
+                          << ", latency_ms: " << latencySum / std::max(txCountCommit, uint64_t(1))
                           << ", pendingTx: " << pendingTxnSize;
                 lastTimeCommit = txCountCommit;
                 lastTimeAbort = txCountAbort;
@@ -59,7 +59,7 @@ namespace ycsb::core {
             LOG(INFO) << "# Transaction throughput (KTPS): " << (double) txCountCommit / timer.end() / 1000;
             LOG(INFO) << "  Abort rate (KTPS): " << (double) txCountAbort / timer.end() / 1000;
             LOG(INFO) << "  Send rate (KTPS): " << static_cast<double>(txCountCommit + txCountAbort + measurements->getPendingTransactionCount()) / timer.end() / 1000;
-            LOG(INFO) << "Avg committed latency: " << (double) latencySum / (double) latencySampleCount << " sec.";
+            LOG(INFO) << "Avg committed latency: " << latencySum / std::max(txCountCommit, uint64_t(1)) << " ms.";
         }
 
         void doMonitor() {
@@ -88,7 +88,6 @@ namespace ycsb::core {
                     }
                     txCountCommit += 1;
                     latencySum += latencyList[i];
-                    latencySampleCount += 1;
                 }
                 blockHeight++;
             }
@@ -103,7 +102,6 @@ namespace ycsb::core {
         uint64_t txCountCommit = 0;
         uint64_t txCountAbort = 0;
         uint64_t latencySum = 0;
-        uint64_t latencySampleCount = 1;
 
         std::unique_ptr<std::thread> _statusThread;
         std::unique_ptr<std::thread> _monitorThread;

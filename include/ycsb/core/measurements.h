@@ -11,13 +11,13 @@
 namespace ycsb::core {
     class Measurements {
     public:
-        void beginTransaction(const std::string& digest, uint64_t ts) {
-            map[digest] = ts;
+        void beginTransaction(const std::string& digest, uint64_t timeNowMs) {
+            map[digest] = timeNowMs;
         }
 
         // If latency not found, it is set to 0.
         std::vector<uint64_t> getTxnLatency(const proto::Block& block) {
-            auto now = util::Timer::time_now_ns();
+            auto now = util::Timer::time_now_ms();
             std::vector<uint64_t> spanList;
             spanList.reserve(block.body.userRequests.size());
             for (auto& it: block.body.userRequests) {

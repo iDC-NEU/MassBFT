@@ -35,6 +35,7 @@ namespace tests::peer {
 
         ~Peer() {
             _tearDownSignal = true;
+            _subscriber->shutdown();
             _collectorThread->join();
         }
 

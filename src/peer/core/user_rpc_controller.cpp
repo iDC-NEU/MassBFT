@@ -28,6 +28,10 @@ namespace peer::core {
         return true;
     }
 
+    void UserRPCController::StopRPCService(int rpcPort) {
+        util::DefaultRpcServer::Stop(rpcPort);
+    }
+
     void UserRPCController::hello(::google::protobuf::RpcController *,
                                   const ::ycsb::client::proto::HelloRequest *request,
                                   ::ycsb::client::proto::HelloResponse *response, ::google::protobuf::Closure *done) {

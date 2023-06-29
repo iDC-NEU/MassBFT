@@ -20,6 +20,8 @@ namespace peer::core {
 
         [[nodiscard]] static bool StartRPCService(int rpcPort);
 
+        static void StopRPCService(int rpcPort);
+
     protected:
         UserRPCController() = default;
 

@@ -34,10 +34,6 @@ namespace ycsb::core {
          */
         virtual double mean() = 0;
 
-        static inline auto GetThreadLocalRandomGenerator() {
-            return util::ThreadLocalStore<std::default_random_engine>::Get();
-        }
-
     protected:
         /**
          * Set the last value generated. NumberGenerator subclasses must use this call
@@ -49,6 +45,11 @@ namespace ycsb::core {
     private:
         V lastVal;
     };
+
+    static inline auto GetThreadLocalRandomGenerator() {
+        return util::ThreadLocalStore<std::default_random_engine>::Get();
+    }
+
     using NumberGenerator = Generator<uint64_t>;
     using DoubleGenerator = Generator<double>;
 }

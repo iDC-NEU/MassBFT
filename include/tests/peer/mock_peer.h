@@ -24,7 +24,7 @@ namespace tests::peer {
             _blockStorage = std::make_shared<::peer::MRBlockStorage>(p.getNodeProperties().getGroupCount());
             auto portConfig = util::ZMQPortUtil::InitLocalPortsConfig(p);
             server = p.getNodeProperties().getLocalNodeInfo();
-            auto rpcPort = portConfig->getLocalServicePorts(util::PortType::BFT_RPC)[server->nodeId];
+            rpcPort = portConfig->getLocalServicePorts(util::PortType::BFT_RPC)[server->nodeId];
             CHECK(::peer::core::UserRPCController::NewRPCController(_blockStorage, rpcPort));
 
             _subscriber = util::ZMQInstance::NewServer<zmq::socket_type::sub>(
@@ -34,9 +34,16 @@ namespace tests::peer {
         }
 
         ~Peer() {
-            _tearDownSignal = true;
-            _subscriber->shutdown();
-            _collectorThread->join();
+            if (_subscriber) {
+                _tearDownSignal = true;
+                _subscriber->shutdown();
+            }
+            if (_collectorThread) {
+                _collectorThread->join();
+            }
+            if (rpcPort != 0) {
+                ::peer::core::UserRPCController::StopRPCService(rpcPort);
+            }
         }
 
     protected:
@@ -75,6 +82,7 @@ namespace tests::peer {
 
     private:
         std::atomic<bool> _tearDownSignal = false;
+        int rpcPort = 0;
         std::shared_ptr<util::NodeConfig> server;
         std::unique_ptr<util::BCCSP> bccsp;
         std::shared_ptr<::peer::MRBlockStorage> _blockStorage;

@@ -39,7 +39,7 @@ namespace ycsb::core {
         void doWork() {
             pthread_setname_np(pthread_self(), "ycsb_worker");
             DLOG(INFO) << "Worker send rate: " << _txnPerMs * 1000 << ", total: " << _txnCount;
-            utils::RandomUINT64::GetThreadLocalRandomGenerator()->seed(_seed);
+            ::ycsb::core::GetThreadLocalRandomGenerator()->seed(_seed);
             if (_txnPerMs <= 1.0) {
                 auto randGen = utils::RandomUINT64::NewRandomUINT64();
                 auto randomMinorDelay = randGen->nextValue() % _txnTickNs;

@@ -4,17 +4,18 @@
 
 #include "ycsb/neuchain_db.h"
 #include "ycsb/core/workload/core_workload.h"
+#include "ycsb/core/common/random_uint64.h"
 #include "proto/user_request.h"
 #include "proto/user_connection.pb.h"
 #include <brpc/channel.h>
 
 ycsb::client::NeuChainDB::NeuChainDB(util::NodeConfigPtr server, int port, std::shared_ptr<const util::Key> priKey) {
-    LOG(INFO) << "Created a connection to NeuChainDB.";
+    _nextNonce = static_cast<int64_t>(::ycsb::utils::RandomUINT64::NewRandomUINT64()->nextValue() << 32);
+    LOG(INFO) << "Created a connection to NeuChainDB with nonce: " << _nextNonce;
     CHECK(priKey->Private()) << "Can not sign using public key!";
     _invokeClient = util::ZMQInstance::NewClient<zmq::socket_type::pub>(server->priIp, port);
     _priKey = std::move(priKey);
     _serverConfig = std::move(server);
-    _nextNonce = static_cast<int64_t>(std::hash<std::thread::id>{}(std::this_thread::get_id()) << 32);
 }
 
 void ycsb::client::NeuChainDB::stop() {

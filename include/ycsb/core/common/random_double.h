@@ -20,7 +20,7 @@ namespace ycsb::utils {
 
         // This function does not support concurrent entry.
         double nextValue() override {
-            return uniform(*GetThreadLocalRandomGenerator());
+            return uniform(*::ycsb::core::GetThreadLocalRandomGenerator());
         }
 
         double mean() override {

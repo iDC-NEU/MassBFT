@@ -78,7 +78,6 @@ namespace ycsb::core {
                 // calculate txCountCommit, txCountAbort, latency
                 for (int i=0; i<(int)txnCount; i++) {
                     if (latencyList[i] == 0) {
-                        DLOG(INFO) << "missing tx in tx map, please check if all txs is generated in a user.";
                         continue;
                     }
                     // We only calculate the latency of committed txn.

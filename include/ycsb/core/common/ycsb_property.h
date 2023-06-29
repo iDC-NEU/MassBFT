@@ -32,7 +32,7 @@ namespace ycsb::utils {
         constexpr static const auto THREAD_COUNT_PROPERTY = "threadcount";
 
         // used to specify the target throughput.
-        constexpr static const auto TARGET_PROPERTY = "target_throughput";
+        constexpr static const auto TARGET_THROUGHPUT_PROPERTY = "target_throughput";
 
         constexpr static const auto LABEL_PROPERTY = "label";
         /// ----- For clients -----
@@ -165,7 +165,7 @@ namespace ycsb::utils {
         }
 
         double getTargetTPSPerThread() const {
-            auto target = n[TARGET_PROPERTY].as<int>(1000);  // testing targetTPS=1000
+            auto target = n[TARGET_THROUGHPUT_PROPERTY].as<int>(1000);  // testing targetTPS=1000
             auto threadCount = getThreadCount();
             return ((double) target) / threadCount;
         }

@@ -13,6 +13,8 @@ protected:
         tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
         tests::MockPropertyGenerator::SetLocalId(2, 2);
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 10000);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000);
     };
 
     void TearDown() override {
@@ -22,6 +24,14 @@ protected:
 };
 
 TEST_F(YCSBTest, BasicTest) {
+    auto* p = util::Properties::GetProperties();
+    tests::peer::Peer peer(*p);
+    ycsb::YCSBEngine engine(*p);
+    engine.startTest();
+}
+
+TEST_F(YCSBTest, TwoWorkerTest) {
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 2);
     auto* p = util::Properties::GetProperties();
     tests::peer::Peer peer(*p);
     ycsb::YCSBEngine engine(*p);

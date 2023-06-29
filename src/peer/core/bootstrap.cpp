@@ -4,9 +4,9 @@
 
 #include "peer/core/bootstrap.h"
 #include "peer/core/single_pbft_controller.h"
-#include "peer/core/yaml_key_storage.h"
 #include "peer/replicator/replicator.h"
 #include "peer/consensus/block_order/global_ordering.h"
+#include "common/yaml_key_storage.h"
 #include "common/property.h"
 
 namespace peer::core {
@@ -23,7 +23,7 @@ namespace peer::core {
             return { _bccsp, _threadPoolForBCCSP };
         }
         auto node = _properties->getCustomProperties("bccsp");
-        _bccsp = std::make_shared<util::BCCSP>(std::make_unique<YAMLKeyStorage>(node));
+        _bccsp = std::make_shared<util::BCCSP>(std::make_unique<util::YAMLKeyStorage>(node));
         _threadPoolForBCCSP = std::make_shared<util::thread_pool_light>();
         return { _bccsp, _threadPoolForBCCSP };
     }
@@ -151,22 +151,16 @@ namespace peer::core {
                 {_properties->getBlockBatchTimeoutMs(),
                  _properties->getBlockMaxBatchSize()},
                  _properties->validateOnReceive());
-        if (!pc) {
+        if (!pc || !pc->startRPCService()) {
             return nullptr;
         }
         return std::make_unique<SinglePBFTController>(std::move(ic), std::move(pc), localNode->groupId, localNode->nodeId, groupId);
     }
 
     std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> ModuleFactory::getOrInitZMQPortUtilMap() {
-        if (_zmqPortUtilMap) {
-            return _zmqPortUtilMap;
+        if (!_zmqPortUtilMap) {
+            _zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(*_properties);
         }
-        auto np = _properties->getNodeProperties();
-        std::unordered_map<int, int> regionNodesCount;
-        for (int i=0; i<np.getGroupCount(); i++) {
-            regionNodesCount[i] = np.getGroupNodeCount(i);
-        }
-        _zmqPortUtilMap = util::ZMQPortUtil::InitPortsConfig(_properties->replicatorLowestPort(), regionNodesCount, _properties->isDistributedSetting());
         return _zmqPortUtilMap;
     }
 

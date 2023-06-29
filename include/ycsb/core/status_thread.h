@@ -32,7 +32,7 @@ namespace ycsb::core {
 
     protected:
         void doStatus() {
-            pthread_setname_np(pthread_self(), "print_thread");
+            pthread_setname_np(pthread_self(), "ycsb_print");
             util::Timer timer;
             size_t lastTimeCommit = 0;
             size_t lastTimeAbort = 0;
@@ -46,10 +46,10 @@ namespace ycsb::core {
                 auto currentSecAbort = txCountAbort - lastTimeAbort;
                 auto pendingTxnSize = measurements->getPendingTransactionCount();
                 auto currentTimePending = pendingTxnSize - lastTimePending;
-                LOG(INFO) << "In the last 1s, commit+abort_no_retry: " << currentSecCommit
+                LOG(INFO) << "In the last 1s, commit: " << currentSecCommit
                           << ", abort: " << currentSecAbort
                           << ", send rate: " << currentSecCommit + currentSecAbort + currentTimePending
-                          << ", latency: " << (double) latencySum / (double) latencySampleCount
+                          << ", latency_ms: " << latencySum / std::max(txCountCommit, uint64_t(1))
                           << ", pendingTx: " << pendingTxnSize;
                 lastTimeCommit = txCountCommit;
                 lastTimeAbort = txCountAbort;
@@ -59,24 +59,25 @@ namespace ycsb::core {
             LOG(INFO) << "# Transaction throughput (KTPS): " << (double) txCountCommit / timer.end() / 1000;
             LOG(INFO) << "  Abort rate (KTPS): " << (double) txCountAbort / timer.end() / 1000;
             LOG(INFO) << "  Send rate (KTPS): " << static_cast<double>(txCountCommit + txCountAbort + measurements->getPendingTransactionCount()) / timer.end() / 1000;
-            LOG(INFO) << "Avg committed latency: " << (double) latencySum / (double) latencySampleCount << " sec.";
+            LOG(INFO) << "Avg committed latency: " << latencySum / std::max(txCountCommit, uint64_t(1)) << " ms.";
         }
 
         void doMonitor() {
-            pthread_setname_np(pthread_self(), "monitor_thread");
-
+            pthread_setname_np(pthread_self(), "ycsb_monitor");
             while(running.load(std::memory_order_relaxed)) {
                 std::unique_ptr<proto::Block> block = dbStatus->getBlock((int)blockHeight);
+                if (block == nullptr) {
+                    continue;
+                }
                 auto txnCount = block->body.userRequests.size();
                 auto latencyList  = measurements->getTxnLatency(*block);
                 auto& filterList = block->executeResult.transactionFilter;
                 CHECK(txnCount == latencyList.size());
                 CHECK(txnCount == filterList.size());
-                LOG(INFO) << "polled blockHeight: " << blockHeight << ", size: " << txnCount;
+                DLOG(INFO) << "polled blockHeight: " << blockHeight << ", size: " << txnCount;
                 // calculate txCountCommit, txCountAbort, latency
                 for (int i=0; i<(int)txnCount; i++) {
                     if (latencyList[i] == 0) {
-                        DLOG(INFO) << "missing tx in tx map, please check if all txs is generated in a user.";
                         continue;
                     }
                     // We only calculate the latency of committed txn.
@@ -86,7 +87,6 @@ namespace ycsb::core {
                     }
                     txCountCommit += 1;
                     latencySum += latencyList[i];
-                    latencySampleCount += 1;
                 }
                 blockHeight++;
             }
@@ -101,7 +101,6 @@ namespace ycsb::core {
         uint64_t txCountCommit = 0;
         uint64_t txCountAbort = 0;
         uint64_t latencySum = 0;
-        uint64_t latencySampleCount = 1;
 
         std::unique_ptr<std::thread> _statusThread;
         std::unique_ptr<std::thread> _monitorThread;

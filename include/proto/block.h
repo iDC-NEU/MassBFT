@@ -79,12 +79,16 @@ namespace proto {
             }
         };
 
+        // std::string: the metadata to be signed (may leave empty)
+        // SignatureString: the actual signature
+        using SignaturePair = std::pair<std::string, SignatureString>;
+
         class Metadata {
         public:
             // when a peer validated a block(before execution), it adds its signature of the HEADER+BODY to signatures.
-            std::vector<SignatureString> consensusSignatures;
+            std::vector<SignaturePair> consensusSignatures;
             // when a peer validated a block(after execution), it adds its signature of the (HEADER+BODY+ExecuteResult) to signatures.
-            std::vector<SignatureString> validateSignatures;
+            std::vector<SignaturePair> validateSignatures;
         public:
             friend zpp::bits::access;
 

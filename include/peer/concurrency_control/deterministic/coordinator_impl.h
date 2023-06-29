@@ -68,7 +68,7 @@ namespace peer::cc {
                 for (int i = id; i < (int)requests.size(); i += totalWorkerCount) {
                     auto txn = proto::Transaction::NewTransactionFromEnvelop(std::move(requests[i]));
                     if (txn == nullptr) {
-                        LOG(ERROR) << "Can not get exn from envelop!";
+                        CHECK(false) << "Can not get exn from envelop!";
                     }
                     fsmTxnList.push_back(std::move(txn));   // txn may be nullptr
                 }

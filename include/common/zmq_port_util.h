@@ -47,6 +47,10 @@ namespace util {
         void initWithLocalDeployment();
 
     public:
+        static std::shared_ptr<std::unordered_map<int, ZMQPortUtilList>> InitPortsConfig(const util::Properties& properties);
+
+        static std::unique_ptr<ZMQPortUtil> InitLocalPortsConfig(const util::Properties& properties);
+
         static std::shared_ptr<std::unordered_map<int, ZMQPortUtilList>> InitPortsConfig(int portOffset, const std::unordered_map<int, int>& regionNodesCount, bool distributed);
 
         static std::unique_ptr<ZMQPortUtil> NewZMQPortUtil(const std::unordered_map<int, int> &regionNodesCount, int groupId, int nodeId, int offset, bool distributed);

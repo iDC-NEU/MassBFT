@@ -19,30 +19,31 @@ namespace ycsb::core {
             UNEXPECTED_STATE,
         };
 
-        explicit Status(State name) : name(name) { }
+        explicit Status(State name) : name(name), timeMs(0) { }
+
+        explicit Status(State name, uint64_t timeNowMs, auto&& rhs) : name(name), timeMs(timeNowMs), digest(std::forward<decltype(rhs)>(rhs)) { }
 
         Status(const Status& rhs) = default;
 
         virtual ~Status() = default;
 
-        [[nodiscard]] bool isOk () const {
+        [[nodiscard]] bool isOk() const {
             return this->name == State::OK || this->name == State::BATCHED_OK;
         }
 
-        [[nodiscard]] const auto& getName() const {
-            return name;
-        }
+        [[nodiscard]] const auto& getName() const { return name; }
+
+        [[nodiscard]] const auto& getGenTimeMs() const { return timeMs; }
 
         [[nodiscard]] bool operator==(const Status& rhs) const {
             return this->name == rhs.name;
         }
 
-        void setDigest(auto&& rhs) { digest = std::forward<decltype(rhs)>(rhs); }
-
         [[nodiscard]] const auto& getDigest() const { return digest; }
 
     private:
         State name;
+        uint64_t timeMs;
         std::string digest;
     };
 

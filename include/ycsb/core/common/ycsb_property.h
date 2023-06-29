@@ -32,7 +32,7 @@ namespace ycsb::utils {
         constexpr static const auto THREAD_COUNT_PROPERTY = "threadcount";
 
         // used to specify the target throughput.
-        constexpr static const auto TARGET_PROPERTY = "target_throughput";
+        constexpr static const auto TARGET_THROUGHPUT_PROPERTY = "target_throughput";
 
         constexpr static const auto LABEL_PROPERTY = "label";
         /// ----- For clients -----
@@ -139,9 +139,8 @@ namespace ycsb::utils {
         constexpr static const auto EXPONENTIAL_FRAC_PROPERTY = "exponential.frac";
         constexpr static const auto EXPONENTIAL_FRAC_DEFAULT = 0.8571428571;  // 1/7
 
-        static std::unique_ptr<YCSBProperties> NewFromProperty() {
-            auto* prop = util::Properties::GetProperties();
-            auto ret = std::unique_ptr<YCSBProperties>(new YCSBProperties(prop->getCustomPropertiesOrPanic(YCSB_PROPERTIES)));
+        static std::unique_ptr<YCSBProperties> NewFromProperty(const util::Properties &n) {
+            auto ret = std::unique_ptr<YCSBProperties>(new YCSBProperties(n.getCustomPropertiesOrPanic(YCSB_PROPERTIES)));
             return ret;
         }
 
@@ -154,13 +153,19 @@ namespace ycsb::utils {
             return shared_from_this();
         }
 
+        static void SetYCSBProperties(auto&& key, auto&& value) {
+            auto* properties = util::Properties::GetProperties();
+            auto node = properties->getCustomProperties(ycsb::utils::YCSBProperties::YCSB_PROPERTIES);
+            node[key] = value;
+        }
+
     public:
         auto getThreadCount() const {
             return n[THREAD_COUNT_PROPERTY].as<int>((int)std::thread::hardware_concurrency());
         }
 
         double getTargetTPSPerThread() const {
-            auto target = n[TARGET_PROPERTY].as<int>(1000);  // testing targetTPS=1000
+            auto target = n[TARGET_THROUGHPUT_PROPERTY].as<int>(1000);  // testing targetTPS=1000
             auto threadCount = getThreadCount();
             return ((double) target) / threadCount;
         }

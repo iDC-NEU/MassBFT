@@ -36,7 +36,7 @@ public:
             auto storage = std::make_shared<peer::MRBlockStorage>(3);   // 3 regions
             storageList.push_back(storage);
             auto controller = peer::consensus::LocalPBFTController::NewPBFTController(nodesConfig, i, portsConfig[i], bccsp, threadPool, storage, {100, 200}, false);
-            CHECK(controller != nullptr) << "init controller error!";
+            CHECK(controller != nullptr && controller->startRPCService()) << "init controller error!";
             controllerList.push_back(std::move(controller));
         }
     }
@@ -45,9 +45,7 @@ public:
     auto createSignedEnvelop(int nodeId) {
         auto& ski = nodesConfig[nodeId]->ski;
         std::unique_ptr<proto::Envelop> envelop(new proto::Envelop());
-        proto::SignatureString sig = {
-                ski,
-                std::make_shared<std::string>()};
+        proto::SignatureString sig = { ski, 0 };
         auto key = bccsp->GetKey(ski);
         CHECK(key->Private());
         std::string payload("payload for an envelop" + std::to_string(rand()));

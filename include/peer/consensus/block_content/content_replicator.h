@@ -259,7 +259,7 @@ namespace peer::consensus {
 
         bool OnDeliver(::util::NodeConfigPtr localNode,
                        const std::string& context,
-                       std::vector<::proto::SignatureString> signatures) override {
+                       std::vector<::proto::Block::SignaturePair>&& signatures) override {
             proto::Block::Header header;
             if (!header.deserializeFromString(context)) {
                 return false;

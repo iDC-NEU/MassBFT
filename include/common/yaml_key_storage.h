@@ -7,7 +7,7 @@
 #include "common/bccsp.h"
 #include "yaml-cpp/yaml.h"
 
-namespace peer::core {
+namespace util {
     class YAMLKeyStorage : public util::KeyStorage {
     public:
         explicit YAMLKeyStorage(const YAML::Node& node) {

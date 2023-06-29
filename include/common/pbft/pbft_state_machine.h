@@ -21,7 +21,7 @@ namespace util::pbft {
 
         virtual bool OnDeliver(::util::NodeConfigPtr localNode,
                                const std::string& context,
-                               std::vector<::proto::SignatureString> signatures) = 0;
+                               std::vector<::proto::Block::SignaturePair>&& signatures) = 0;
 
         virtual void OnLeaderStart(::util::NodeConfigPtr localNode, int sequence) = 0;
 

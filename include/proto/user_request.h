@@ -12,14 +12,15 @@ namespace proto {
 
     // publicKeyHex, signature
     struct SignatureString {
-        std::string ski;
-        std::shared_ptr<std::string> content;
-        DigestString digest{};
     public:
+        std::string ski;
+        int64_t nonce;
+        DigestString digest{};
+
         friend zpp::bits::access;
 
         constexpr static auto serialize(auto &archive, SignatureString &s) {
-            return archive(s.ski, s.content, s.digest);
+            return archive(s.ski, s.nonce, s.digest);
         }
     };
 
@@ -51,8 +52,9 @@ namespace proto {
             return _funcNameSV;
         }
 
-        void setArgs(std::string &&args) {
-            _args = std::move(args);
+        // args has type std::string
+        void setArgs(auto &&args) {
+            _args = std::forward<decltype(args)>(args);
             _argsSV = _args;
         }
 
@@ -147,7 +149,7 @@ namespace proto {
     public:
         friend zpp::bits::access;
 
-        constexpr static auto serialize(auto &archive, Envelop &e) {
+        constexpr static auto serialize(auto &archive, auto &e) {
             return archive(e._payloadSV, e._signature);
         }
 

@@ -19,7 +19,7 @@ namespace ycsb::utils {
                 : uniform(lb, ub) { }
         // This function does not support concurrent entry.
         uint64_t nextValue() override {
-            return uniform(*GetThreadLocalRandomGenerator());
+            return uniform(*::ycsb::core::GetThreadLocalRandomGenerator());
         }
         double mean() override {
             CHECK(false) << "@todo implement ZipfianGenerator.mean()";

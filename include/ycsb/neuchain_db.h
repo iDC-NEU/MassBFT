@@ -30,6 +30,36 @@ namespace ycsb::client {
         ::proto::SignatureString _signature;
     };
 
+    class NeuChainDBConnection {
+    public:
+        static std::shared_ptr<NeuChainDBConnection> NewNeuChainDBConnection(const std::string& ip, int port) {
+            std::shared_ptr<NeuChainDBConnection> dbc(new NeuChainDBConnection);
+            dbc->_invokeClient = util::ZMQInstance::NewClient<zmq::socket_type::pub>(ip, port);
+            if (!dbc->_invokeClient) {
+                return nullptr;
+            }
+            return dbc;
+        }
+
+        void shutdown() {
+            if (_invokeClient) {
+                _invokeClient->shutdown();
+            }
+        }
+
+        auto send(auto&& msg) {
+            std::unique_lock lock(_mutex);
+            return _invokeClient->send(std::forward<decltype(msg)>(msg));
+        }
+
+    protected:
+        NeuChainDBConnection() = default;
+
+    private:
+        std::mutex _mutex;
+        std::unique_ptr<util::ZMQInstance> _invokeClient;
+    };
+
     class NeuChainDB: public ycsb::core::DB {
     public:
         struct InvokeRequestType {
@@ -42,7 +72,7 @@ namespace ycsb::client {
             constexpr static const auto READ_MODIFY_WRITE = "rmw";
         };
 
-        NeuChainDB(util::NodeConfigPtr server, int port, std::shared_ptr<const util::Key> priKey);
+        NeuChainDB(util::NodeConfigPtr server, std::shared_ptr<NeuChainDBConnection> dbc, std::shared_ptr<const util::Key> priKey);
 
         void stop() override;
 
@@ -64,7 +94,7 @@ namespace ycsb::client {
 
     private:
         int64_t _nextNonce;
-        std::unique_ptr<util::ZMQInstance> _invokeClient;
+        std::shared_ptr<NeuChainDBConnection> _invokeClient;
         std::shared_ptr<const util::Key> _priKey;
         util::NodeConfigPtr _serverConfig;
     };

@@ -13,6 +13,10 @@ namespace util {
     class BCCSP;
 }
 
+namespace ycsb::client {
+    class NeuChainDBConnection;
+}
+
 namespace ycsb::core {
     class Status;
     class DB {
@@ -62,6 +66,7 @@ namespace ycsb::core {
     private:
         util::NodeConfigPtr server;
         std::unique_ptr<util::ZMQPortUtil> portConfig;
+        std::shared_ptr<::ycsb::client::NeuChainDBConnection> dbc;
         std::unique_ptr<util::BCCSP> bccsp;
     };
 }

@@ -54,6 +54,8 @@ namespace tests::peer {
             int nextBlockId = 0;
             while(!_tearDownSignal.load(std::memory_order_relaxed)) {
                 auto block = std::make_unique<::proto::Block>();
+                block->executeResult.transactionFilter.reserve(_blockSize);
+                block->body.userRequests.reserve(_blockSize);
 
                 do {
                     auto ret = _subscriber->receive();

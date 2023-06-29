@@ -20,6 +20,8 @@ namespace ycsb::core {
         auto node = p.getCustomPropertiesOrPanic("bccsp");
         bccsp = std::make_unique<util::BCCSP>(std::make_unique<util::YAMLKeyStorage>(node));
         CHECK(bccsp) << "Can not init bccsp";
+        auto port = portConfig->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[server->nodeId];
+        dbc = ::ycsb::client::NeuChainDBConnection::NewNeuChainDBConnection(server->priIp, port);
     }
 
     std::unique_ptr<DB> DBFactory::newDB() const {
@@ -27,8 +29,7 @@ namespace ycsb::core {
         if (!priKey || !priKey->Private()) {
             return nullptr;
         }
-        auto port = portConfig->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[server->nodeId];
-        return std::make_unique<client::NeuChainDB>(server, port, std::move(priKey));
+        return std::make_unique<client::NeuChainDB>(server, dbc, std::move(priKey));
     }
 
     std::unique_ptr<DBStatus> DBFactory::newDBStatus() const {

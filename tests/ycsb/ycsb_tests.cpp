@@ -51,10 +51,10 @@ TEST_F(YCSBTest, OneWorkerPerformanceTest) {
 }
 
 TEST_F(YCSBTest, OverloadTest) {
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 1000000);
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 30000);
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 10000000);
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 300000);
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 10);
-    util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 1000);
+    util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 5000);
     auto* p = util::Properties::GetProperties();
     tests::peer::Peer peer(*p, true);
     ycsb::YCSBEngine engine(*p);

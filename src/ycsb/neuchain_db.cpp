@@ -153,10 +153,13 @@ ycsb::core::Status ycsb::client::NeuChainDB::sendInvokeRequest(const std::string
     if (failure(::proto::Envelop::serialize(outEnvelop, e))) {
         return core::ERROR;
     }
+    auto timeNowMs = util::Timer::time_now_ms();
     if (!_invokeClient->send(std::move(dataEnvelop))) {
         return core::ERROR;
     }
-    return core::Status(core::Status::State::OK, std::string(reinterpret_cast<const char *>(e._signature.digest.data()), e._signature.digest.size()));
+    return core::Status(core::Status::State::OK,
+                        timeNowMs,
+                        std::string(reinterpret_cast<const char *>(e._signature.digest.data()), e._signature.digest.size()));
 }
 
 ycsb::client::NeuChainStatus::NeuChainStatus(util::NodeConfigPtr server, int port, std::shared_ptr<const util::Key> priKey) {

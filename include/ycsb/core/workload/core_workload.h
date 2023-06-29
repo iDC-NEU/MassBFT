@@ -233,10 +233,9 @@ namespace ycsb::core::workload {
 
             int numOfRetries = 0;
             while (true) {
-                auto ts = util::Timer::time_now_ms();
                 auto status = db->insert(tableName, dbKey, values);
                 if (status.isOk()) {
-                    measurements->beginTransaction(status.getDigest(), ts);
+                    measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
                     return true;
                 }
                 // Retry if configured. Without retrying, the load process will fail
@@ -340,9 +339,8 @@ namespace ycsb::core::workload {
                 fields = fieldnames;
             }
 
-            auto ts = util::Timer::time_now_ms();
             auto status = db->read(tableName, keyName, fields);
-            measurements->beginTransaction(status.getDigest(), ts);
+            measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
         }
 
         void doTransactionReadModifyWrite(DB* db) const {
@@ -366,9 +364,8 @@ namespace ycsb::core::workload {
                 buildSingleValue(values, keyName);
             }
 
-            auto ts = util::Timer::time_now_ms();
             auto status = db->readModifyWrite(tableName, keyName, fields, values);
-            measurements->beginTransaction(status.getDigest(), ts);
+            measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
         }
 
         void doTransactionScan(DB* db) const {
@@ -386,9 +383,8 @@ namespace ycsb::core::workload {
                 const auto& fieldName = fieldnames[fieldChooser->nextValue()];
                 fields.push_back(fieldName);
             }
-            auto ts = util::Timer::time_now_ms();
             auto status = db->scan(tableName, startKeyName, len, fields);
-            measurements->beginTransaction(status.getDigest(), ts);
+            measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
         }
 
         void doTransactionUpdate(DB* db) const {
@@ -404,9 +400,8 @@ namespace ycsb::core::workload {
                 // update a random field
                 buildSingleValue(values, keyName);
             }
-            auto ts = util::Timer::time_now_ms();
             auto status = db->update(tableName, keyName, values);
-            measurements->beginTransaction(status.getDigest(), ts);
+            measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
         }
 
 
@@ -418,9 +413,8 @@ namespace ycsb::core::workload {
                 auto dbKey = CoreWorkload::buildKeyName(keyNum, zeroPadding, orderedInserts);
                 utils::ByteIteratorMap values;
                 buildValues(values, dbKey);
-                auto ts = util::Timer::time_now_ms();
                 auto status = db->insert(tableName, dbKey, values);
-                measurements->beginTransaction(status.getDigest(), ts);
+                measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
             } catch (const std::exception& e) {
                 LOG(ERROR) << e.what();
             }

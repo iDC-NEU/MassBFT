@@ -182,22 +182,20 @@ ycsb::client::NeuChainStatus::NeuChainStatus(util::NodeConfigPtr server, int por
 }
 
 std::unique_ptr<proto::Block> ycsb::client::NeuChainStatus::getBlock(int blockNumber) {
-    // Send a request and wait for the response every 1 second.
-    for (int i=0; i<5; i++) {
-        // We will receive response synchronously, safe to put variables on stack.
-        proto::UserRequest request;
-        *request.mutable_payload() = std::to_string(blockNumber);
-        proto::UserResponse response;
-        brpc::Controller ctl;
-        _stub->pullBlock(&ctl, &request, &response, nullptr);
-        if (!ctl.Failed() && response.success()) {
-            auto block = std::make_unique<::proto::Block>();
-            auto ret = block->deserializeFromString(std::move(*response.mutable_payload()));
-            if (ret.valid) {
-                return block;
-            }
+    // We will receive response synchronously, safe to put variables on stack.
+    proto::PullBlockRequest request;
+    request.set_ski(_serverConfig->ski);
+    request.set_chainid(_serverConfig->groupId);
+    request.set_blockid(blockNumber);
+    proto::PullBlockResponse response;
+    brpc::Controller ctl;
+    _stub->pullBlock(&ctl, &request, &response, nullptr);
+    if (!ctl.Failed() && response.success()) {
+        auto block = std::make_unique<::proto::Block>();
+        auto ret = block->deserializeFromString(std::move(*response.mutable_payload()));
+        if (ret.valid) {
+            return block;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     LOG(ERROR) << "Failed to get block: " << blockNumber;
     return nullptr;
@@ -207,8 +205,9 @@ bool ycsb::client::NeuChainStatus::connect() {
     // Send a request and wait for the response every 1 second.
     for (int i=0; i<100; i++) {
         // We will receive response synchronously, safe to put variables on stack.
-        proto::UserRequest request;
-        proto::UserResponse response;
+        proto::HelloRequest request;
+        request.set_ski(_serverConfig->ski);
+        proto::HelloResponse response;
         brpc::Controller ctl;
         _stub->hello(&ctl, &request, &response, nullptr);
         if (!ctl.Failed() && response.success()) {

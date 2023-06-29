@@ -16,7 +16,7 @@
 namespace tests::peer {
     class Peer {
     public:
-        explicit Peer(const util::Properties &p) {
+        explicit Peer(const util::Properties &p, bool skipValidate = false) {
             auto node = p.getCustomPropertiesOrPanic("bccsp");
             bccsp = std::make_unique<util::BCCSP>(std::make_unique<util::YAMLKeyStorage>(node));
             CHECK(bccsp) << "Can not init bccsp";
@@ -31,6 +31,8 @@ namespace tests::peer {
                     portConfig->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[server->nodeId]);
             _collectorThread = std::make_unique<std::thread>(&Peer::collectorFunction, this);
             CHECK(::peer::core::UserRPCController::StartRPCService(rpcPort));
+            _blockSize = p.getBlockMaxBatchSize();
+            _skipValidate = skipValidate;
         }
 
         ~Peer() {
@@ -67,14 +69,16 @@ namespace tests::peer {
                     block->body.userRequests.push_back(std::move(envelop));
                     auto reqSize = block->body.userRequests.size();
                     block->executeResult.transactionFilter.push_back(static_cast<std::byte>(reqSize%2));
-                } while(block->body.userRequests.size() < 100);
-                // validate the request
-                auto& request = block->body.userRequests[0];
-                auto key = bccsp->GetKey(request->getSignature().ski);
-                auto ret = key->Verify(request->getSignature().digest,
-                                       request->getPayload().data(),
-                                       request->getPayload().size());
-                CHECK(ret);
+                } while((int)block->body.userRequests.size() < _blockSize);
+                if (!_skipValidate) {
+                    // validate the request
+                    auto& request = block->body.userRequests[0];
+                    auto key = bccsp->GetKey(request->getSignature().ski);
+                    auto ret = key->Verify(request->getSignature().digest,
+                                           request->getPayload().data(),
+                                           request->getPayload().size());
+                    CHECK(ret);
+                }
                 block->header.number = nextBlockId++;
                 _blockStorage->insertBlockAndNotify(server->groupId, std::move(block));
             }
@@ -85,6 +89,8 @@ namespace tests::peer {
         int rpcPort = 0;
         std::shared_ptr<util::NodeConfig> server;
         std::unique_ptr<util::BCCSP> bccsp;
+        int _blockSize = 0;
+        bool _skipValidate;
         std::shared_ptr<::peer::MRBlockStorage> _blockStorage;
         std::shared_ptr<util::ZMQInstance> _subscriber;
         std::unique_ptr<std::thread> _collectorThread;

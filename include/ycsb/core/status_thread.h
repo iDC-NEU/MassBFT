@@ -74,7 +74,7 @@ namespace ycsb::core {
                 auto& filterList = block->executeResult.transactionFilter;
                 CHECK(txnCount == latencyList.size());
                 CHECK(txnCount == filterList.size());
-                LOG(INFO) << "polled blockHeight: " << blockHeight << ", size: " << txnCount;
+                DLOG(INFO) << "polled blockHeight: " << blockHeight << ", size: " << txnCount;
                 // calculate txCountCommit, txCountAbort, latency
                 for (int i=0; i<(int)txnCount; i++) {
                     if (latencyList[i] == 0) {

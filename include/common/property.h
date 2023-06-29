@@ -268,6 +268,11 @@ namespace util {
             return properties;
         }
 
+        static void SetProperties(auto&& key, auto&& value) {
+            auto* p = util::Properties::GetProperties();
+            p->_node[key] = value;
+        }
+
         ~Properties() = default;
 
         ChaincodeProperties getChaincodeProperties() const { return ChaincodeProperties(_node[CHAINCODE_PROPERTIES]); }

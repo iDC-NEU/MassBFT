@@ -173,7 +173,7 @@ namespace util {
             return nullptr;
         }
 
-        int getGroupCount() {
+        int getGroupCount() const {
             if (!n.IsDefined() || !n.IsMap()) {
                 return -1;
             }
@@ -185,7 +185,7 @@ namespace util {
             }
         }
 
-        int getGroupNodeCount(int groupId) {
+        int getGroupNodeCount(int groupId) const {
             auto [list, success] = getAndCheckGroup(groupId);
             if (!success) {
                 return -1; // group not found

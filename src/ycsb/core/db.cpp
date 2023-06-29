@@ -15,9 +15,7 @@ namespace ycsb::core {
     DBFactory::DBFactory(const util::Properties &p) {
         server = p.getNodeProperties().getLocalNodeInfo();
         // calculate port
-        auto ports = util::ZMQPortUtil::InitPortsConfig(p);
-        CHECK(ports->contains(server->groupId) && (int)ports->at(server->groupId).size() > server->nodeId) << "index out of range!";
-        portConfig = std::move(ports->at(server->groupId).at(server->nodeId));
+        portConfig = util::ZMQPortUtil::InitLocalPortsConfig(p);
         // init bccsp
         auto node = p.getCustomPropertiesOrPanic("bccsp");
         bccsp = std::make_unique<util::BCCSP>(std::make_unique<util::YAMLKeyStorage>(node));
@@ -38,7 +36,7 @@ namespace ycsb::core {
         if (!priKey || !priKey->Private()) {
             return nullptr;
         }
-        auto port = portConfig->getLocalServicePorts(util::PortType::CLIENT_TO_SERVER)[server->nodeId];
+        auto port = portConfig->getLocalServicePorts(util::PortType::BFT_RPC)[server->nodeId];
         return std::make_unique<client::NeuChainStatus>(server, port, std::move(priKey));
     }
 

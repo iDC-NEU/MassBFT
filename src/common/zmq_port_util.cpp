@@ -226,5 +226,16 @@ namespace util {
         return InitPortsConfig(properties.replicatorLowestPort(), regionNodesCount, properties.isDistributedSetting());
     }
 
+    std::unique_ptr<ZMQPortUtil> ZMQPortUtil::InitLocalPortsConfig(const Properties &properties) {
+        auto np = properties.getNodeProperties();
+        std::unordered_map<int, int> regionNodesCount;
+        for (int i=0; i<np.getGroupCount(); i++) {
+            regionNodesCount[i] = np.getGroupNodeCount(i);
+        }
+        auto groupId = np.getLocalNodeInfo()->groupId;
+        auto nodeId = np.getLocalNodeInfo()->nodeId;
+        return ZMQPortUtil::NewZMQPortUtil(regionNodesCount, groupId, nodeId, properties.replicatorLowestPort(), properties.isDistributedSetting());
+    }
+
     ZMQPortUtil::~ZMQPortUtil() = default;
 }

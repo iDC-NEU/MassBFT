@@ -12,6 +12,9 @@
 #include "common/zmq_port_util.h"
 #include "proto/block.h"
 #include "tests/mock_property_generator.h"
+#include "peer/db/rocksdb_connection.h"
+#include "peer/chaincode/orm.h"
+#include "peer/chaincode/chaincode.h"
 
 namespace tests::peer {
     class Peer {
@@ -33,6 +36,9 @@ namespace tests::peer {
             CHECK(::peer::core::UserRPCController::StartRPCService(rpcPort));
             _blockSize = p.getBlockMaxBatchSize();
             _skipValidate = skipValidate;
+            _dbc = ::peer::db::RocksdbConnection::NewConnection("YCSBChaincodeTestDB");
+            CHECK(_dbc != nullptr) << "failed to init db!";
+            _orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_dbc.get());
         }
 
         ~Peer() {
@@ -48,6 +54,10 @@ namespace tests::peer {
             }
         }
 
+        std::unordered_map<std::string_view, int> getOpCount() {
+            return _opCount;
+        }
+
     protected:
         void collectorFunction() {
             pthread_setname_np(pthread_self(), "mock_collector");
@@ -56,6 +66,8 @@ namespace tests::peer {
                 auto block = std::make_unique<::proto::Block>();
                 block->executeResult.transactionFilter.reserve(_blockSize);
                 block->body.userRequests.reserve(_blockSize);
+
+                auto chaincode = ::peer::chaincode::NewChaincodeByName("ycsb", std::move(_orm));
 
                 do {
                     auto ret = _subscriber->receive();
@@ -70,6 +82,20 @@ namespace tests::peer {
                     }
                     block->body.userRequests.push_back(std::move(envelop));
                     auto reqSize = block->body.userRequests.size();
+
+                    // deserialize the request payload
+                    auto& request = block->body.userRequests.back();
+                    proto::UserRequest user;
+                    zpp::bits::in in(request->getPayload());
+                    if (failure(in((user)))) {
+                        return;
+                    }
+                    // record the count of every operation
+                    _opCount[user.getFuncNameSV()] += 1;
+
+                    std::vector<std::string_view> args{user.getArgs()};
+                    chaincode->InvokeChaincode(user.getFuncNameSV(), args);
+
                     block->executeResult.transactionFilter.push_back(static_cast<std::byte>(reqSize%2));
                 } while((int)block->body.userRequests.size() < _blockSize);
                 if (!_skipValidate) {
@@ -96,5 +122,8 @@ namespace tests::peer {
         std::shared_ptr<::peer::MRBlockStorage> _blockStorage;
         std::shared_ptr<util::ZMQInstance> _subscriber;
         std::unique_ptr<std::thread> _collectorThread;
+        std::unique_ptr<::peer::db::RocksdbConnection> _dbc;
+        std::unique_ptr<::peer::chaincode::ORM> _orm;
+        std::unordered_map<std::string_view, int> _opCount;
     };
 }

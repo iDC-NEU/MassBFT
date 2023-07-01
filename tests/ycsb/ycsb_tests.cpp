@@ -60,3 +60,18 @@ TEST_F(YCSBTest, OverloadTest) {
     ycsb::YCSBEngine engine(*p);
     engine.startTest();
 }
+
+TEST_F(YCSBTest, WorkloadProportionTest) {
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 100000);
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 10000);
+    auto* p = util::Properties::GetProperties();
+    tests::peer::Peer peer(*p, true);
+    ycsb::YCSBEngine engine(*p);
+    engine.startTest();
+    auto count = peer.getOpCount();
+    ASSERT_TRUE(!count.empty());
+    // u:5026   r:94974
+    // not correct
+    ASSERT_TRUE(count["r"] == 95000);
+    ASSERT_TRUE(count["u"] == 5000);
+}

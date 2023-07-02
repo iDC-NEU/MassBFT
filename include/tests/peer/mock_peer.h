@@ -39,6 +39,8 @@ namespace tests::peer {
             _dbc = ::peer::db::RocksdbConnection::NewConnection("YCSBChaincodeTestDB");
             CHECK(_dbc != nullptr) << "failed to init db!";
             _orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_dbc.get());
+            _chainCode = ::peer::chaincode::NewChaincodeByName("ycsb", std::move(_orm));
+            _chainCode->InvokeChaincode("init", std::vector<std::string_view>{"10000"});
         }
 
         ~Peer() {
@@ -67,8 +69,6 @@ namespace tests::peer {
                 block->executeResult.transactionFilter.reserve(_blockSize);
                 block->body.userRequests.reserve(_blockSize);
 
-                auto chaincode = ::peer::chaincode::NewChaincodeByName("ycsb", std::move(_orm));
-
                 do {
                     auto ret = _subscriber->receive();
                     if (ret == std::nullopt) {
@@ -94,9 +94,12 @@ namespace tests::peer {
                     _opCount[user.getFuncNameSV()] += 1;
 
                     std::vector<std::string_view> args{user.getArgs()};
-                    chaincode->InvokeChaincode(user.getFuncNameSV(), args);
-
-                    block->executeResult.transactionFilter.push_back(static_cast<std::byte>(reqSize%2));
+                    auto executeRet = _chainCode->InvokeChaincode(user.getFuncNameSV(), args);
+                    if(executeRet == 0) {
+                        block->executeResult.transactionFilter.push_back(static_cast<std::byte>(1));
+                    } else {
+                        block->executeResult.transactionFilter.push_back(static_cast<std::byte>(0));
+                    }
                 } while((int)block->body.userRequests.size() < _blockSize);
                 if (!_skipValidate) {
                     // validate the request
@@ -125,5 +128,6 @@ namespace tests::peer {
         std::unique_ptr<::peer::db::RocksdbConnection> _dbc;
         std::unique_ptr<::peer::chaincode::ORM> _orm;
         std::unordered_map<std::string_view, int> _opCount;
+        std::unique_ptr<::peer::chaincode::Chaincode> _chainCode;
     };
 }

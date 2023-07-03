@@ -87,15 +87,15 @@ namespace peer {
                 timeoutSpecPtr = &timeoutSpec;
             }
             auto& futex = newBlockFutexList[regionId];
-            auto maxBlockId = futex->load(std::memory_order_relaxed);
+            auto maxBlockId = futex->load(std::memory_order_acquire);
             while (maxBlockId < (int) blockId) {
                 if (bthread::butex_wait(futex, maxBlockId, timeoutSpecPtr) < 0 && errno != EWOULDBLOCK && errno != EINTR) {
                     return nullptr;
                 }
-                maxBlockId = futex->load(std::memory_order_relaxed);
+                maxBlockId = futex->load(std::memory_order_acquire);
             }
             std::shared_ptr<proto::Block> block = nullptr;
-            blockStorage[regionId].if_contains(blockId, [&block](const RegionStorage::value_type &v) { block = v.second.block; });
+            blockStorage[regionId].if_contains(blockId, [&block](const RegionStorage::value_type &v) { block = v.second; });
             DCHECK(block != nullptr) << "Block must not be empty, impl error!";
             return block;
         }
@@ -112,20 +112,18 @@ namespace peer {
                 }
             }
             auto blockNumber = block->header.number;
-            blockStorage[regionId].try_emplace(blockNumber, BlockCell{std::move(block)});
+            blockStorage[regionId].try_emplace(blockNumber, std::move(block));
             auto blockNumberInt = (int) blockNumber;
             auto& futex = newBlockFutexList[regionId];
-            futex->store(blockNumberInt);
+            // double check if input is correct
+            DCHECK(futex->load(std::memory_order_acquire) == blockNumberInt - 1);
+            futex->store(blockNumberInt, std::memory_order_release);
             bthread::butex_wake_all(futex);
         }
 
     private:
-        struct BlockCell {
-            // the deserialized block and the related raw form
-            std::shared_ptr<proto::Block> block = nullptr;
-        };
         // key block id, value actual block
-        using RegionStorage = util::MyFlatHashMap<proto::BlockNumber, BlockCell, std::mutex>;
+        using RegionStorage = util::MyFlatHashMap<proto::BlockNumber, std::shared_ptr<proto::Block>, std::mutex>;
         // multi region block storage
         std::vector<RegionStorage> blockStorage;
         // change when block updated

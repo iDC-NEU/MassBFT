@@ -8,6 +8,7 @@
 #include "peer/consensus/block_order/global_ordering.h"
 #include "common/yaml_key_storage.h"
 #include "common/property.h"
+#include "peer/core/user_rpc_controller.h"
 
 namespace peer::core {
     ModuleFactory::~ModuleFactory() = default;
@@ -36,9 +37,7 @@ namespace peer::core {
         if (gc <= 0) {
             return nullptr;
         }
-        if (!_contentStorage) {
-            _contentStorage = std::make_shared<peer::MRBlockStorage>(gc);
-        }
+        _contentStorage = std::make_shared<peer::MRBlockStorage>(gc);
         return _contentStorage;
     }
 
@@ -205,5 +204,24 @@ namespace peer::core {
         auto localNode = nodeProperties.getLocalNodeInfo();
         auto initialBlockHeight = _properties->getStartBlockNumber(localNode->groupId);
         return _replicator->startSender(initialBlockHeight);
+    }
+
+    std::shared_ptr<::peer::MRBlockStorage> ModuleFactory::initUserRPCController() {
+        auto gc = _properties->getNodeProperties().getGroupCount();
+        if (gc <= 0) {
+            return nullptr;
+        }
+        std::shared_ptr<::peer::MRBlockStorage> storage = std::make_shared<peer::MRBlockStorage>(gc);
+
+        auto portMap = getOrInitZMQPortUtilMap();
+        auto np = _properties->getNodeProperties();
+        auto localNode = np.getLocalNodeInfo();
+        auto& nodePortCfg = portMap->at(localNode->groupId)[localNode->nodeId];
+        if (!::peer::core::UserRPCController::NewRPCController(
+                storage,
+                nodePortCfg->getLocalServicePorts(util::PortType::BFT_RPC)[localNode->nodeId])) {
+            return nullptr;
+        }
+        return storage;
     }
 }

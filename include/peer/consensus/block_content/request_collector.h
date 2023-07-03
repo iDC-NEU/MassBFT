@@ -26,7 +26,7 @@ namespace peer::consensus {
 
         explicit RequestCollector(const Config& config, int port)
                 : _batchConfig(config), _tearDownSignal(false) {
-            _subscriber = util::ZMQInstance::NewServer<zmq::socket_type::pull>(port);
+            _subscriber = util::ZMQInstance::NewServer<zmq::socket_type::sub>(port);
         }
 
         RequestCollector(const RequestCollector&) = delete;

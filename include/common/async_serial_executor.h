@@ -26,7 +26,7 @@ namespace util {
 
         bool addTask(std::function<void()> task) {
             cv.notify_one([&] {
-                tasks.emplace(std::move(task));
+                tasks.push(std::move(task));
             });
             return true;
         }

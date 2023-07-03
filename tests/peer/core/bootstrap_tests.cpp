@@ -63,6 +63,7 @@ TEST_F(BootstrapTest, TestBFTController) {
         tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
         tests::MockPropertyGenerator::SetLocalId(0, i);
         modList[i] = GetAndInitModules(false);
+        CHECK(modList[i]->initUserRPCController());
         // groupId is set to 1 to coverage more code
         bftControllerList[i] = modList[i]->newReplicatorBFTController(1);
         CHECK(bftControllerList[i] != nullptr);

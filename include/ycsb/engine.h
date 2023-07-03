@@ -19,21 +19,38 @@ namespace ycsb {
             measurements = std::make_shared<core::Measurements>();
             workload->setMeasurements(measurements);
             initClients();
-            totalBenchmarkTime = static_cast<int>((double)ycsbProperties->getOperationCount() /
-                    (ycsbProperties->getTargetTPSPerThread() * ycsbProperties->getThreadCount()));
         }
 
+        ~YCSBEngine() { waitUntilFinish(); }
+
+        // not thread safe, called by ths same manager
         void startTest() {
+            startTestNoWait();
+            waitUntilFinish();
+        }
+
+        // not thread safe, called by ths same manager
+        void startTestNoWait() {
             LOG(INFO) << "Running test.";
             auto status = factory.newDBStatus();
-            auto statusThread = std::make_unique<ycsb::core::StatusThread>(measurements, std::move(status));
+            statusThread = std::make_unique<ycsb::core::StatusThread>(measurements, std::move(status));
             LOG(INFO) << "Run worker thread";
             for(auto &client :clients) {
                 client->run();
             }
             LOG(INFO) << "Run status thread";
             statusThread->run();
-            std::this_thread::sleep_for(std::chrono::seconds(totalBenchmarkTime));
+            auto totalBenchmarkTime = static_cast<int>((double)ycsbProperties->getOperationCount() /
+                                                       (ycsbProperties->getTargetTPSPerThread() * ycsbProperties->getThreadCount()));
+            benchmarkUntil = std::chrono::system_clock::now() + std::chrono::seconds(totalBenchmarkTime);
+        }
+
+        // not thread safe, called by ths same manager
+        void waitUntilFinish() {
+            if (!statusThread) {
+                return;
+            }
+            std::this_thread::sleep_until(benchmarkUntil);
             LOG(INFO) << "Finishing status thread";
             statusThread.reset();
             workload->requestStop();
@@ -59,10 +76,11 @@ namespace ycsb {
 
     private:
         core::DBFactory factory;
-        int totalBenchmarkTime = 0;
+        std::chrono::high_resolution_clock::time_point benchmarkUntil;
         std::unique_ptr<ycsb::utils::YCSBProperties> ycsbProperties;
         std::shared_ptr<ycsb::core::workload::CoreWorkload> workload;
         std::shared_ptr<core::Measurements> measurements;
+        std::unique_ptr<ycsb::core::StatusThread> statusThread;
         std::vector<std::unique_ptr<core::ClientThread>> clients;
     };
 }

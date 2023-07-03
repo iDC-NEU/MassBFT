@@ -65,6 +65,7 @@ namespace peer::core {
                 response->set_payload("Serialize message failed.");
                 return;
             }
+            block->setSerializedMessage(std::string(*response->mutable_payload()));
         }
         response->set_success(true);
     }

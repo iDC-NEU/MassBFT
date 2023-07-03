@@ -17,6 +17,8 @@
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
+#include "peer/chaincode/orm.h"
+#include "peer/chaincode/chaincode.h"
 
 class ModuleCoordinatorTest : public ::testing::Test {
 protected:
@@ -29,11 +31,36 @@ protected:
     void SetUp() override {
         util::ReliableZmqServer::AddRPCService();
         util::MetaRpcServer::Start();
+        // init ycsb config
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 1000);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 10000);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 300);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
+        util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 100);
+        util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 1000);
+        // load ycsb database
     };
 
     void TearDown() override {
         util::MetaRpcServer::Stop();
     };
+
+    static bool FillCCData(::peer::db::RocksdbConnection& db, const auto& dbName) {
+        auto orm = ::peer::chaincode::ORM::NewORMFromLeveldb(&db);
+        auto cc = ::peer::chaincode::NewChaincodeByName(dbName, std::move(orm));
+        if (cc->InitDatabase() != 0) {
+            return false;
+        }
+        auto [reads, writes] = cc->reset();
+        return db.syncWriteBatch([&](rocksdb::WriteBatch* batch) ->bool {
+            for (const auto& it: *writes) {
+                CHECK(batch->Put({it->getKeySV().data(), it->getKeySV().size()},
+                                 {it->getValueSV().data(), it->getValueSV().size()})
+                      == rocksdb::Status::OK());
+            }
+            return true;
+        });
+    }
 
 protected:
     static void InitNodeConfig(int groupId, int nodeId) {
@@ -54,6 +81,7 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
             InitNodeConfig(i, j);
             auto mc = peer::core::ModuleCoordinator::NewModuleCoordinator(util::Properties::GetSharedProperties());
             CHECK(mc != nullptr);
+            CHECK(FillCCData(*mc->getDBHandle(), "ycsb"));
             mcList.push_back(std::move(mc));
         }
     }
@@ -63,13 +91,6 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
     for (auto& it: mcList) {
         it->waitInstanceReady();
     }
-    // init ycsb config
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 100);
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 5000);
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 100);
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
-    util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 50);
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_COUNT_PROPERTY, 10);
     // for the leaders
     std::vector<std::unique_ptr<ycsb::YCSBEngine>> clientList;
     for (int i=0; i<groupCount; i++) {

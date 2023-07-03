@@ -47,6 +47,8 @@ namespace peer::core {
 
         void waitInstanceReady() const;
 
+        [[nodiscard]] std::shared_ptr<peer::db::RocksdbConnection> getDBHandle() const { return _db; }
+
     protected:
         ModuleCoordinator() = default;
 

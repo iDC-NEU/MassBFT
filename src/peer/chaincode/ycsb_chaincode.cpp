@@ -84,10 +84,19 @@ namespace peer::chaincode {
         if(failure(in(table, key, readFields, writeArgs))) {
             return -1;
         }
-        for (const auto& it: readFields) {
-            std::string_view value; // drop the value
-            if (!orm->get(BuildKeyField(key, it), &value)) {
-                return -1;
+        if (readFields.empty()) {
+            for (const auto& it: fieldNames) {
+                std::string_view value; // drop the value
+                if (!orm->get(BuildKeyField(key, it), &value)) {
+                    return -1;
+                }
+            }
+        } else {
+            for (const auto& it: readFields) {
+                std::string_view value; // drop the value
+                if (!orm->get(BuildKeyField(key, it), &value)) {
+                    return -1;
+                }
             }
         }
         for (const auto& it: writeArgs) {

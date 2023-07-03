@@ -198,7 +198,6 @@ namespace ycsb::core::workload {
                 } else {
                     // fill with random data
                     values[fieldKey] = utils::RandomString(fieldLengthGenerator->nextValue());
-                    LOG(INFO) << values[fieldKey];
                 }
             }
         }
@@ -243,10 +242,8 @@ namespace ycsb::core::workload {
                 // an insertion retry limit (default is 0) to enable retry.
                 if (++numOfRetries <= insertionRetryLimit) {
                     LOG(ERROR) << "Retrying insertion, retry count: " << numOfRetries;
-                    // Sleep for a random number between [0.8, 1.2)*insertionRetryInterval.
-                    int sleepTime = (int) (1000 * insertionRetryInterval * (0.8 + 0.4));
-                    sleep(sleepTime);
-
+                    // TODO: Sleep for a random number between [0.8, 1.2)*insertionRetryInterval.
+                    std::this_thread::sleep_for(std::chrono::milliseconds((1000 * insertionRetryInterval)));
                 } else {
                     LOG(ERROR) << "Error inserting, not retrying any more. number of attempts: " << numOfRetries << "Insertion Retry Limit: " << insertionRetryLimit;
                     return false;

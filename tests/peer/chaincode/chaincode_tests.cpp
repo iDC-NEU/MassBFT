@@ -30,7 +30,7 @@ protected:
         CHECK(db != nullptr) << "failed to init db!";
         auto orm = peer::chaincode::ORM::NewORMFromLeveldb(db.get());
         chaincode = peer::chaincode::NewChaincodeByName("transfer", std::move(orm));
-        chaincode->invoke("init", ParamToString({"100"}));
+        chaincode->InvokeChaincode("init", ParamToString({"100"}));
         auto [reads, writes] = chaincode->reset();
         ASSERT_TRUE(reads->empty());
         ASSERT_TRUE(writes->size() == 100);
@@ -46,7 +46,7 @@ protected:
 TEST_F(ChaincodeTest, TestTransfer) {
     db->syncPut("10", "0");
     db->syncPut("5", "0");
-    chaincode->invoke("transfer", ParamToString({"10", "5"}));
+    chaincode->InvokeChaincode("transfer", ParamToString({"10", "5"}));
     auto [reads, writes] = chaincode->reset();
     ASSERT_TRUE(reads->size() == 2);
     ASSERT_TRUE(writes->size() == 2);

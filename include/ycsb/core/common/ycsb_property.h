@@ -308,7 +308,7 @@ namespace ycsb::utils {
         }
 
         inline auto getInsertRetryInterval() const {
-            return n[INSERTION_RETRY_INTERVAL].as<int>(3);  // ms
+            return n[INSERTION_RETRY_INTERVAL].as<int>(1);  // second
         }
 
     protected:

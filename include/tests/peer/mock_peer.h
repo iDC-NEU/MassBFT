@@ -12,11 +12,14 @@
 #include "common/zmq_port_util.h"
 #include "proto/block.h"
 #include "tests/mock_property_generator.h"
+#include "peer/db/rocksdb_connection.h"
+#include "peer/chaincode/orm.h"
+#include "peer/chaincode/chaincode.h"
 
 namespace tests::peer {
     class Peer {
     public:
-        explicit Peer(const util::Properties &p, bool skipValidate = false) {
+        explicit Peer(const util::Properties &p, bool skipValidate, bool useChaincode) {
             auto node = p.getCustomPropertiesOrPanic("bccsp");
             bccsp = std::make_unique<util::BCCSP>(std::make_unique<util::YAMLKeyStorage>(node));
             CHECK(bccsp) << "Can not init bccsp";
@@ -33,6 +36,29 @@ namespace tests::peer {
             CHECK(::peer::core::UserRPCController::StartRPCService(rpcPort));
             _blockSize = p.getBlockMaxBatchSize();
             _skipValidate = skipValidate;
+            if (useChaincode) {
+                CHECK(initDatabase()) << "failed to init chaincode!";
+            }
+        }
+
+        bool initDatabase() {
+            _execResults.reserve(1000 * 1000);
+            _dbc = ::peer::db::RocksdbConnection::NewConnection("YCSBChaincodeTestDB");
+            CHECK(_dbc != nullptr) << "failed to init db!";
+            _orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_dbc.get());
+            _chaincode = ::peer::chaincode::NewChaincodeByName("ycsb", std::move(_orm));
+            if (_chaincode->InitDatabase() != 0) {
+                return false;
+            }
+            auto [reads, writes] = _chaincode->reset();
+            return _dbc->syncWriteBatch([&](rocksdb::WriteBatch* batch) ->bool {
+                for (const auto& it: *writes) {
+                    CHECK(batch->Put({it->getKeySV().data(), it->getKeySV().size()},
+                                     {it->getValueSV().data(), it->getValueSV().size()})
+                          == rocksdb::Status::OK());
+                }
+                return true;
+            });
         }
 
         ~Peer() {
@@ -47,6 +73,8 @@ namespace tests::peer {
                 ::peer::core::UserRPCController::StopRPCService(rpcPort);
             }
         }
+
+        const auto& getExecutionResult() { return _execResults; }
 
     protected:
         void collectorFunction() {
@@ -71,6 +99,18 @@ namespace tests::peer {
                     block->body.userRequests.push_back(std::move(envelop));
                     auto reqSize = block->body.userRequests.size();
                     block->executeResult.transactionFilter.push_back(static_cast<std::byte>(reqSize%2));
+                    if (_chaincode != nullptr) {    // use chaincode for each tx
+                        // deserialize the request payload
+                        auto user = std::make_unique<proto::UserRequest>();
+                        auto& request = block->body.userRequests[0];
+                        zpp::bits::in in(request->getPayload());
+                        if (failure(in((*user)))) {
+                            return;
+                        }
+                        _chaincode->InvokeChaincode(user->getFuncNameSV(), user->getArgs());
+                        auto [reads, writes] = _chaincode->reset(); // analysis rw sets
+                        _execResults.emplace_back(std::move(user), std::move(reads), std::move(writes));
+                    }
                 } while((int)block->body.userRequests.size() < _blockSize);
                 if (!_skipValidate) {
                     // validate the request
@@ -96,5 +136,10 @@ namespace tests::peer {
         std::shared_ptr<::peer::MRBlockStorage> _blockStorage;
         std::shared_ptr<util::ZMQInstance> _subscriber;
         std::unique_ptr<std::thread> _collectorThread;
+        std::unique_ptr<::peer::db::RocksdbConnection> _dbc;
+        std::unique_ptr<::peer::chaincode::ORM> _orm;
+        std::unique_ptr<::peer::chaincode::Chaincode> _chaincode;
+        // the actual contents are in the block envelop
+        std::vector<std::tuple<std::unique_ptr<proto::UserRequest>, std::unique_ptr<proto::KVList>, std::unique_ptr<proto::KVList>>> _execResults;
     };
 }

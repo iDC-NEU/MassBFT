@@ -80,9 +80,8 @@ TEST_F(CoreWorkloadTest, TestBuildKey) {
 TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator1) {
     using namespace ycsb::core::workload;
     auto* property = util::Properties::GetProperties();
-    auto node = property->getCustomProperties(ycsb::utils::YCSBProperties::YCSB_PROPERTIES);
-    node[ycsb::utils::YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY] = "constant";
-    node[ycsb::utils::YCSBProperties::FIELD_LENGTH_PROPERTY] = 35;
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "constant");
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_PROPERTY, 35);
     auto p = ycsb::utils::YCSBProperties::NewFromProperty(*property);
     auto gen = CoreWorkload::getFieldLengthGenerator(*p);
     const auto val = gen->nextValue();
@@ -96,10 +95,9 @@ TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator2) {
     YAML::Node tmp;
     using namespace ycsb::core::workload;
     auto* property = util::Properties::GetProperties();
-    auto node = property->getCustomProperties(ycsb::utils::YCSBProperties::YCSB_PROPERTIES);
-    node[ycsb::utils::YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY] = "uniform";
-    node[ycsb::utils::YCSBProperties::FIELD_LENGTH_PROPERTY] = 50;
-    node[ycsb::utils::YCSBProperties::MIN_FIELD_LENGTH_PROPERTY] = 41;
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "uniform");
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_PROPERTY, 50);
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::MIN_FIELD_LENGTH_PROPERTY, 41);
     auto p = ycsb::utils::YCSBProperties::NewFromProperty(*property);
     auto gen = CoreWorkload::getFieldLengthGenerator(*p);
     std::unordered_map<uint64_t, int> counts;

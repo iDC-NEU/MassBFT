@@ -62,6 +62,7 @@ TEST_F(YCSBTest, OverloadTest) {
 }
 
 TEST_F(YCSBTest, ReadWorkloadTest) {
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 10000000);
     auto* p = util::Properties::GetProperties();
     tests::peer::Peer peer(*p, true);
     ycsb::YCSBEngine engine(*p);

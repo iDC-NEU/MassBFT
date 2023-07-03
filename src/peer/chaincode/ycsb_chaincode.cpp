@@ -130,8 +130,7 @@ namespace peer::chaincode {
 
         // set insert start = 0
         auto oldInsertStart = ycsbProperties->getInsertStart();
-        auto node = property->getCustomProperties(ycsb::utils::YCSBProperties::YCSB_PROPERTIES);
-        node[ycsb::utils::YCSBProperties::INSERT_START_PROPERTY] = 0;
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::INSERT_START_PROPERTY, 0);
 
         // create new workload
         auto workload = std::make_shared<ycsb::core::workload::CoreWorkload>();
@@ -140,7 +139,7 @@ namespace peer::chaincode {
         workload->setMeasurements(measurements);
 
         // restore the original value
-        node[ycsb::utils::YCSBProperties::INSERT_START_PROPERTY] = oldInsertStart;
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::INSERT_START_PROPERTY, oldInsertStart);
 
         // start load data
         auto opCount = ycsbProperties->getRecordCount();

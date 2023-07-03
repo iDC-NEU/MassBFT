@@ -23,7 +23,7 @@ protected:
     ModuleCoordinatorTest() {
         util::OpenSSLSHA256::initCrypto();
         tests::MockPropertyGenerator::GenerateDefaultProperties(groupCount, nodeCountPerGroup);
-        util::Properties::SetProperties(util::Properties::REPLICATOR_LOWEST_PORT, 10000);
+        util::Properties::SetProperties(util::Properties::REPLICATOR_LOWEST_PORT, 13000);
     }
 
     void SetUp() override {

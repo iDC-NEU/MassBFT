@@ -61,7 +61,8 @@ namespace peer::core {
         // 1.4 init user request collector
         auto totalGroup = nodeProperties.getGroupCount();
         // init user rpc controller (for pulling block)
-        if (!mc->_moduleFactory->initUserRPCController()) {
+        mc->_userRPCNotifier = mc->_moduleFactory->initUserRPCController();
+        if (mc->_userRPCNotifier == nullptr) {
             return nullptr;
         }
         // the bftController id is 0
@@ -85,16 +86,16 @@ namespace peer::core {
     bool ModuleCoordinator::onConsensusBlockOrder(int regionId, int blockId) {
         auto realBlock = _contentStorage->waitForBlock(regionId, blockId, 0);
         CHECK(realBlock != nullptr && (int)realBlock->header.number == blockId);
-        if (_localNode->groupId == 0 && _localNode->nodeId == 0) {
-            LOG(INFO) << "Finally receive a block (" << regionId << ", " << blockId << ", " << realBlock->body.userRequests.size() << ")" << ", threadId: " << std::this_thread::get_id();
-        }
         // if success, txReadWriteSet and transactionFilter are the return values
         if (!_cc->processValidatedRequests(realBlock->body.userRequests,
                                            realBlock->executeResult.txReadWriteSet,
                                            realBlock->executeResult.transactionFilter)) {
             return false;
         }
-        // TODO: store result into block and notify user
+        realBlock->getSerializedMessage()->clear(); // out of date (contains no exec result)
+        // notify user by rpc
+        DLOG(INFO) << _localNode->groupId << ", " << _localNode->nodeId << " pushBlock, chainId: " << regionId  << ", blockId: " << blockId;
+        _userRPCNotifier->insertBlockAndNotify(regionId, std::move(realBlock));
         return true;
     }
 

@@ -71,5 +71,7 @@ namespace peer::core {
         std::shared_ptr<peer::db::RocksdbConnection> _db;
         std::unique_ptr<peer::cc::CoordinatorImpl> _cc;
         util::AsyncSerialExecutor _serialExecutor;
+        // for user rpc
+        std::shared_ptr<::peer::MRBlockStorage> _userRPCNotifier;
     };
 }

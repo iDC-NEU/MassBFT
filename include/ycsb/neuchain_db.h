@@ -63,7 +63,7 @@ namespace ycsb::client {
     class NeuChainDB: public ycsb::core::DB {
     public:
         struct InvokeRequestType {
-            constexpr static const auto YCSB = "y";
+            constexpr static const auto YCSB = "ycsb";
             constexpr static const auto UPDATE = "u";
             constexpr static const auto INSERT = "i";
             constexpr static const auto READ = "r";

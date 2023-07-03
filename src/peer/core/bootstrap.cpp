@@ -37,9 +37,7 @@ namespace peer::core {
         if (gc <= 0) {
             return nullptr;
         }
-        if (!_contentStorage) {
-            _contentStorage = std::make_shared<peer::MRBlockStorage>(gc);
-        }
+        _contentStorage = std::make_shared<peer::MRBlockStorage>(gc);
         return _contentStorage;
     }
 
@@ -208,14 +206,22 @@ namespace peer::core {
         return _replicator->startSender(initialBlockHeight);
     }
 
-    bool ModuleFactory::initUserRPCController() {
-        auto storage = getOrInitContentStorage();
+    std::shared_ptr<::peer::MRBlockStorage> ModuleFactory::initUserRPCController() {
+        auto gc = _properties->getNodeProperties().getGroupCount();
+        if (gc <= 0) {
+            return nullptr;
+        }
+        std::shared_ptr<::peer::MRBlockStorage> storage = std::make_shared<peer::MRBlockStorage>(gc);
+
         auto portMap = getOrInitZMQPortUtilMap();
         auto np = _properties->getNodeProperties();
         auto localNode = np.getLocalNodeInfo();
         auto& nodePortCfg = portMap->at(localNode->groupId)[localNode->nodeId];
-        return ::peer::core::UserRPCController::NewRPCController(
+        if (!::peer::core::UserRPCController::NewRPCController(
                 storage,
-                nodePortCfg->getLocalServicePorts(util::PortType::BFT_RPC)[localNode->nodeId]);
+                nodePortCfg->getLocalServicePorts(util::PortType::BFT_RPC)[localNode->nodeId])) {
+            return nullptr;
+        }
+        return storage;
     }
 }

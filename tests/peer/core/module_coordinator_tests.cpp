@@ -32,9 +32,9 @@ protected:
         util::ReliableZmqServer::AddRPCService();
         util::MetaRpcServer::Start();
         // init ycsb config
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 1000);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 10000);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 300);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 10000);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 30000);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000);
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
         util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 100);
         util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 1000);
@@ -99,7 +99,7 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
         auto engine = std::make_unique<ycsb::YCSBEngine>(*p);
         clientList.push_back(std::move(engine));
     }
-    util::Timer::sleep_sec(10);
+    util::Timer::sleep_sec(5);
     LOG(INFO) << "Test start!";
     for (auto& it: clientList) {
         it->startTestNoWait();

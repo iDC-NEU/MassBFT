@@ -18,18 +18,7 @@ namespace peer::chaincode {
 
         Chaincode(Chaincode &&) = delete;
 
-        // return ret code, deserialize argSV
-        int invoke(std::string_view funcNameSV, std::string_view argSV) {
-            std::vector<std::string_view> args;
-            zpp::bits::in in(argSV);
-            if (failure(in(args))) {
-                LOG(WARNING) << "Chaincode args deserialize failed!";
-                return -1;
-            }
-            return InvokeChaincode(funcNameSV, args);
-        }
-
-        virtual int InvokeChaincode(std::string_view funcNameSV, const std::vector<std::string_view> &args) = 0;
+        virtual int InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) = 0;
 
         // reset, return the read write sets
         auto reset() -> std::pair<std::unique_ptr<proto::KVList>, std::unique_ptr<proto::KVList>> {

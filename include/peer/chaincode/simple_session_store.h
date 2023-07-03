@@ -13,7 +13,13 @@ namespace peer::chaincode {
         explicit SimpleSessionStore(std::unique_ptr<ORM> orm_) : Chaincode(std::move(orm_)) { }
 
         // return ret code
-        int InvokeChaincode(std::string_view funcNameSV, const std::vector<std::string_view>& args) override {
+        int InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) override {
+            std::vector<std::string_view> args;
+            zpp::bits::in in(argSV);
+            if (failure(in(args))) {
+                LOG(WARNING) << "Chaincode args deserialize failed!";
+                return -1;
+            }
             if (args.size() == 1 && funcNameSV == "init") {
                 return InitDatabase(std::stoi(std::string(args[0])));
             }

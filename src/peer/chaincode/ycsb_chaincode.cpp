@@ -7,8 +7,7 @@
 #include "ycsb/core/workload/core_workload.h"
 
 namespace peer::chaincode {
-
-    int YCSBChainCode::InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) {
+    int YCSBChaincode::InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) {
         switch (funcNameSV[0]) {
             case 'u':   // update op
                 return this->update(argSV);
@@ -28,7 +27,7 @@ namespace peer::chaincode {
         }
     }
 
-    int YCSBChainCode::update(std::string_view argSV) {
+    int YCSBChaincode::update(std::string_view argSV) {
         std::string_view table, key;
         std::vector<std::pair<std::string_view, std::string_view>> args;
         zpp::bits::in in(argSV);
@@ -41,7 +40,7 @@ namespace peer::chaincode {
         return 0;
     }
 
-    int YCSBChainCode::read(std::string_view argSV) {
+    int YCSBChaincode::read(std::string_view argSV) {
         std::string_view table, key;
         std::vector<std::string_view> fields;
         zpp::bits::in in(argSV);
@@ -66,17 +65,17 @@ namespace peer::chaincode {
         return 0;
     }
 
-    int YCSBChainCode::remove(std::string_view argSV) {
+    int YCSBChaincode::remove(std::string_view argSV) {
         LOG(ERROR) << "Method remove is not implemented yet!";
         return -1;
     }
 
-    int YCSBChainCode::scan(std::string_view argSV) {
+    int YCSBChaincode::scan(std::string_view argSV) {
         LOG(ERROR) << "Method scan is not implemented yet!";
         return -1;
     }
 
-    int YCSBChainCode::readModifyWrite(std::string_view argSV) {
+    int YCSBChaincode::readModifyWrite(std::string_view argSV) {
         std::string_view table, key;
         std::vector<std::string_view> readFields;
         std::vector<std::pair<std::string_view, std::string_view>> writeArgs;
@@ -130,7 +129,7 @@ namespace peer::chaincode {
 
         ycsb::core::Status insert(const std::string&, const std::string& key, const ycsb::utils::ByteIteratorMap& values) override {
             for (const auto& it: values) {
-                _orm->put(YCSBChainCode::BuildKeyField(key, it.first), std::string(it.second));
+                _orm->put(YCSBChaincode::BuildKeyField(key, it.first), std::string(it.second));
             }
             return ycsb::core::STATUS_OK;
         }
@@ -141,7 +140,7 @@ namespace peer::chaincode {
         ORM* _orm;
     };
 
-    int YCSBChainCode::InitDatabase() {
+    int YCSBChaincode::InitDatabase() {
         ::ycsb::core::GetThreadLocalRandomGenerator()->seed(0); // use deterministic value
         auto* property = util::Properties::GetProperties();
         auto ycsbProperties = ycsb::utils::YCSBProperties::NewFromProperty(*property);
@@ -171,7 +170,7 @@ namespace peer::chaincode {
         return 0;
     }
 
-    YCSBChainCode::YCSBChainCode(std::unique_ptr<ORM> orm_) : Chaincode(std::move(orm_)) {
+    YCSBChaincode::YCSBChaincode(std::unique_ptr<ORM> orm) : Chaincode(std::move(orm)) {
         auto* property = util::Properties::GetProperties();
         auto ycsbProperties = ycsb::utils::YCSBProperties::NewFromProperty(*property);
         fieldNames = ycsbProperties->getFieldNames();

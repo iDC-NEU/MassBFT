@@ -38,6 +38,8 @@ protected:
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READMODIFYWRITE_PROPORTION_PROPERTY, 0.00);
     }
 
+protected:
+    size_t checkSize = 1;   // 10 for default cc, 1 for row level ycsb
 };
 
 TEST_F(YCSBTest, BasicTest) {
@@ -89,14 +91,14 @@ TEST_F(YCSBTest, ReadWorkloadTest) {
     ASSERT_TRUE(!result.empty());
     for (const auto& it: result) {
         auto& user = get<0>(it);
-        ASSERT_TRUE(user->getCCNameSV() == "y");
+        ASSERT_TRUE(user->getCCNameSV() == "ycsb");
         ASSERT_TRUE(user->getFuncNameSV() == "r");
         auto& reads = get<1>(it);
         auto& writes = get<2>(it);
-        ASSERT_TRUE(reads->size() == 10);
+        ASSERT_TRUE(reads->size() == checkSize);
         ASSERT_TRUE(writes->empty());
-        ASSERT_TRUE(!reads->at(9)->getKeySV().empty());
-        ASSERT_TRUE(!reads->at(9)->getValueSV().empty());
+        ASSERT_TRUE(!reads->at(checkSize - 1)->getKeySV().empty());
+        ASSERT_TRUE(!reads->at(checkSize - 1)->getValueSV().empty());
     }
 }
 
@@ -114,7 +116,7 @@ TEST_F(YCSBTest, ReadOneFieldTest) {
     ASSERT_TRUE(!result.empty());
     for (const auto& it: result) {
         auto& user = get<0>(it);
-        ASSERT_TRUE(user->getCCNameSV() == "y");
+        ASSERT_TRUE(user->getCCNameSV() == "ycsb");
         ASSERT_TRUE(user->getFuncNameSV() == "r");
         auto& reads = get<1>(it);
         auto& writes = get<2>(it);
@@ -138,14 +140,14 @@ TEST_F(YCSBTest, InsertWorkloadTest) {
     ASSERT_TRUE(!result.empty());
     for (const auto& it: result) {
         auto& user = get<0>(it);
-        ASSERT_TRUE(user->getCCNameSV() == "y");
+        ASSERT_TRUE(user->getCCNameSV() == "ycsb");
         ASSERT_TRUE(user->getFuncNameSV() == "i");
         auto& reads = get<1>(it);
         auto& writes = get<2>(it);
         ASSERT_TRUE(reads->empty());
-        ASSERT_TRUE(writes->size() == 10);
-        ASSERT_TRUE(!writes->at(9)->getKeySV().empty());
-        ASSERT_TRUE(!writes->at(9)->getValueSV().empty());
+        ASSERT_TRUE(writes->size() == checkSize);
+        ASSERT_TRUE(!writes->at(checkSize - 1)->getKeySV().empty());
+        ASSERT_TRUE(!writes->at(checkSize - 1)->getValueSV().empty());
     }
 }
 
@@ -164,7 +166,7 @@ TEST_F(YCSBTest, RMWWorkloadTest) {
     ASSERT_TRUE(!result.empty());
     for (const auto& it: result) {
         auto& user = get<0>(it);
-        ASSERT_TRUE(user->getCCNameSV() == "y");
+        ASSERT_TRUE(user->getCCNameSV() == "ycsb");
         ASSERT_TRUE(user->getFuncNameSV() == "m");
         auto& reads = get<1>(it);
         auto& writes = get<2>(it);
@@ -192,15 +194,15 @@ TEST_F(YCSBTest, RMWWorkloadTest2) {
     ASSERT_TRUE(!result.empty());
     for (const auto& it: result) {
         auto& user = get<0>(it);
-        ASSERT_TRUE(user->getCCNameSV() == "y");
+        ASSERT_TRUE(user->getCCNameSV() == "ycsb");
         ASSERT_TRUE(user->getFuncNameSV() == "m");
         auto& reads = get<1>(it);
         auto& writes = get<2>(it);
-        ASSERT_TRUE(reads->size() == 10);
-        ASSERT_TRUE(writes->size() == 10);
-        ASSERT_TRUE(!reads->at(9)->getKeySV().empty());
-        ASSERT_TRUE(!reads->at(9)->getValueSV().empty());
-        ASSERT_TRUE(!writes->at(9)->getKeySV().empty());
-        ASSERT_TRUE(!writes->at(9)->getValueSV().empty());
+        ASSERT_TRUE(reads->size() == checkSize);
+        ASSERT_TRUE(writes->size() == checkSize);
+        ASSERT_TRUE(!reads->at(checkSize - 1)->getKeySV().empty());
+        ASSERT_TRUE(!reads->at(checkSize - 1)->getValueSV().empty());
+        ASSERT_TRUE(!writes->at(checkSize - 1)->getKeySV().empty());
+        ASSERT_TRUE(!writes->at(checkSize - 1)->getValueSV().empty());
     }
 }

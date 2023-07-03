@@ -7,9 +7,9 @@
 #include "chaincode.h"
 
 namespace peer::chaincode {
-    class YCSBChainCode : public Chaincode {
+    class YCSBChaincode : public Chaincode {
     public:
-        explicit YCSBChainCode(std::unique_ptr<ORM> orm_);
+        explicit YCSBChaincode(std::unique_ptr<ORM> orm);
 
         // return ret code
         int InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) override;
@@ -37,4 +37,3 @@ namespace peer::chaincode {
         std::vector<std::string> fieldNames;
     };
 }
-

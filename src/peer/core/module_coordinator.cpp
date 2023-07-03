@@ -60,6 +60,10 @@ namespace peer::core {
         }
         // 1.4 init user request collector
         auto totalGroup = nodeProperties.getGroupCount();
+        // init user rpc controller (for pulling block)
+        if (!mc->_moduleFactory->initUserRPCController()) {
+            return nullptr;
+        }
         // the bftController id is 0
         auto bftController = mc->_moduleFactory->newReplicatorBFTController(0*totalGroup + mc->_localNode->groupId);
         if (bftController == nullptr) {

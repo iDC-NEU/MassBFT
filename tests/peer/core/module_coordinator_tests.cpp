@@ -23,6 +23,7 @@ protected:
     ModuleCoordinatorTest() {
         util::OpenSSLSHA256::initCrypto();
         tests::MockPropertyGenerator::GenerateDefaultProperties(groupCount, nodeCountPerGroup);
+        util::Properties::SetProperties(util::Properties::REPLICATOR_LOWEST_PORT, 10000);
     }
 
     void SetUp() override {
@@ -62,6 +63,13 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
     for (auto& it: mcList) {
         it->waitInstanceReady();
     }
+    // init ycsb config
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 100);
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 5000);
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 100);
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
+    util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 50);
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_COUNT_PROPERTY, 10);
     // for the leaders
     std::vector<std::unique_ptr<ycsb::YCSBEngine>> clientList;
     for (int i=0; i<groupCount; i++) {
@@ -70,7 +78,7 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
         auto engine = std::make_unique<ycsb::YCSBEngine>(*p);
         clientList.push_back(std::move(engine));
     }
-    util::Timer::sleep_sec(1);
+    util::Timer::sleep_sec(10);
     LOG(INFO) << "Test start!";
     for (auto& it: clientList) {
         it->startTestNoWait();

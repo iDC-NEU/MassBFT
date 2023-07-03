@@ -40,6 +40,8 @@ namespace peer::core {
 
         bool startReplicatorSender();
 
+        bool initUserRPCController();
+
         std::pair<std::shared_ptr<::util::BCCSP>,
                 std::shared_ptr<::util::thread_pool_light>> getOrInitBCCSPAndThreadPool();
 

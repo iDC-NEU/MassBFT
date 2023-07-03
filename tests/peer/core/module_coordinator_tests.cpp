@@ -13,9 +13,10 @@
 
 #include "tests/mock_property_generator.h"
 
+#include "ycsb/engine.h"
+
 #include "gtest/gtest.h"
 #include "glog/logging.h"
-#include "proto/user_request.h"
 
 class ModuleCoordinatorTest : public ::testing::Test {
 protected:
@@ -32,24 +33,6 @@ protected:
     void TearDown() override {
         util::MetaRpcServer::Stop();
     };
-
-    // must NOT return nullptr
-    static auto CreateSignedEnvelop(const std::string& ski, const std::shared_ptr<::util::BCCSP>& bccsp) {
-        std::unique_ptr<proto::Envelop> envelop(new proto::Envelop());
-        proto::SignatureString sig = { ski, 0 };
-        auto key = bccsp->GetKey(ski);
-        CHECK(key->Private());
-        // TODO: use user request for payload
-        std::string payload("payload for an envelop" + std::to_string(rand()));
-        payload.resize(150);
-        payload += "eof";
-        auto ret = key->Sign(payload.data(), payload.size());
-        CHECK(ret != std::nullopt);
-        sig.digest = *ret;
-        envelop->setPayload(std::move(payload));
-        envelop->setSignature(std::move(sig));
-        return envelop;
-    }
 
 protected:
     static void InitNodeConfig(int groupId, int nodeId) {
@@ -80,27 +63,20 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
         it->waitInstanceReady();
     }
     // for the leaders
-    std::vector<std::unique_ptr<util::ZMQInstance>> clientList;
+    std::vector<std::unique_ptr<ycsb::YCSBEngine>> clientList;
     for (int i=0; i<groupCount; i++) {
-        auto portMap = mcList[i*nodeCountPerGroup]->getModuleFactory().getOrInitZMQPortUtilMap();
-        auto& localPortMap = portMap->at(i).at(0);
-        auto clientPort = localPortMap->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[0];
-        auto client = util::ZMQInstance::NewClient<zmq::socket_type::push>("127.0.0.1", clientPort);
-        CHECK(client != nullptr);
-        clientList.push_back(std::move(client));
+        tests::MockPropertyGenerator::SetLocalId(i, 0);
+        auto* p = util::Properties::GetProperties();
+        auto engine = std::make_unique<ycsb::YCSBEngine>(*p);
+        clientList.push_back(std::move(engine));
     }
     util::Timer::sleep_sec(1);
-    auto [bccsp, tp] = mcList[0]->getModuleFactory().getOrInitBCCSPAndThreadPool();
-    std::vector<std::string> bufList;
-    for (int i=0; i< 200 * 100; i++) {
-        auto envelop = CreateSignedEnvelop("0_0", bccsp);
-        std::string buf;
-        CHECK(envelop->serializeToString(&buf));
-        bufList.push_back(std::move(buf));
-    }
     LOG(INFO) << "Test start!";
-    for (int i=0; i<(int)bufList.size(); i++) {
-        clientList[i%clientList.size()]->send(bufList[i]);
+    for (auto& it: clientList) {
+        it->startTestNoWait();
+    }
+    for (auto& it: clientList) {
+        it->waitUntilFinish();
     }
     LOG(INFO) << "Send finished!";
     util::Timer::sleep_sec(10);

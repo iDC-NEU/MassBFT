@@ -69,7 +69,7 @@ namespace ycsb::client {
             constexpr static const auto READ = "r";
             constexpr static const auto DELETE = "d";
             constexpr static const auto SCAN = "s";
-            constexpr static const auto READ_MODIFY_WRITE = "rmw";
+            constexpr static const auto READ_MODIFY_WRITE = "m";
         };
 
         NeuChainDB(util::NodeConfigPtr server, std::shared_ptr<NeuChainDBConnection> dbc, std::shared_ptr<const util::Key> priKey);

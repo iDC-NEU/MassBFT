@@ -12,77 +12,25 @@ namespace peer::chaincode {
         explicit YCSBChainCode(std::unique_ptr<ORM> orm_) : Chaincode(std::move(orm_)) { }
 
         // return ret code
-        int InvokeChaincode(std::string_view funcNameSV, const std::vector<std::string_view>& args) override {
-            if(funcNameSV == "init") {
-                InitDatabase(std::stoi(args[0].data()));
-            }
-            // funNameSV is short for the operations  eg: r -> read
-            std::string table;
-            std::string key;
-            std::vector<std::string> fields;
-            std::vector<std::pair<std::string, std::string>> writeArgs;
+        int InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) override;
 
-            zpp::bits::in in(args[0]);
-            if (failure(in(table, key))) {
-                return -1;
-            }
+        int InitDatabase(int recordCount);
 
-            if(funcNameSV == "r") {
-                if(failure(in(fields))) {
-                    return -1;
-                }
-                return Get(std::string_view(key));
-            }
-            if(funcNameSV == "i") {
-                if(failure(in(writeArgs))){
-                    return -1;
-                }
-                return Set(std::string_view(key), "");
-            }
-            if(funcNameSV == "u") {
-                if(failure(in(writeArgs))){
-                    return -1;
-                }
-                return Set(std::string_view(key), "");
-            }
-            if(funcNameSV == "d") {
-                return Set(std::string_view(key), "");
-            }
-            if(funcNameSV == "s") {
-                // do not support scan op
-                return -1;
-            }
-            if(funcNameSV == "rmw") {
-                if(failure(in(fields, writeArgs))){
-                    return -1;
-                }
-                if(Get(key) == -1) {
-                    return -1;
-                }
-                return Set(std::string_view(key), "");
-            }
-            return 0;
-        }
+    protected:
+        int update(std::string_view argSV);
 
-        int InitDatabase(int recordCount) {
-            LOG(INFO) << "Start initializing data: " << recordCount;
-            for (int i=0; i<recordCount; i++) {
-                orm->put(std::to_string(i), "0");
-            }
-            return 0;
-        }
+        int insert(std::string_view argSV) { return update(argSV); }
 
-        int Set(std::string_view key, std::string_view value) {
-            orm->put(std::string(key), std::string(value));
-            return 0;
-        }
+        int read(std::string_view argSV);
 
-        int Get(std::string_view key) {
-            std::string_view value;
-            if (orm->get(std::string(key), &value)) {
-                return 0;
-            }
-            return -1;
+        int remove(std::string_view argSV);
+
+        int scan(std::string_view argSV);
+
+        int readModifyWrite(std::string_view argSV);
+
+        inline static std::string buildKeyField(auto&& key, auto&& field) {
+            return std::string(key).append("_").append(field);
         }
     };
 }

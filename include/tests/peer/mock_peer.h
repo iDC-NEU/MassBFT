@@ -40,7 +40,8 @@ namespace tests::peer {
             CHECK(_dbc != nullptr) << "failed to init db!";
             _orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_dbc.get());
             _chainCode = ::peer::chaincode::NewChaincodeByName("ycsb", std::move(_orm));
-            _chainCode->InvokeChaincode("init", std::vector<std::string_view>{"10000"});
+            // TODO: init database
+            // _chainCode->InvokeChaincode("init", std::vector<std::string_view>{"10000"});
         }
 
         ~Peer() {
@@ -93,8 +94,7 @@ namespace tests::peer {
                     // record the count of every operation
                     _opCount[user.getFuncNameSV()] += 1;
 
-                    std::vector<std::string_view> args{user.getArgs()};
-                    auto executeRet = _chainCode->InvokeChaincode(user.getFuncNameSV(), args);
+                    auto executeRet = _chainCode->InvokeChaincode(user.getFuncNameSV(), user.getArgs());
                     if(executeRet == 0) {
                         block->executeResult.transactionFilter.push_back(static_cast<std::byte>(1));
                     } else {

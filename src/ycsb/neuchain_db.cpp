@@ -193,10 +193,10 @@ std::unique_ptr<proto::Block> ycsb::client::NeuChainStatus::getBlock(int blockNu
     request.set_blockid(blockNumber);
     proto::PullBlockResponse response;
     brpc::Controller ctl;
+    ctl.set_timeout_ms(5 * 1000);
     _stub->pullBlock(&ctl, &request, &response, nullptr);
     if (ctl.Failed()) {
-        LOG(ERROR) << "Failed to get block: " << blockNumber << ", retry after 1 sec, " << ctl.ErrorText();
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        LOG(ERROR) << "Failed to get block: " << blockNumber << ", retry: " << ctl.ErrorText();
         return nullptr;
     }
     if (!response.success()) {

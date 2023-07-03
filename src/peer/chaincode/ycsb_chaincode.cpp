@@ -48,10 +48,19 @@ namespace peer::chaincode {
         if(failure(in(table, key, fields))) {
             return -1;
         }
-        for (const auto& it: fields) {
-            std::string_view value; // drop the value
-            if (!orm->get(BuildKeyField(key, it), &value)) {
-                return -1;
+        if (fields.empty()) {
+            for (const auto& it: fieldNames) {
+                std::string_view value; // drop the value
+                if (!orm->get(BuildKeyField(key, it), &value)) {
+                    return -1;
+                }
+            }
+        } else {
+            for (const auto& it: fields) {
+                std::string_view value; // drop the value
+                if (!orm->get(BuildKeyField(key, it), &value)) {
+                    return -1;
+                }
             }
         }
         return 0;
@@ -151,5 +160,11 @@ namespace peer::chaincode {
             }
         }
         return 0;
+    }
+
+    YCSBChainCode::YCSBChainCode(std::unique_ptr<ORM> orm_) : Chaincode(std::move(orm_)) {
+        auto* property = util::Properties::GetProperties();
+        auto ycsbProperties = ycsb::utils::YCSBProperties::NewFromProperty(*property);
+        fieldNames = ycsbProperties->getFieldNames();
     }
 }

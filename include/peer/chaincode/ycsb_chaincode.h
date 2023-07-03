@@ -9,7 +9,7 @@
 namespace peer::chaincode {
     class YCSBChainCode : public Chaincode {
     public:
-        explicit YCSBChainCode(std::unique_ptr<ORM> orm_) : Chaincode(std::move(orm_)) { }
+        explicit YCSBChainCode(std::unique_ptr<ORM> orm_);
 
         // return ret code
         int InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) override;
@@ -32,6 +32,9 @@ namespace peer::chaincode {
         int scan(std::string_view argSV);
 
         int readModifyWrite(std::string_view argSV);
+
+    private:
+        std::vector<std::string> fieldNames;
     };
 }
 

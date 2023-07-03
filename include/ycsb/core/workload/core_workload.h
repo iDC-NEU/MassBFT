@@ -198,7 +198,6 @@ namespace ycsb::core::workload {
                 } else {
                     // fill with random data
                     values[fieldKey] = utils::RandomString(fieldLengthGenerator->nextValue());
-                    LOG(INFO) << values[fieldKey];
                 }
             }
         }

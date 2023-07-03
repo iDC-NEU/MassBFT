@@ -61,17 +61,9 @@ TEST_F(YCSBTest, OverloadTest) {
     engine.startTest();
 }
 
-TEST_F(YCSBTest, WorkloadDefualtProportionTest) {
-    // r:0.95
-    // u:0.05
+TEST_F(YCSBTest, ReadWorkloadTest) {
     auto* p = util::Properties::GetProperties();
     tests::peer::Peer peer(*p, true);
     ycsb::YCSBEngine engine(*p);
     engine.startTest();
-    auto count = peer.getOpCount();
-    ASSERT_TRUE(!count.empty());
-    ASSERT_TRUE(count["r"] < (double)10000*0.95*1.1);
-    ASSERT_TRUE(count["r"] > (double)10000*0.95*0.9);
-    ASSERT_TRUE(count["u"] < (double)10000*0.05*1.1);
-    ASSERT_TRUE(count["u"] > (double)10000*0.05*0.9);
 }

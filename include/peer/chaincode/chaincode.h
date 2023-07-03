@@ -20,6 +20,8 @@ namespace peer::chaincode {
 
         virtual int InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) = 0;
 
+        virtual int InitDatabase() { return 0; }
+
         // reset, return the read write sets
         auto reset() -> std::pair<std::unique_ptr<proto::KVList>, std::unique_ptr<proto::KVList>> {
             return orm->reset();

@@ -36,12 +36,27 @@ namespace tests::peer {
             CHECK(::peer::core::UserRPCController::StartRPCService(rpcPort));
             _blockSize = p.getBlockMaxBatchSize();
             _skipValidate = skipValidate;
+            CHECK(initDatabase()) << "failed to insert data!";
+        }
+
+        bool initDatabase() {
+            _execResults.reserve(1000 * 1000);
             _dbc = ::peer::db::RocksdbConnection::NewConnection("YCSBChaincodeTestDB");
             CHECK(_dbc != nullptr) << "failed to init db!";
             _orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_dbc.get());
             _chainCode = ::peer::chaincode::NewChaincodeByName("ycsb", std::move(_orm));
-            // TODO: init database
-            // _chainCode->InvokeChaincode("init", std::vector<std::string_view>{"10000"});
+            if (_chainCode->InitDatabase() != 0) {
+                return false;
+            }
+            auto [reads, writes] = _chainCode->reset();
+            return _dbc->syncWriteBatch([&](rocksdb::WriteBatch* batch) ->bool {
+                for (const auto& it: *writes) {
+                    CHECK(batch->Put({it->getKeySV().data(), it->getKeySV().size()},
+                                     {it->getValueSV().data(), it->getValueSV().size()})
+                          == rocksdb::Status::OK());
+                }
+                return true;
+            });
         }
 
         ~Peer() {
@@ -57,9 +72,7 @@ namespace tests::peer {
             }
         }
 
-        std::unordered_map<std::string_view, int> getOpCount() {
-            return _opCount;
-        }
+        const auto& getExecutionResult() { return _execResults; }
 
     protected:
         void collectorFunction() {
@@ -83,23 +96,7 @@ namespace tests::peer {
                     }
                     block->body.userRequests.push_back(std::move(envelop));
                     auto reqSize = block->body.userRequests.size();
-
-                    // deserialize the request payload
-                    auto& request = block->body.userRequests.back();
-                    proto::UserRequest user;
-                    zpp::bits::in in(request->getPayload());
-                    if (failure(in((user)))) {
-                        return;
-                    }
-                    // record the count of every operation
-                    _opCount[user.getFuncNameSV()] += 1;
-
-                    auto executeRet = _chainCode->InvokeChaincode(user.getFuncNameSV(), user.getArgs());
-                    if(executeRet == 0) {
-                        block->executeResult.transactionFilter.push_back(static_cast<std::byte>(1));
-                    } else {
-                        block->executeResult.transactionFilter.push_back(static_cast<std::byte>(0));
-                    }
+                    block->executeResult.transactionFilter.push_back(static_cast<std::byte>(reqSize%2));
                 } while((int)block->body.userRequests.size() < _blockSize);
                 if (!_skipValidate) {
                     // validate the request
@@ -109,6 +106,17 @@ namespace tests::peer {
                                            request->getPayload().data(),
                                            request->getPayload().size());
                     CHECK(ret);
+                    if (_chainCode) {
+                        // deserialize the request payload
+                        auto user = std::make_unique<proto::UserRequest>();
+                        zpp::bits::in in(request->getPayload());
+                        if (failure(in((*user)))) {
+                            return;
+                        }
+                        _chainCode->InvokeChaincode(user->getFuncNameSV(), user->getArgs());
+                        auto [reads, writes] = _chainCode->reset(); // analysis rw sets
+                        _execResults.emplace_back(std::move(user), std::move(reads), std::move(writes));
+                    }
                 }
                 block->header.number = nextBlockId++;
                 _blockStorage->insertBlockAndNotify(server->groupId, std::move(block));
@@ -127,7 +135,7 @@ namespace tests::peer {
         std::unique_ptr<std::thread> _collectorThread;
         std::unique_ptr<::peer::db::RocksdbConnection> _dbc;
         std::unique_ptr<::peer::chaincode::ORM> _orm;
-        std::unordered_map<std::string_view, int> _opCount;
         std::unique_ptr<::peer::chaincode::Chaincode> _chainCode;
+        std::vector<std::tuple<std::unique_ptr<proto::UserRequest>, std::unique_ptr<proto::KVList>, std::unique_ptr<proto::KVList>>> _execResults;
     };
 }

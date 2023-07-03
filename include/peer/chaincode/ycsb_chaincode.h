@@ -14,7 +14,11 @@ namespace peer::chaincode {
         // return ret code
         int InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) override;
 
-        int InitDatabase(int recordCount);
+        int InitDatabase() override;
+
+        inline static std::string BuildKeyField(auto&& key, auto&& field) {
+            return std::string(key).append("_").append(field);
+        }
 
     protected:
         int update(std::string_view argSV);
@@ -28,10 +32,6 @@ namespace peer::chaincode {
         int scan(std::string_view argSV);
 
         int readModifyWrite(std::string_view argSV);
-
-        inline static std::string buildKeyField(auto&& key, auto&& field) {
-            return std::string(key).append("_").append(field);
-        }
     };
 }
 

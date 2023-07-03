@@ -3,6 +3,8 @@
 //
 
 #include "peer/chaincode/ycsb_chaincode.h"
+#include "ycsb/core/common/ycsb_property.h"
+#include "ycsb/core/workload/core_workload.h"
 
 namespace peer::chaincode {
 
@@ -34,7 +36,7 @@ namespace peer::chaincode {
             return -1;
         }
         for (const auto& it: args) {
-            orm->put(buildKeyField(key, it.first), std::string(it.second));
+            orm->put(BuildKeyField(key, it.first), std::string(it.second));
         }
         return 0;
     }
@@ -48,7 +50,7 @@ namespace peer::chaincode {
         }
         for (const auto& it: fields) {
             std::string_view value; // drop the value
-            if (!orm->get(buildKeyField(key, it), &value)) {
+            if (!orm->get(BuildKeyField(key, it), &value)) {
                 return -1;
             }
         }
@@ -75,18 +77,80 @@ namespace peer::chaincode {
         }
         for (const auto& it: readFields) {
             std::string_view value; // drop the value
-            if (!orm->get(buildKeyField(key, it), &value)) {
+            if (!orm->get(BuildKeyField(key, it), &value)) {
                 return -1;
             }
         }
         for (const auto& it: writeArgs) {
-            orm->put(buildKeyField(key, it.first), std::string(it.second));
+            orm->put(BuildKeyField(key, it.first), std::string(it.second));
         }
         return 0;
     }
 
-    int YCSBChainCode::InitDatabase(int recordCount) {
-        LOG(ERROR) << "Method InitDatabase is not implemented yet!";
-        return -1;
+
+    class WriteThroughDB: public ycsb::core::DB {
+    public:
+        explicit WriteThroughDB(ORM* orm) :_orm(orm) { }
+
+        void stop() override { }
+
+        ycsb::core::Status read(const std::string&, const std::string&, const std::vector<std::string>&) override {
+            return ycsb::core::ERROR;
+        }
+
+        ycsb::core::Status scan(const std::string&, const std::string&, uint64_t, const std::vector<std::string>&) override {
+            return ycsb::core::ERROR;
+        }
+
+        ycsb::core::Status update(const std::string&, const std::string&, const ycsb::utils::ByteIteratorMap&) override {
+            return ycsb::core::ERROR;
+        }
+
+        ycsb::core::Status readModifyWrite(const std::string&, const std::string&, const std::vector<std::string>&, const ycsb::utils::ByteIteratorMap&) override {
+            return ycsb::core::ERROR;
+        }
+
+        ycsb::core::Status insert(const std::string&, const std::string& key, const ycsb::utils::ByteIteratorMap& values) override {
+            for (const auto& it: values) {
+                _orm->put(YCSBChainCode::BuildKeyField(key, it.first), std::string(it.second));
+            }
+            return ycsb::core::STATUS_OK;
+        }
+
+        ycsb::core::Status remove(const std::string&, const std::string&) override { return ycsb::core::ERROR; }
+
+    private:
+        ORM* _orm;
+    };
+
+    int YCSBChainCode::InitDatabase() {
+        ::ycsb::core::GetThreadLocalRandomGenerator()->seed(0); // use deterministic value
+        auto* property = util::Properties::GetProperties();
+        auto ycsbProperties = ycsb::utils::YCSBProperties::NewFromProperty(*property);
+
+        // set insert start = 0
+        auto oldInsertStart = ycsbProperties->getInsertStart();
+        auto node = property->getCustomProperties(ycsb::utils::YCSBProperties::YCSB_PROPERTIES);
+        node[ycsb::utils::YCSBProperties::INSERT_START_PROPERTY] = 0;
+
+        // create new workload
+        auto workload = std::make_shared<ycsb::core::workload::CoreWorkload>();
+        workload->init(*ycsbProperties);
+        auto measurements = std::make_shared<ycsb::core::Measurements>();
+        workload->setMeasurements(measurements);
+
+        // restore the original value
+        node[ycsb::utils::YCSBProperties::INSERT_START_PROPERTY] = oldInsertStart;
+
+        // start load data
+        auto opCount = ycsbProperties->getRecordCount();
+        auto db = std::make_unique<WriteThroughDB>(orm.get());
+        for (auto i=0; i<opCount; i++) {
+            if (!workload->doInsert(db.get())) {
+                LOG(ERROR) << "Load data failed!";
+                return -1;
+            }
+        }
+        return 0;
     }
 }

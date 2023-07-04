@@ -279,8 +279,8 @@ namespace ycsb::utils {
 
         inline Proportion getProportion() const {
             Proportion p{};
-            p.readProportion = n[READ_PROPORTION_PROPERTY].as<double>(0.95);
-            p.updateProportion =  n[UPDATE_PROPORTION_PROPERTY].as<double>(0.05);
+            p.readProportion = n[READ_PROPORTION_PROPERTY].as<double>(0);
+            p.updateProportion =  n[UPDATE_PROPORTION_PROPERTY].as<double>(0);
             p.insertProportion =  n[INSERT_PROPORTION_PROPERTY].as<double>(0);
             p.scanProportion =  n[SCAN_PROPORTION_PROPERTY].as<double>(0);
             p.readModifyWriteProportion =  n[READMODIFYWRITE_PROPORTION_PROPERTY].as<double>(0);

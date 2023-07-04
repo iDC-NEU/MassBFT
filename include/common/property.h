@@ -238,24 +238,32 @@ namespace util {
 
     public:
         // Load from file, if fileName is null, create an empty property
-        static void LoadProperties(const std::string& fileName = {}) {
+        static bool LoadProperties(const std::string& fileName = {}) {
             if (fileName.empty()) {
                 properties = std::make_unique<Properties>();
                 YAML::Node node;
                 node[CHAINCODE_PROPERTIES] = {};
                 node[NODES_PROPERTIES] = {};
                 properties->_node = node;
-                return;
+                return true;
             }
             properties = std::make_unique<Properties>();
             try {
                 auto node = YAML::LoadFile(fileName);
-                CHECK(node[CHAINCODE_PROPERTIES].IsDefined() && !node[CHAINCODE_PROPERTIES].IsNull());
-                CHECK(node[NODES_PROPERTIES].IsDefined() && !node[NODES_PROPERTIES].IsNull());
+                if (!node[CHAINCODE_PROPERTIES].IsDefined() || node[CHAINCODE_PROPERTIES].IsNull()) {
+                    LOG(ERROR) << "CHAINCODE_PROPERTIES not exist.";
+                    return false;
+                }
+                if (!node[NODES_PROPERTIES].IsDefined() || node[NODES_PROPERTIES].IsNull()) {
+                    LOG(ERROR) << "NODES_PROPERTIES not exist.";
+                    return false;
+                }
                 properties->_node = node;
+                return true;
             } catch (const YAML::Exception &e) {
-                CHECK(false) << "Can not load config: " << e.what();
+                LOG(ERROR) << "Can not load config: " << e.what();
             }
+            return false;
         }
 
         static Properties *GetProperties() {

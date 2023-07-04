@@ -33,8 +33,6 @@ namespace ycsb::utils {
 
         // used to specify the target throughput.
         constexpr static const auto TARGET_THROUGHPUT_PROPERTY = "target_throughput";
-
-        constexpr static const auto LABEL_PROPERTY = "label";
         /// ----- For clients -----
 
         // The name of the database table to run queries against.

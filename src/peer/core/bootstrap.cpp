@@ -16,6 +16,8 @@ namespace peer::core {
     std::unique_ptr<ModuleFactory> ModuleFactory::NewModuleFactory(const std::shared_ptr<util::Properties>& properties) {
         std::unique_ptr<ModuleFactory> mf(new ModuleFactory);
         mf->_properties = properties;
+        auto runningPath = mf->_properties->getRunningPath();
+        std::filesystem::current_path(runningPath);
         return mf;
     }
 
@@ -95,7 +97,6 @@ namespace peer::core {
             LOG(WARNING) << "please check your ssh setting in config file.";
         }
         auto runningPath = _properties->getRunningPath();
-        std::filesystem::current_path(runningPath);
         ca::SSHConfig sshConfig {
                 .ip = localNode->priIp,
                 .port = -1,

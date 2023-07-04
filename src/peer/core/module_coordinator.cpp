@@ -22,7 +22,11 @@ namespace peer::core {
         auto nodeProperties = properties->getNodeProperties();
         mc->_localNode = nodeProperties.getLocalNodeInfo();
         // 1.01 init concurrency control
-        mc->_db = peer::db::RocksdbConnection::NewConnection(mc->_localNode->ski + "_db");
+        auto dbPath = std::filesystem::current_path().append("data").append(mc->_localNode->ski + "_db");
+        if (!exists(dbPath) && !create_directories(dbPath)) {
+            return nullptr; // create directory failed
+        }
+        mc->_db = peer::db::RocksdbConnection::NewConnection(dbPath);
         if (mc->_db == nullptr) {
             return nullptr;
         }

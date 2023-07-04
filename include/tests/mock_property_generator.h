@@ -12,7 +12,7 @@ namespace tests {
     class MockPropertyGenerator {
     public:
         static void GenerateDefaultProperties(int groupCount, int nodesPerGroup) {
-            util::Properties::LoadProperties(); // init
+            CHECK(util::Properties::LoadProperties()); // init
             auto* properties = util::Properties::GetProperties();
             // init nodes
             auto nodeProperties = properties->getNodeProperties();

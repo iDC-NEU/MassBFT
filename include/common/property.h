@@ -4,9 +4,9 @@
 
 #pragma  once
 
-#include <mutex>
 #include "yaml-cpp/yaml.h"
 #include "glog/logging.h"
+#include <mutex>
 
 namespace util {
 
@@ -103,8 +103,6 @@ namespace util {
         NodeProperties(const NodeProperties& rhs) = default;
 
         NodeProperties(NodeProperties&& rhs) noexcept : n(rhs.n) { }
-
-        constexpr static const auto INIT_ON_STARTUP = "init";
 
     protected:
         static auto BuildGroupKey(int groupId) { return std::string("group_") + std::to_string(groupId); }
@@ -238,25 +236,9 @@ namespace util {
 
     public:
         // Load from file, if fileName is null, create an empty property
-        static void LoadProperties(const std::string& fileName = {}) {
-            if (fileName.empty()) {
-                properties = std::make_unique<Properties>();
-                YAML::Node node;
-                node[CHAINCODE_PROPERTIES] = {};
-                node[NODES_PROPERTIES] = {};
-                properties->_node = node;
-                return;
-            }
-            properties = std::make_unique<Properties>();
-            try {
-                auto node = YAML::LoadFile(fileName);
-                CHECK(node[CHAINCODE_PROPERTIES].IsDefined() && !node[CHAINCODE_PROPERTIES].IsNull());
-                CHECK(node[NODES_PROPERTIES].IsDefined() && !node[NODES_PROPERTIES].IsNull());
-                properties->_node = node;
-            } catch (const YAML::Exception &e) {
-                CHECK(false) << "Can not load config: " << e.what();
-            }
-        }
+        static bool LoadProperties(const std::string& fileName = {});
+
+        static bool SaveProperties(const std::string& fileName);
 
         static Properties *GetProperties() {
             DCHECK(properties != nullptr) << "properties is not generated (or loaded) yet";
@@ -379,4 +361,3 @@ namespace util {
         YAML::Node _node;
     };
 }
-

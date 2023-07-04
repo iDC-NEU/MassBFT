@@ -11,7 +11,7 @@
 class WBCoordinatorTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        util::Properties::LoadProperties();
+        CHECK(util::Properties::LoadProperties());
     };
 
     void TearDown() override {

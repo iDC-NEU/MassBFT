@@ -65,9 +65,7 @@ protected:
 protected:
     static void InitNodeConfig(int groupId, int nodeId) {
         tests::MockPropertyGenerator::SetLocalId(groupId, nodeId);
-        auto* properties = util::Properties::GetProperties();
-        properties->getCustomProperties(util::Properties::JVM_PATH) = "/home/user/.jdks/corretto-16.0.2/bin/java";
-        properties->getCustomProperties(util::Properties::DISTRIBUTED_SETTING) = false;
+        util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, false);
     }
 
     const int nodeCountPerGroup = 4;

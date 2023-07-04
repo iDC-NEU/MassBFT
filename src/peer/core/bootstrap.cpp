@@ -94,7 +94,8 @@ namespace peer::core {
         if (!success) {
             LOG(WARNING) << "please check your ssh setting in config file.";
         }
-        auto runningPath = std::filesystem::current_path();
+        auto runningPath = _properties->getRunningPath();
+        std::filesystem::current_path(runningPath);
         ca::SSHConfig sshConfig {
                 .ip = localNode->priIp,
                 .port = -1,

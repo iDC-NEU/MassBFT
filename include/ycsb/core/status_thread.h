@@ -38,8 +38,19 @@ namespace ycsb::core {
             size_t lastTimeAbort = 0;
             size_t lastTimePending = 0;
             auto sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
+            bool warmedUp = false;
+            auto warmedUpTime = std::chrono::system_clock::now() + std::chrono::seconds(5);
 
             while(running.load(std::memory_order_relaxed)) {
+                if (!warmedUp && sleepUntil > warmedUpTime) {
+                    warmedUp = true;
+                    LOG(INFO) << "The system warmup is completed, and the statistical indicators will be reset.";
+                    txCountCommit = 0;
+                    txCountAbort = 0;
+                    latencySum = 0;
+                    lastTimeCommit = 0;
+                    lastTimeAbort = 0;
+                }
                 std::this_thread::sleep_until(sleepUntil);
                 sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
                 auto currentSecCommit = txCountCommit - lastTimeCommit;

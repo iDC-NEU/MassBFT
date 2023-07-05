@@ -87,6 +87,14 @@ namespace peer {
                       encodeResultHolder(_ecConfig.instanceCount), decodeResultHolder(_ecConfig.instanceCount),
                       wpForMTAndEC(wpForMTAndEC_), decodeStorageList(fragmentCnt) { }
 
+            template <typename F, typename... A>
+            void push_task(F&& task, A&&... args) {
+                if (_ecConfig.instanceCount > 1) {
+                    wpForMTAndEC->push_task(std::forward<F>(task), std::forward<A>(args)...);
+                } else {
+                    task(std::forward<A>(args)...);
+                }
+            }
         private:
             // config for util::ErasureCode ec
             Config _ecConfig;

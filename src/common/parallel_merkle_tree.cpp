@@ -42,16 +42,13 @@ namespace pmt {
         }
         auto mt = std::unique_ptr<MerkleTree>(new MerkleTree(c));
         // task channel capacity is passed as 0, so use the default value: 2 * numWorkers
-        if(wpPtr == nullptr) {
-            mt->wpGuard = std::make_unique<util::thread_pool_light>();
-            mt->wp = mt->wpGuard.get();
-        } else {
+        if(wpPtr != nullptr) {
             mt->wp = wpPtr;
+            if (mt->config.NumRoutines == 0) {
+                mt->config.NumRoutines = (int)mt->wp->get_thread_count();
+            }
         }
         // If NumRoutines is unset, then set NumRoutines to the thread pool count.
-        if (mt->config.NumRoutines == 0) {
-            mt->config.NumRoutines = (int)mt->wp->get_thread_count();
-        }
         mt->Depth = calTreeDepth((int) blocks.size());
         if (mt->config.RunInParallel || mt->config.LeafGenParallel) {
             if (!mt->leafGenParallel(blocks)) {
@@ -192,7 +189,7 @@ namespace pmt {
         bthread::CountdownEvent countdown(numRoutines);
         bool ret = true;
         for (auto i = 0; i < numRoutines; i++) {
-            wp->push_task([&, start=i]{
+            push_task([&, start=i]{
                 for (int j = start; j < lenLeaves; j += numRoutines) {
                     auto hash = Config::HashFunc(blocks[j]->Serialize());
                     if (!hash) {
@@ -223,7 +220,7 @@ namespace pmt {
             auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
             bthread::CountdownEvent countdown(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
-                wp->push_task([&, start=i << 1] {
+                push_task([&, start=i << 1] {
                     for (auto j = start; j < prevLen; j += (numRoutines << 1)) {
                         auto newHash = Config::HashFunc((*buf1)[j], (*buf1)[j + 1]);
                         if (!newHash) {
@@ -258,7 +255,7 @@ namespace pmt {
         auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, bufLen);
         bthread::CountdownEvent countdown(numRoutines);
         for (auto i = 0; i < numRoutines; i++) {
-            wp->push_task([&, start=i << 1] {
+            push_task([&, start=i << 1] {
                 for (auto j = start; j < bufLen; j += (numRoutines << 1)) {
                     this->updatePairProof(buf, j, batch, step);
                 }
@@ -270,11 +267,12 @@ namespace pmt {
 
     bool MerkleTree::treeBuild() {
         const auto numLeaves = Leaves.size();
-        auto future = wp->submit([this] {
+        bthread::CountdownEvent future(1);
+        push_task([&]() {
             for (auto i = 0; i < (int) Leaves.size(); i++) {
                 leafMap[std::string(Leaves[i].begin(), Leaves[i].end())] = i;
             }
-            return true;
+            future.signal();
         });
         this->tree = std::vector<std::vector<HashString>>(Depth);
         this->tree[0] = Leaves;
@@ -288,7 +286,7 @@ namespace pmt {
                 bthread::CountdownEvent countdown(numRoutines);
                 for (auto j = 0; j < numRoutines; j++) {
                     // ----in the original version, numRoutines==config::NumRoutines----
-                    wp->push_task([this, start=j << 1, prevLen=prevLen, numRoutines=numRoutines, depth=i, &countdown]{
+                    push_task([this, start=j << 1, prevLen=prevLen, numRoutines=numRoutines, depth=i, &countdown]{
                         for (auto k = start; k < prevLen; k += (numRoutines << 1)) {
                             auto ret = Config::HashFunc(this->tree[depth][k], this->tree[depth][k + 1]);
                             if (!ret) {
@@ -319,7 +317,8 @@ namespace pmt {
             return false;
         }
         this->Root = *ret;
-        return future.get();
+        future.wait();
+        return true;
     }
 
     std::optional<bool> MerkleTree::Verify(const DataBlock &dataBlock, const Proof &proof, const HashString &root) {

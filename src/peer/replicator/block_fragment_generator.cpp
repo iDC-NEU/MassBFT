@@ -207,14 +207,15 @@ namespace peer {
             pmtConfig.RunInParallel = true;
         }
         // _ecConfig.instanceCount indicate the number of parallel running instance
-        pmtConfig.NumRoutines = (int)wpForMTAndEC->get_thread_count() / _ecConfig.instanceCount;
+        // pmtConfig.NumRoutines = (int)wpForMTAndEC->get_thread_count() / _ecConfig.instanceCount;
         std::vector<std::unique_ptr<pmt::DataBlock>> blocks;
         blocks.reserve(ecEncodeResult.size());
         // serialize perform an additional copy
         for (const auto& blockView: ecEncodeResult) {
             blocks.push_back(std::make_unique<ContextDataBlock>(blockView));
         }
-        mt = pmt::MerkleTree::New(pmtConfig, blocks, wpForMTAndEC);
+        // ---- parallel merkle generation may not be useful ----
+        mt = pmt::MerkleTree::New(pmtConfig, blocks, nullptr);
         // we no longer need the block view after tree generation.
         return true;
     }

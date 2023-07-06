@@ -119,19 +119,24 @@ namespace peer::v2 {
         }
 
         // Encode the block and send it to the corresponding node in the remote AZ
-        bool encodeAndSendBlock(const std::shared_ptr<proto::Block>& block) {
+        bool encodeAndSendBlock(proto::Block& block) {
             auto context = _bfg->getEmptyContext(_remoteFragmentConfig);
-            auto blockRaw = block->getSerializedMessage();
-            if (blockRaw == nullptr) {
-                // blockRaw is const string, add tmp variable to bypass modify it
-                auto tmp = std::make_shared<std::string>();
-                block->serializeToString(tmp.get());
-                blockRaw = std::move(tmp);
+            if (!block.haveSerializedMessage()) {
+                std::string blockRaw;
+                auto ret = block.serializeToString(&blockRaw);
+                if (!ret.valid) {
+                    LOG(ERROR) << "serialize block failed!";
+                    return false;
+                }
+                block.setSerializedMessage(std::move(blockRaw));
             }
-            context->initWithMessage(*blockRaw);
+            auto blockRaw = block.getSerializedMessage();
+            if (!context->initWithMessage(*blockRaw)) {
+                return false;
+            }
             // Using a thread pool is not necessary, since there are multiple regions process concurrently
             for(auto & _sender : _senders) {
-                auto ret = _sender->encodeAndSendFragment(*context, block->header.number, blockRaw->size());
+                auto ret = _sender->encodeAndSendFragment(*context, block.header.number, blockRaw->size());
                 if (!ret) {
                     LOG(ERROR) << "encodeAndSendFragment failed!";
                     return false;
@@ -274,7 +279,7 @@ namespace peer::v2 {
                 bool allSuccess = true;
                 for (auto& it: _senderMap) {
                     _wpForBlockSender->push_task([&, &it=it](){
-                        auto ret = it.second->encodeAndSendBlock(block);
+                        auto ret = it.second->encodeAndSendBlock(*block);
                         if (!ret) {
                             allSuccess = false;
                         }

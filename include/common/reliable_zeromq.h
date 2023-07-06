@@ -148,10 +148,12 @@ namespace util {
                         // auto* ctl = static_cast<brpc::Controller*>(controller);
                         // ctl->set_response_compress_type(brpc::COMPRESS_TYPE_GZIP);
                         if (zmqServerList[port] != nullptr) {
+                            response->set_payload("Server already exist!");
                             break;  // server exist
                         }
                         std::unique_ptr<ReliableZmqServer> server(new ReliableZmqServer());
                         if (server->initServer(port) != 0) {
+                            response->set_payload("Init server failed!");
                             break;  // init failed
                         }
 
@@ -168,19 +170,23 @@ namespace util {
                        ::util::ZmqControlResponse* response,
                        ::google::protobuf::Closure* done) override {
                 brpc::ClosureGuard guard(done);
-                do {
-                    auto port = (int) request->port();
-                    if (mutex[port].try_lock_shared()) {
-                        std::shared_lock m_guard(mutex[port], std::adopt_lock);
-                        if (zmqServerList[port] == nullptr) {
-                            break; // server not exist
-                        }
-                        auto *server = zmqServerList[port].get();
-                        response->set_success(server->isReady);
-                        return;
-                    }
-                } while(false);
                 response->set_success(false); // lock failure
+                auto port = (int) request->port();
+                if (!mutex[port].try_lock_shared()) {
+                    response->set_payload("Server is initializing!");
+                    return;
+                }
+                std::shared_lock m_guard(mutex[port], std::adopt_lock);
+                if (zmqServerList[port] == nullptr) {
+                    response->set_payload("Server does not exist!");
+                    return;
+                }
+                bool ready = zmqServerList[port]->isReady;
+                if (!ready) {
+                    response->set_payload("Server is not ready!");
+                    return;
+                }
+                response->set_success(true);
             }
 
             void dropConnection(google::protobuf::RpcController*,
@@ -299,18 +305,19 @@ namespace util {
                 // Because `done'(last parameter) is NULL, this function waits until
                 // the response comes back or error occurs(including timedout).
                 stub.hello(&ctl, &request, &response, nullptr);
-                if (!ctl.Failed()) {
-                    DLOG(INFO) << "Received response from " << ctl.remote_side()
-                               << " to " << ctl.local_side()
-                               << ": " << response.success()
-                               << " latency=" << ctl.latency_us() << "us";
-                    if (response.success()) {
-                        return rClient;
-                    }
-                } else {
-                    LOG(WARNING) << ctl.ErrorText();
+                if (ctl.Failed()) {
+                    LOG(WARNING) << "RPC failed, reason:" << ctl.ErrorText();
+                    continue;
                 }
-                usleep(timeout_ms*1000);
+                DLOG(INFO) << "Received response from " << ctl.remote_side()
+                           << " to " << ctl.local_side()
+                           << " latency=" << ctl.latency_us() << "us";
+                if (!response.success()) {
+                    DLOG(WARNING) << "RPC failed, reason: " << response.payload();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(timeout_ms));
+                    continue;
+                }
+                return rClient;
             }
             LOG(ERROR) << "Failed to connect to remote server!";
             return nullptr;

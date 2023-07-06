@@ -9,7 +9,14 @@
 #include "proto/user_connection.pb.h"
 #include <brpc/channel.h>
 
+namespace brpc::policy {
+    DECLARE_int32(h2_client_connection_window_size);
+}
+
 ycsb::client::NeuChainDB::NeuChainDB(util::NodeConfigPtr server, std::shared_ptr<NeuChainDBConnection> dbc, std::shared_ptr<const util::Key> priKey) {
+    if (brpc::policy::FLAGS_h2_client_connection_window_size < 1024 * 1024 * 10) {
+        brpc::policy::FLAGS_h2_client_connection_window_size = 1024 * 1024 * 10;
+    }
     _nextNonce = static_cast<int64_t>(::ycsb::utils::RandomUINT64::NewRandomUINT64()->nextValue() << 32);
     LOG(INFO) << "Created a connection to NeuChainDB with nonce: " << _nextNonce;
     CHECK(priKey->Private()) << "Can not sign using public key!";
@@ -196,7 +203,10 @@ std::unique_ptr<proto::Block> ycsb::client::NeuChainStatus::getBlock(int blockNu
     ctl.set_timeout_ms(5 * 1000);
     _stub->pullBlock(&ctl, &request, &response, nullptr);
     if (ctl.Failed()) {
-        LOG(ERROR) << "Failed to get block: " << blockNumber << ", retry: " << ctl.ErrorText();
+        // RMessage is too big
+        LOG(ERROR) << "Failed to get block: " << blockNumber
+                   << ", Text: " << ctl.ErrorText()
+                   << ", Code: " << berror(ctl.ErrorCode());
         return nullptr;
     }
     if (!response.success()) {

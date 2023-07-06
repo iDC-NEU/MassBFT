@@ -79,6 +79,7 @@ TEST_F(CoreWorkloadTest, TestBuildKey) {
 
 TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator1) {
     using namespace ycsb::core::workload;
+    CHECK(util::Properties::LoadProperties());
     auto* property = util::Properties::GetProperties();
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "constant");
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_PROPERTY, 35);
@@ -92,8 +93,8 @@ TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator1) {
 }
 
 TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator2) {
-    YAML::Node tmp;
     using namespace ycsb::core::workload;
+    CHECK(util::Properties::LoadProperties());
     auto* property = util::Properties::GetProperties();
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "uniform");
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_PROPERTY, 50);

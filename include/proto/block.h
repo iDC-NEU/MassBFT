@@ -157,7 +157,7 @@ namespace proto {
         }
 
         // all pointer must be not null!
-        PosList serializeToString(std::string *buf, int pos = 0) {
+        PosList serializeToString(std::string *buf, int pos = 0) const {
             PosList posList;
             zpp::bits::out out(*buf);
             out.reset(pos);

@@ -18,6 +18,8 @@ namespace peer::core {
     }
 
     std::unique_ptr<ModuleCoordinator> ModuleCoordinator::NewModuleCoordinator(const std::shared_ptr<util::Properties>& properties) {
+        auto runningPath = properties->getRunningPath();
+        std::filesystem::current_path(runningPath);
         auto mc = std::unique_ptr<ModuleCoordinator>(new ModuleCoordinator);
         auto nodeProperties = properties->getNodeProperties();
         mc->_localNode = nodeProperties.getLocalNodeInfo();
@@ -96,9 +98,9 @@ namespace peer::core {
                                            realBlock->executeResult.transactionFilter)) {
             return false;
         }
-        realBlock->getSerializedMessage()->clear(); // out of date (contains no exec result)
+        // NOTE: do not invoke realBlock->setSerializedMessage, not thread safe!
         if (_localNode->nodeId == 0) {
-            LOG(INFO) << "Leader of local group " << _localNode->groupId << " commit a block, chainId: " << regionId  << ", blockId: " << blockId;
+            DLOG(INFO) << "Leader of local group " << _localNode->groupId << " commit a block, chainId: " << regionId  << ", blockId: " << blockId;
         }
         // notify user by rpc
         _userRPCNotifier->insertBlockAndNotify(regionId, std::move(realBlock));

@@ -56,16 +56,12 @@ namespace peer::core {
             response->set_payload("Failed to get block within timeout.");
             return;
         }
-        if (block->haveSerializedMessage()) {
-            response->set_payload(*block->getSerializedMessage());
-        } else {
-            auto* payload = response->mutable_payload();
-            auto ret = block->serializeToString(payload);
-            if (!ret.valid) {
-                response->set_payload("Serialize message failed.");
-                return;
-            }
-            block->setSerializedMessage(std::string(*response->mutable_payload()));
+        // block->setSerializedMessage(std::string(*response->mutable_payload())); is NOT thread safe!
+        auto* payload = response->mutable_payload();
+        auto ret = block->serializeToString(payload);
+        if (!ret.valid) {
+            response->set_payload("Serialize message failed.");
+            return;
         }
         response->set_success(true);
     }

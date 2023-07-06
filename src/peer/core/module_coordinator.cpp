@@ -96,9 +96,9 @@ namespace peer::core {
                                            realBlock->executeResult.transactionFilter)) {
             return false;
         }
-        realBlock->getSerializedMessage()->clear(); // out of date (contains no exec result)
+        // NOTE: do not invoke realBlock->setSerializedMessage, not thread safe!
         if (_localNode->nodeId == 0) {
-            LOG(INFO) << "Leader of local group " << _localNode->groupId << " commit a block, chainId: " << regionId  << ", blockId: " << blockId;
+            DLOG(INFO) << "Leader of local group " << _localNode->groupId << " commit a block, chainId: " << regionId  << ", blockId: " << blockId;
         }
         // notify user by rpc
         _userRPCNotifier->insertBlockAndNotify(regionId, std::move(realBlock));

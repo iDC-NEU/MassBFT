@@ -267,15 +267,7 @@ namespace peer::v2 {
                 if (block == nullptr) {
                     continue;   // unexpected wakeup
                 }
-                if (!block->haveSerializedMessage()) {
-                    std::string blockRaw;
-                    auto ret = block->serializeToString(&blockRaw);
-                    if (!ret.valid) {
-                        LOG(ERROR) << "serialize block failed!";
-                        continue;
-                    }
-                    block->setSerializedMessage(std::move(blockRaw));
-                }
+                CHECK(block->haveSerializedMessage());
                 bthread::CountdownEvent countdown((int)_senderMap.size());
                 bool allSuccess = true;
                 for (auto& it: _senderMap) {

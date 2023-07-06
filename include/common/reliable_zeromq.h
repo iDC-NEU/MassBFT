@@ -313,7 +313,7 @@ namespace util {
                            << " to " << ctl.local_side()
                            << " latency=" << ctl.latency_us() << "us";
                 if (!response.success()) {
-                    LOG(WARNING) << "RPC failed, reason: " << response.payload();
+                    DLOG(WARNING) << "RPC failed, reason: " << response.payload();
                     std::this_thread::sleep_for(std::chrono::milliseconds(timeout_ms));
                     continue;
                 }

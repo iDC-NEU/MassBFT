@@ -18,6 +18,8 @@ namespace peer::core {
     }
 
     std::unique_ptr<ModuleCoordinator> ModuleCoordinator::NewModuleCoordinator(const std::shared_ptr<util::Properties>& properties) {
+        auto runningPath = properties->getRunningPath();
+        std::filesystem::current_path(runningPath);
         auto mc = std::unique_ptr<ModuleCoordinator>(new ModuleCoordinator);
         auto nodeProperties = properties->getNodeProperties();
         mc->_localNode = nodeProperties.getLocalNodeInfo();

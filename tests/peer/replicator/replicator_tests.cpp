@@ -65,6 +65,7 @@ protected:
             CHECK(ret) << "Sig validate failed, ski: " << ski;
             block->metadata.consensusSignatures.emplace_back("", ::proto::SignatureString{ ski, 0, *ret });
         }
+        block->setSerializedMessage(std::move(blockRaw));
         return block;
     }
 

@@ -31,9 +31,8 @@ protected:
 
 protected:
     static auto GetAndInitModules(bool distributed) {
+        util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, distributed);
         auto properties = util::Properties::GetSharedProperties();
-        properties->getCustomProperties(util::Properties::JVM_PATH) = "/home/user/.jdks/corretto-16.0.2/bin/java";
-        properties->getCustomProperties(util::Properties::DISTRIBUTED_SETTING) = distributed;
         auto modules = peer::core::ModuleFactory::NewModuleFactory(properties);
         CHECK(modules != nullptr);
         auto [bccsp, tp] = modules->getOrInitBCCSPAndThreadPool();

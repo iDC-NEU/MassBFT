@@ -26,7 +26,7 @@ namespace tests {
                     cfg->ski = std::to_string(i) + "_" + std::to_string(j);
                     cfg->priIp = "127.0.0." + std::to_string(j+1);
                     cfg->pubIp = "127.0.0." + std::to_string(j+1);
-                    nodeProperties.setSingleNodeInfo(cfg);
+                    nodeProperties.setSingleNodeInfo(*cfg);
                     // init bccsp
                     YAML::Node node;
                     node["raw"] = "1498b5467a63dffa2dc9d9e069caf075d16fc33fdd4c3b01bfadae6433767d93";
@@ -34,8 +34,6 @@ namespace tests {
                     bccspProperties[cfg->ski] = node;
                 }
             }
-            std::filesystem::path newDir = "/home/user/nc_bft";
-            std::filesystem::current_path(newDir);
         }
 
         static void SetLocalId(int groupId, int nodeId) {

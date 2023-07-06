@@ -3,7 +3,7 @@
 //
 
 #include "peer/replicator/block_fragment_generator.h"
-
+#include <bthread/countdown_event.h>
 #include "zpp_bits.h"
 
 namespace peer {
@@ -132,12 +132,13 @@ namespace peer {
         }
         // the actual data size is different for the last fragment
         auto dataSize=fragmentLen;
-        std::vector<std::future<bool>> futureList(_ecConfig.instanceCount);
+        bthread::CountdownEvent countdown(_ecConfig.instanceCount);
+        bool success = true;
         for(auto i=0; i<_ecConfig.instanceCount; i++) {     // (int)svListPartialView.size()
             if (i == _ecConfig.instanceCount - 1) { // adjust the size of the last fragment
                 dataSize=(int)bufferOut.size() - i*fragmentLen;
             }
-            futureList[i] = wpForMTAndEC->submit([&, dataSize=dataSize, idx=i]() {
+            push_task([&, dataSize=dataSize, idx=i]() {
                 // Error handling
                 if (!ec[idx]->decodeWithBuffer(svListPartialView[idx], dataSize, bufferOut.data()+idx*fragmentLen, dataSize)) {
                     util::OpenSSLSHA256 hash;
@@ -146,16 +147,15 @@ namespace peer {
                     }
                     LOG(ERROR) << "Regenerate message failed, hash: "
                                << util::OpenSSLSHA256::toString(*hash.final());
-                    return false;
+                    success = false;
                 }
-                return true;
+                countdown.signal();
             });
         }
-        for (auto& future: futureList) {
-            if (!future.get()) {
-                LOG(ERROR) << "Reconstruct message error!";
-                return false;
-            }
+        countdown.wait();
+        if (success == false) {
+            LOG(ERROR) << "Reconstruct message error!";
+            return false;
         }
         return true;
     }
@@ -165,21 +165,28 @@ namespace peer {
             return false;   // already inited
         }
         auto actualMessageSize = message.size();
-        std::vector<std::future<bool>> futureList(_ecConfig.instanceCount);
+        bthread::CountdownEvent countdown(_ecConfig.instanceCount);
+        bool success = true;
         // ceil may not perform correctly in some case
         auto len = actualMessageSize % _ecConfig.instanceCount ? actualMessageSize / _ecConfig.instanceCount + 1: actualMessageSize / _ecConfig.instanceCount;
         ecEncodeResult.resize(_ecConfig.instanceCount*fragmentCnt);
         for (int i=0; i<_ecConfig.instanceCount; i++) {
-            futureList[i] = wpForMTAndEC->submit([this, idx=i, &message, &len]()->bool {
+            push_task([this, idx=i, &message, &len, &countdown, &success]() {
                 // auto solve overflow
                 std::string_view msgView = message.substr(idx*len, (idx+1)*len);
                 auto encodeResult = ec[idx]->encode(msgView);
                 if (encodeResult == nullptr) {
-                    return false;
+                    // return false;
+                    success = false;
+                    countdown.signal();
+                    return;
                 }
                 auto ret = encodeResult->getAll();
                 if (!ret) {
-                    return false;
+                    // return false;
+                    success = false;
+                    countdown.signal();
+                    return;
                 }
                 DCHECK((int)ret->size() == fragmentCnt);
                 for(int j=0; j<fragmentCnt; j++) {
@@ -187,15 +194,17 @@ namespace peer {
                     ecEncodeResult[j*_ecConfig.instanceCount+idx] = (*ret)[j];
                 }
                 encodeResultHolder[idx] = std::move(encodeResult);
-                return true;
+                countdown.signal();
+                // return true;
+                return;
             });
         }
-        for (auto& ret: futureList) {
-            if (!ret.get()) {
-                LOG(ERROR) << "Encode failed";
-                return false;
-            }
+        countdown.wait();
+        if (success == false) {
+            LOG(ERROR) << "Encode failed";
+            return false;
         }
+
         pmt::Config pmtConfig;
         pmtConfig.Mode=pmt::ModeType::ModeProofGenAndTreeBuild;
         // leaf size is too big (all leaves have the equal size)
@@ -207,14 +216,15 @@ namespace peer {
             pmtConfig.RunInParallel = true;
         }
         // _ecConfig.instanceCount indicate the number of parallel running instance
-        pmtConfig.NumRoutines = (int)wpForMTAndEC->get_thread_count() / _ecConfig.instanceCount;
+        // pmtConfig.NumRoutines = (int)wpForMTAndEC->get_thread_count() / _ecConfig.instanceCount;
         std::vector<std::unique_ptr<pmt::DataBlock>> blocks;
         blocks.reserve(ecEncodeResult.size());
         // serialize perform an additional copy
         for (const auto& blockView: ecEncodeResult) {
             blocks.push_back(std::make_unique<ContextDataBlock>(blockView));
         }
-        mt = pmt::MerkleTree::New(pmtConfig, blocks, wpForMTAndEC);
+        // ---- parallel merkle generation may not be useful ----
+        mt = pmt::MerkleTree::New(pmtConfig, blocks, nullptr);
         // we no longer need the block view after tree generation.
         return true;
     }

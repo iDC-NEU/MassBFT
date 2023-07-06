@@ -31,11 +31,15 @@ protected:
     void SetUp() override {
         util::ReliableZmqServer::AddRPCService();
         util::MetaRpcServer::Start();
+        // avoid database overload
+        util::Properties::SetProperties(util::Properties::ARIA_WORKER_COUNT, 1);
         // init ycsb config
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 10000);
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 30000);
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000);
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::UPDATE_PROPORTION_PROPERTY, 0.50);
         util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 100);
         util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 1000);
         // load ycsb database
@@ -65,9 +69,7 @@ protected:
 protected:
     static void InitNodeConfig(int groupId, int nodeId) {
         tests::MockPropertyGenerator::SetLocalId(groupId, nodeId);
-        auto* properties = util::Properties::GetProperties();
-        properties->getCustomProperties(util::Properties::JVM_PATH) = "/home/user/.jdks/corretto-16.0.2/bin/java";
-        properties->getCustomProperties(util::Properties::DISTRIBUTED_SETTING) = false;
+        util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, false);
     }
 
     const int nodeCountPerGroup = 4;
@@ -99,7 +101,7 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
         auto engine = std::make_unique<ycsb::YCSBEngine>(*p);
         clientList.push_back(std::move(engine));
     }
-    util::Timer::sleep_sec(5);
+    util::Timer::sleep_sec(3);
     LOG(INFO) << "Test start!";
     for (auto& it: clientList) {
         it->startTestNoWait();

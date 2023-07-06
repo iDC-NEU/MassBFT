@@ -191,14 +191,14 @@ namespace util {
             return (int)list.size();
         }
 
-        void setSingleNodeInfo(const NodeConfigPtr& cfg) {
+        void setSingleNodeInfo(const NodeConfig& cfg) {
             YAML::Node node;
-            node["node_id"] = cfg->nodeId;
-            node["group_id"] = cfg->groupId;
-            node["ski"] = cfg->ski;
-            node["pri_ip"] = cfg->priIp;
-            node["pub_ip"] = cfg->pubIp;
-            auto groupKey = BuildGroupKey(cfg->groupId);
+            node["node_id"] = cfg.nodeId;
+            node["group_id"] = cfg.groupId;
+            node["ski"] = cfg.ski;
+            node["pri_ip"] = cfg.priIp;
+            node["pub_ip"] = cfg.pubIp;
+            auto groupKey = BuildGroupKey(cfg.groupId);
             auto list = n[groupKey];
             list.push_back(node);
         }
@@ -230,9 +230,11 @@ namespace util {
         constexpr static const auto SSH_USERNAME = "ssh_username";
         constexpr static const auto SSH_PASSWORD = "ssh_password";
         constexpr static const auto JVM_PATH = "jvm_path";
+        constexpr static const auto RUNNING_PATH = "running_path";
         constexpr static const auto BATCH_TIMEOUT_MS = "batch_timeout_ms";
         constexpr static const auto BATCH_MAX_SIZE = "batch_max_size";
         constexpr static const auto VALIDATE_USER_REQUEST_ON_RECEIVE = "validate_on_receive";
+        constexpr static const auto ARIA_WORKER_COUNT = "aria_worker_count";
 
     public:
         // Load from file, if fileName is null, create an empty property
@@ -323,9 +325,18 @@ namespace util {
             try {
                 return _node[JVM_PATH].as<std::string>();
             } catch (const YAML::Exception &e) {
-                LOG(INFO) << "Can not find JVM_PATH, leave it to empty.";
+                LOG(INFO) << "Can not find JVM_PATH, leave it to default.";
             }
-            return {};
+            return "/home/user/.jdks/corretto-16.0.2/bin/java";
+        }
+
+        std::string getRunningPath() const {
+            try {
+                return _node[RUNNING_PATH].as<std::string>();
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not find RUNNING_PATH, leave it to default.";
+            }
+            return "/home/user/nc_bft";
         }
 
         int getBlockBatchTimeoutMs() const {
@@ -345,6 +356,8 @@ namespace util {
             }
             return 200; // 200 size
         }
+
+        int getAriaWorkerCount() const;
 
         // validate user request immediately, instead of validate them during consensus
         bool validateOnReceive() const {

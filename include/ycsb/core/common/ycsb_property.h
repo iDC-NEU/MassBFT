@@ -33,8 +33,6 @@ namespace ycsb::utils {
 
         // used to specify the target throughput.
         constexpr static const auto TARGET_THROUGHPUT_PROPERTY = "target_throughput";
-
-        constexpr static const auto LABEL_PROPERTY = "label";
         /// ----- For clients -----
 
         // The name of the database table to run queries against.
@@ -279,8 +277,8 @@ namespace ycsb::utils {
 
         inline Proportion getProportion() const {
             Proportion p{};
-            p.readProportion = n[READ_PROPORTION_PROPERTY].as<double>(0.95);
-            p.updateProportion =  n[UPDATE_PROPORTION_PROPERTY].as<double>(0.05);
+            p.readProportion = n[READ_PROPORTION_PROPERTY].as<double>(0);
+            p.updateProportion =  n[UPDATE_PROPORTION_PROPERTY].as<double>(0);
             p.insertProportion =  n[INSERT_PROPORTION_PROPERTY].as<double>(0);
             p.scanProportion =  n[SCAN_PROPORTION_PROPERTY].as<double>(0);
             p.readModifyWriteProportion =  n[READMODIFYWRITE_PROPORTION_PROPERTY].as<double>(0);

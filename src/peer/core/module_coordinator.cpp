@@ -22,11 +22,15 @@ namespace peer::core {
         auto nodeProperties = properties->getNodeProperties();
         mc->_localNode = nodeProperties.getLocalNodeInfo();
         // 1.01 init concurrency control
-        mc->_db = peer::db::RocksdbConnection::NewConnection(mc->_localNode->ski + "_db");
+        auto dbPath = std::filesystem::current_path().append("data").append(mc->_localNode->ski + "_db");
+        if (!exists(dbPath) && !create_directories(dbPath)) {
+            return nullptr; // create directory failed
+        }
+        mc->_db = peer::db::RocksdbConnection::NewConnection(dbPath);
         if (mc->_db == nullptr) {
             return nullptr;
         }
-        mc->_cc = peer::cc::CoordinatorImpl::NewCoordinator(mc->_db, std::max((int)std::thread::hardware_concurrency() / 4, 1));
+        mc->_cc = peer::cc::CoordinatorImpl::NewCoordinator(mc->_db, properties->getAriaWorkerCount());
         if (mc->_cc == nullptr) {
             return nullptr;
         }
@@ -93,8 +97,10 @@ namespace peer::core {
             return false;
         }
         realBlock->getSerializedMessage()->clear(); // out of date (contains no exec result)
+        if (_localNode->nodeId == 0) {
+            LOG(INFO) << "Leader of local group " << _localNode->groupId << " commit a block, chainId: " << regionId  << ", blockId: " << blockId;
+        }
         // notify user by rpc
-        DLOG(INFO) << _localNode->groupId << ", " << _localNode->nodeId << " pushBlock, chainId: " << regionId  << ", blockId: " << blockId;
         _userRPCNotifier->insertBlockAndNotify(regionId, std::move(realBlock));
         return true;
     }

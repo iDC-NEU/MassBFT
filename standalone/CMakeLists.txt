@@ -28,7 +28,7 @@ set_target_properties(${PROJECT_NAME}_peer PROPERTIES CXX_STANDARD 20 OUTPUT_NAM
 
 target_link_libraries(${PROJECT_NAME}_peer NBP cxxopts ${COMMON_DEPENDENCIES})
 
-# ---- Create peer standalone executable ----
+# ---- Create initializer standalone executable ----
 
 file(GLOB initializer_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/initializer/*.cpp)
 

@@ -43,6 +43,7 @@ protected:
 };
 
 TEST_F(YCSBTest, BasicTest) {
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READ_PROPORTION_PROPERTY, 1.00);
     auto* p = util::Properties::GetProperties();
     tests::peer::Peer peer(*p, false, false);
     ycsb::YCSBEngine engine(*p);
@@ -50,6 +51,7 @@ TEST_F(YCSBTest, BasicTest) {
 }
 
 TEST_F(YCSBTest, TwoWorkerTest) {
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READ_PROPORTION_PROPERTY, 1.00);
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 2);
     auto* p = util::Properties::GetProperties();
     tests::peer::Peer peer(*p, false, false);
@@ -58,6 +60,7 @@ TEST_F(YCSBTest, TwoWorkerTest) {
 }
 
 TEST_F(YCSBTest, OneWorkerPerformanceTest) {
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READ_PROPORTION_PROPERTY, 1.00);
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 100000);
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 10000);
     util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 1000);
@@ -68,6 +71,7 @@ TEST_F(YCSBTest, OneWorkerPerformanceTest) {
 }
 
 TEST_F(YCSBTest, OverloadTest) {
+    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READ_PROPORTION_PROPERTY, 1.00);
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 10000000);
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 300000);
     ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 10);

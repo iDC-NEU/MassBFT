@@ -65,6 +65,7 @@ protected:
             CHECK(ret) << "Sig validate failed, ski: " << ski;
             block->metadata.consensusSignatures.emplace_back("", ::proto::SignatureString{ ski, 0, *ret });
         }
+        proto::Block::AppendSerializedMetadata(block->metadata, &blockRaw, (int)pos.metadataPos);
         block->setSerializedMessage(std::move(blockRaw));
         return block;
     }
@@ -146,6 +147,7 @@ protected:
 };
 
 TEST_F(ReplicatorTest, TestInitialize) {
+    CHECK(false) << "This test may failed normally.";
     auto bccsp = CreateBCCSP();
     auto nodes = GenerateNodesMap();
     // ---- init port map

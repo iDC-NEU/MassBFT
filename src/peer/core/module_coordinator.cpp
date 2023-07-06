@@ -30,7 +30,7 @@ namespace peer::core {
         if (mc->_db == nullptr) {
             return nullptr;
         }
-        mc->_cc = peer::cc::CoordinatorImpl::NewCoordinator(mc->_db, std::max((int)std::thread::hardware_concurrency() / 4, 1));
+        mc->_cc = peer::cc::CoordinatorImpl::NewCoordinator(mc->_db, properties->getAriaWorkerCount());
         if (mc->_cc == nullptr) {
             return nullptr;
         }

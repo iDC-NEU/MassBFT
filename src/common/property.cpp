@@ -4,6 +4,7 @@
 
 #include "common/property.h"
 #include <fstream>
+#include <thread>
 
 namespace util {
     bool Properties::LoadProperties(const std::string &fileName) {
@@ -47,5 +48,15 @@ namespace util {
         file << emitter.c_str();
         file.close();
         return true;
+    }
+
+    int Properties::getAriaWorkerCount() const {
+        auto workerCount = std::max((int)std::thread::hardware_concurrency() / 4, 1);
+        try {
+            return _node[ARIA_WORKER_COUNT].as<int>();
+        } catch (const YAML::Exception &e) {
+            LOG(INFO) << "Can not find ARIA_WORKER_COUNT, leave it to " << workerCount << ".";
+        }
+        return workerCount;
     }
 }

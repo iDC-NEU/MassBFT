@@ -119,17 +119,9 @@ namespace peer::v2 {
         }
 
         // Encode the block and send it to the corresponding node in the remote AZ
-        bool encodeAndSendBlock(proto::Block& block) {
+        bool encodeAndSendBlock(const proto::Block& block) {
             auto context = _bfg->getEmptyContext(_remoteFragmentConfig);
-            if (!block.haveSerializedMessage()) {
-                std::string blockRaw;
-                auto ret = block.serializeToString(&blockRaw);
-                if (!ret.valid) {
-                    LOG(ERROR) << "serialize block failed!";
-                    return false;
-                }
-                block.setSerializedMessage(std::move(blockRaw));
-            }
+            DCHECK(block.haveSerializedMessage());
             auto blockRaw = block.getSerializedMessage();
             if (!context->initWithMessage(*blockRaw)) {
                 return false;
@@ -274,6 +266,15 @@ namespace peer::v2 {
                 auto block = _storage->waitForBlock(_localRegionId, nextBlockNumber, 1000);
                 if (block == nullptr) {
                     continue;   // unexpected wakeup
+                }
+                if (!block->haveSerializedMessage()) {
+                    std::string blockRaw;
+                    auto ret = block->serializeToString(&blockRaw);
+                    if (!ret.valid) {
+                        LOG(ERROR) << "serialize block failed!";
+                        continue;
+                    }
+                    block->setSerializedMessage(std::move(blockRaw));
                 }
                 bthread::CountdownEvent countdown((int)_senderMap.size());
                 bool allSuccess = true;

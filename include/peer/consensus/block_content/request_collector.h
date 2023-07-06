@@ -65,7 +65,7 @@ namespace peer::consensus {
             if (_collectorThread || _batchingThread) {
                 return; // already started
             }
-            if (_validateCallback == nullptr || _validateCallback == nullptr) {
+            if (_validateCallback == nullptr) {
                 _collectorThread = std::make_unique<std::thread>(&RequestCollector::collectorFunction<false>, this);
             } else {
                 _collectorThread = std::make_unique<std::thread>(&RequestCollector::collectorFunction<true>, this);

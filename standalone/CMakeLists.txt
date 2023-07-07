@@ -28,12 +28,12 @@ set_target_properties(${PROJECT_NAME}_peer PROPERTIES CXX_STANDARD 20 OUTPUT_NAM
 
 target_link_libraries(${PROJECT_NAME}_peer NBP cxxopts ${COMMON_DEPENDENCIES})
 
-# ---- Create initializer standalone executable ----
+# ---- Create ca standalone executable ----
 
-file(GLOB initializer_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/initializer/*.cpp)
+file(GLOB ca_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ca/*.cpp)
 
-add_executable(${PROJECT_NAME}_initializer ${initializer_sources})
+add_executable(${PROJECT_NAME}_ca ${ca_sources})
 
-set_target_properties(${PROJECT_NAME}_initializer PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "NBP_initializer")
+set_target_properties(${PROJECT_NAME}_ca PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "NBP_ca")
 
-target_link_libraries(${PROJECT_NAME}_initializer NBP cxxopts ${COMMON_DEPENDENCIES})
+target_link_libraries(${PROJECT_NAME}_ca NBP cxxopts ${COMMON_DEPENDENCIES})

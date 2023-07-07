@@ -1,30 +1,14 @@
 //
-// Created by user on 23-7-4.
+// Created by user on 23-7-7.
 //
-
+#include "ca/config_initializer.h"
 #include "common/property.h"
 #include "common/crypto.h"
 #include "ycsb/core/common/ycsb_property.h"
 
-/* The initializer is responsible for initializing the public and private keys of the node
- * and generating the default configuration file.
- * In subsequent versions, the initializer will also be responsible for tasks
- * such as distributing binary files. */
-class Initializer {
-public:
-    explicit Initializer(std::vector<int> groupNodeCount)
-            : _groupNodeCount(std::move(groupNodeCount)) {
-        util::OpenSSLSHA256::initCrypto();
-        util::OpenSSLED25519::initCrypto();
-    }
+namespace ca {
 
-    static void SetLocalId(int groupId, int nodeId) {
-        auto* properties = util::Properties::GetProperties();
-        auto nodeProperties = properties->getNodeProperties();
-        nodeProperties.setLocalNodeInfo(groupId, nodeId);
-    }
-
-    bool initDefaultConfig() {
+    bool Initializer::initDefaultConfig() {
         if (!util::Properties::LoadProperties()) {
             return false;
         }
@@ -82,18 +66,19 @@ public:
         return true;
     }
 
-    static bool SaveConfig(auto&& fileName) {
-        return util::Properties::SaveProperties(fileName);
+    Initializer::Initializer(std::vector<int> groupNodeCount)
+            : _groupNodeCount(std::move(groupNodeCount)) {
+        util::OpenSSLSHA256::initCrypto();
+        util::OpenSSLED25519::initCrypto();
     }
 
-private:
-    const std::vector<int> _groupNodeCount;
-};
+    void Initializer::SetLocalId(int groupId, int nodeId) {
+        auto* properties = util::Properties::GetProperties();
+        auto nodeProperties = properties->getNodeProperties();
+        nodeProperties.setLocalNodeInfo(groupId, nodeId);
+    }
 
-int main(int argc, char *argv[]) {
-    Initializer i({4, 7, 4});
-    i.initDefaultConfig();
-    Initializer::SetLocalId(1, 5);
-    Initializer::SaveConfig("cfg.yaml");
-    return 0;
+    bool Initializer::SaveConfig(const std::string &fileName) {
+        return util::Properties::SaveProperties(fileName);
+    }
 }

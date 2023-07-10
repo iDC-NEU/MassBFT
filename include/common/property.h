@@ -191,17 +191,7 @@ namespace util {
             return (int)list.size();
         }
 
-        void setSingleNodeInfo(const NodeConfig& cfg) {
-            YAML::Node node;
-            node["node_id"] = cfg.nodeId;
-            node["group_id"] = cfg.groupId;
-            node["ski"] = cfg.ski;
-            node["pri_ip"] = cfg.priIp;
-            node["pub_ip"] = cfg.pubIp;
-            auto groupKey = BuildGroupKey(cfg.groupId);
-            auto list = n[groupKey];
-            list.push_back(node);
-        }
+        void setSingleNodeInfo(const NodeConfig& cfg);
 
         void setLocalNodeInfo(int groupId, int nodeId) {
             n["local_group_id"] = groupId;

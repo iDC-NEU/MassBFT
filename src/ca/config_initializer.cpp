@@ -78,6 +78,19 @@ namespace ca {
         nodeProperties.setLocalNodeInfo(groupId, nodeId);
     }
 
+    bool Initializer::SetNodeIp(int groupId, int nodeId, const std::string &pub, const std::string &pri) {
+        auto* properties = util::Properties::GetProperties();
+        auto nodeProperties = properties->getNodeProperties();
+        auto nodePtr = nodeProperties.getSingleNodeInfo(groupId, nodeId);
+        if (nodePtr == nullptr) {
+            return false;
+        }
+        nodePtr->pubIp = pub;
+        nodePtr->priIp = pri;
+        nodeProperties.setSingleNodeInfo(*nodePtr);
+        return true;
+    }
+
     bool Initializer::SaveConfig(const std::string &fileName) {
         return util::Properties::SaveProperties(fileName);
     }

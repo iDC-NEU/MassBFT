@@ -18,6 +18,8 @@ namespace ca {
 
         static void SetLocalId(int groupId, int nodeId);
 
+        static bool SetNodeIp(int groupId, int nodeId, const std::string& pub, const std::string& pri);
+
         bool initDefaultConfig();
 
         static bool SaveConfig(const std::string &fileName);

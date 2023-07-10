@@ -35,6 +35,8 @@ namespace peer::core {
     public:
         static std::unique_ptr<ModuleCoordinator> NewModuleCoordinator(const std::shared_ptr<util::Properties>& properties);
 
+        bool initChaincodeData(const std::string& ccName);
+
         ~ModuleCoordinator();
 
         ModuleCoordinator(const ModuleCoordinator&) = delete;

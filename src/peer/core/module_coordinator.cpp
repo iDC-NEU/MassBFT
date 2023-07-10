@@ -145,4 +145,21 @@ namespace peer::core {
         _localContentBFT->startInstance();
         return true;
     }
+
+    bool ModuleCoordinator::initChaincodeData(const std::string& ccName) {
+        auto orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_db.get());
+        auto cc = ::peer::chaincode::NewChaincodeByName(ccName, std::move(orm));
+        if (cc->InitDatabase() != 0) {
+            return false;
+        }
+        auto [reads, writes] = cc->reset();
+        return _db->syncWriteBatch([&](rocksdb::WriteBatch* batch) ->bool {
+            for (const auto& it: *writes) {
+                CHECK(batch->Put({it->getKeySV().data(), it->getKeySV().size()},
+                                 {it->getValueSV().data(), it->getValueSV().size()})
+                      == rocksdb::Status::OK());
+            }
+            return true;
+        });
+    }
 }

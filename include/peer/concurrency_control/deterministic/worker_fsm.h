@@ -102,6 +102,7 @@ namespace peer::cc {
 
     protected:
         void run() {
+            pthread_setname_np(pthread_self(), "aria_worker");
             constexpr auto idleId = static_cast<int>(InvokerCommand::IDLE);
             auto cEnum = static_cast<int>(InvokerCommand::IDLE);
             do {

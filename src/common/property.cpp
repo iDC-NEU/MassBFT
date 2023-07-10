@@ -86,4 +86,14 @@ namespace util {
         }
         return workerCount;
     }
+
+    int Properties::getBCCSPWorkerCount() const {
+        auto workerCount = std::max((int)std::thread::hardware_concurrency() / 2, 1);
+        try {
+            return _node[BCCSP_WORKER_COUNT].as<int>();
+        } catch (const YAML::Exception &e) {
+            LOG(INFO) << "Can not find BCCSP_WORKER_COUNT, leave it to " << workerCount << ".";
+        }
+        return workerCount;
+    }
 }

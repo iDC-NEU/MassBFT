@@ -32,6 +32,7 @@ namespace util {
         }
 
         void run() {
+            pthread_setname_np(pthread_self(), "async_exec");
             std::function<void()> task = nullptr;
             while (true) {
                 cv.wait([&] {

@@ -211,7 +211,9 @@ namespace peer::v2 {
             }
             // create two thread pools
             if (blockSenderWp == nullptr) {
-                blockSenderWp = std::make_shared<util::thread_pool_light>(std::min((int)regionConfig.size()-1, (int)std::thread::hardware_concurrency()));
+                blockSenderWp = std::make_shared<util::thread_pool_light>(
+                        std::min((int)regionConfig.size()-1, (int)std::thread::hardware_concurrency()),
+                        "blk_sender_tp");
             }
             mrBlockSender->_wpForBlockSender = std::move(blockSenderWp);
 

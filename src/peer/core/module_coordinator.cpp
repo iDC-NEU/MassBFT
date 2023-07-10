@@ -111,6 +111,7 @@ namespace peer::core {
     }
 
     void ModuleCoordinator::contentLeaderReceiverLoop() {
+        pthread_setname_np(pthread_self(), "exec_receiver");
         CHECK(_gbo->isLeader()) << "node must be leader to invoke this function!";
         while(_running) {
             auto [regionId, block] = _contentStorage->subscriberWaitForBlock(_subscriberId, 1000);

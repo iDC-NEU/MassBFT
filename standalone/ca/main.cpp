@@ -5,10 +5,10 @@
 #include "ca/config_initializer.h"
 
 int main(int argc, char *argv[]) {
-    ca::Initializer i({4, 7, 4});
+    ca::Initializer i({1});
     i.initDefaultConfig();
-    ca::Initializer::SetLocalId(1, 5);
-    ca::Initializer::SetNodeIp(1, 5, "127.0.0.1", "127.0.0.1");
+    ca::Initializer::SetLocalId(0, 1);
+    // ca::Initializer::SetNodeIp(1, 5, "127.0.0.1", "127.0.0.1");
     ca::Initializer::SaveConfig("peer.yaml");
     return 0;
 }

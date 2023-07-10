@@ -225,6 +225,7 @@ namespace util {
         constexpr static const auto BATCH_MAX_SIZE = "batch_max_size";
         constexpr static const auto VALIDATE_USER_REQUEST_ON_RECEIVE = "validate_on_receive";
         constexpr static const auto ARIA_WORKER_COUNT = "aria_worker_count";
+        constexpr static const auto BCCSP_WORKER_COUNT = "bccsp_worker_count";
 
     public:
         // Load from file, if fileName is null, create an empty property
@@ -348,6 +349,8 @@ namespace util {
         }
 
         int getAriaWorkerCount() const;
+
+        int getBCCSPWorkerCount() const;
 
         // validate user request immediately, instead of validate them during consensus
         bool validateOnReceive() const {

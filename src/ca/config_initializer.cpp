@@ -13,6 +13,9 @@ namespace ca {
             return false;
         }
         auto* properties = util::Properties::GetProperties();
+        auto ccProperties = properties->getChaincodeProperties();
+        ccProperties.install("ycsb");
+        ccProperties.install("smallbank");
         auto nodeProperties = properties->getNodeProperties();
         auto bccspProperties = properties->getCustomProperties("bccsp");
 
@@ -22,8 +25,8 @@ namespace ca {
                 cfg.groupId = i;
                 cfg.nodeId = j;
                 cfg.ski = std::to_string(i) + "_" + std::to_string(j);
-                cfg.priIp = "{pri_ip_" + cfg.ski + "}";
-                cfg.pubIp = "{pub_ip_" + cfg.ski + "}";
+                cfg.priIp = "127.0." + std::to_string(cfg.groupId) + "." + std::to_string(cfg.nodeId);
+                cfg.pubIp = "127.1." + std::to_string(cfg.groupId) + "." + std::to_string(cfg.nodeId);
                 nodeProperties.setSingleNodeInfo(cfg);
 
                 // generate private keys

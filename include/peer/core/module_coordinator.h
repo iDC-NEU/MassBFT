@@ -11,7 +11,7 @@
 
 namespace util {
     class Properties;
-    class NodeConfig;
+    struct NodeConfig;
 }
 
 namespace peer {

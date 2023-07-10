@@ -50,10 +50,10 @@ namespace ca {
         util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 1000);
         util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 1000);
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, true);
-        util::Properties::SetProperties(util::Properties::SSH_USERNAME, "user");
-        util::Properties::SetProperties(util::Properties::SSH_PASSWORD, "123456");
-        util::Properties::SetProperties(util::Properties::JVM_PATH, "/home/user/.jdks/corretto-16.0.2/bin/java");
-        util::Properties::SetProperties(util::Properties::RUNNING_PATH, "/home/user/nc_bft");
+        util::Properties::SetProperties(util::Properties::SSH_USERNAME, "root");
+        util::Properties::SetProperties(util::Properties::SSH_PASSWORD, "neu1234.");
+        util::Properties::SetProperties(util::Properties::JVM_PATH, "/root/nc_bft/corretto-16.0.2/bin/java");
+        util::Properties::SetProperties(util::Properties::RUNNING_PATH, "/root/nc_bft");
 
         // init ycsb property
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);

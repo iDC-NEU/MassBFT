@@ -21,7 +21,9 @@ public:
         if (mc == nullptr) {
             return false;
         }
-        mc->startInstance();
+        if (!mc->startInstance()) {
+            return false;
+        }
         mc->waitInstanceReady();
         _mc = std::move(mc);
         return true;
@@ -38,7 +40,9 @@ protected:
 int main(int argc, char *argv[]) {
     util::Properties::LoadProperties("peer.yaml");
     auto peer = PeerInstance();
-    peer.initInstance();
+    if (!peer.initInstance()) {
+        return -1;
+    }
     while (!brpc::IsAskedToQuit()) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }

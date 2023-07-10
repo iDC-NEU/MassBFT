@@ -43,7 +43,7 @@ namespace peer::core {
 
         [[nodiscard]] auto& getModuleFactory() const { return *_moduleFactory; }
 
-        void startInstance();
+        bool startInstance();
 
         void waitInstanceReady() const;
 

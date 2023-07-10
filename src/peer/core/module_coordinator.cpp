@@ -23,6 +23,9 @@ namespace peer::core {
         auto mc = std::unique_ptr<ModuleCoordinator>(new ModuleCoordinator);
         auto nodeProperties = properties->getNodeProperties();
         mc->_localNode = nodeProperties.getLocalNodeInfo();
+        if (mc->_localNode == nullptr) {
+            return nullptr; // local config error
+        }
         // 1.01 init concurrency control
         auto dbPath = std::filesystem::current_path().append("data").append(mc->_localNode->ski + "_db");
         if (!exists(dbPath) && !create_directories(dbPath)) {
@@ -133,10 +136,12 @@ namespace peer::core {
         _localContentBFT->waitUntilReady();
     }
 
-    void ModuleCoordinator::startInstance() {
+    bool ModuleCoordinator::startInstance() {
         if (!_moduleFactory->startReplicatorSender()) {
-            CHECK(false) << "ReplicatorSender client start failed!";
+            LOG(ERROR) << "ReplicatorSender client start failed!";
+            return false;
         }
         _localContentBFT->startInstance();
+        return true;
     }
 }

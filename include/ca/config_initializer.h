@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <string>
+#include <filesystem>
 
 namespace ca {
     /* The initializer is responsible for initializing the public and private keys of the node
@@ -26,5 +27,20 @@ namespace ca {
 
     private:
         const std::vector<int> _groupNodeCount;
+    };
+
+    class Dispatcher {
+    public:
+        Dispatcher(std::filesystem::path runningPath,
+                   std::string bftFolderName,
+                   std::string ncZipFolderName);
+
+        bool transmitFileToRemote(const std::string &ip);
+
+    private:
+        // The local and remote node share the same running path
+        std::filesystem::path _runningPath;
+        std::string _bftFolderName;
+        std::string _ncZipFolderName;
     };
 }

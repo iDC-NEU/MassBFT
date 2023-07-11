@@ -5,6 +5,7 @@
 #include "common/property.h"
 #include "common/crypto.h"
 #include "ycsb/core/common/ycsb_property.h"
+#include "common/ssh.h"
 
 namespace ca {
 
@@ -96,5 +97,91 @@ namespace ca {
 
     bool Initializer::SaveConfig(const std::string &fileName) {
         return util::Properties::SaveProperties(fileName);
+    }
+
+    Dispatcher::Dispatcher(std::filesystem::path runningPath, std::string bftFolderName, std::string ncZipFolderName)
+            :_runningPath(std::move(runningPath)),
+             _bftFolderName(std::move(bftFolderName)),
+             _ncZipFolderName(std::move(ncZipFolderName)) { }
+
+    bool Dispatcher::transmitFileToRemote(const std::string &ip) {
+        auto* properties = util::Properties::GetProperties();
+        // create session
+        auto session = util::SSHSession::NewSSHSession(ip);
+        CHECK(session != nullptr);
+        auto [userName, password, success] = properties->getSSHInfo();
+        if (!success) {
+            return false;
+        }
+        success = session->connect(userName, password);
+        if (!success) {
+            return false;
+        }
+        // transmit file
+        auto channel = session->createChannel();
+        if (channel == nullptr) {
+            return false;
+        }
+        if (!channel->blockingExecute( {"mkdir -p", _runningPath} )) {
+            return false;
+        }
+        // clear the old file
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath,
+                "&&",
+                "rm -rf",
+                _bftFolderName,
+                _bftFolderName.append(".zip"),
+                _ncZipFolderName,
+                _ncZipFolderName.append(".zip"), };
+        channel = session->createChannel();
+        if (channel == nullptr) {
+            return false;
+        }
+        if (!channel->blockingExecute(builder)) {
+            return false;
+        }
+        // install unzip
+        builder = {
+                "echo",
+                password,
+                "|",
+                "sudo -S apt update",
+                "&&",
+                "sudo apt install unzip openssh-server -y", };
+        channel = session->createChannel();
+        if (channel == nullptr) {
+            return false;
+        }
+        if (!channel->blockingExecute(builder)) {
+            return false;
+        }
+        // upload the new files
+        auto sftp = session->createSFTPSession();
+        if (!sftp->putFile(_runningPath / _ncZipFolderName, true, _runningPath / _ncZipFolderName)) {
+            return false;
+        }
+        if (!sftp->putFile(_runningPath / _bftFolderName, true, _runningPath / _bftFolderName)) {
+            return false;
+        }
+        // unzip the files
+        builder = {
+                "cd",
+                _runningPath,
+                "&&",
+                "unzip -q",
+                _runningPath / _bftFolderName,
+                "&&",
+                "unzip -q",
+                _runningPath / _ncZipFolderName, };
+        channel = session->createChannel();
+        if (channel == nullptr) {
+            return false;
+        }
+        if (!channel->blockingExecute(builder)) {
+            return false;
+        }
+        return true;
     }
 }

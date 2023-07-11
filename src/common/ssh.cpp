@@ -72,7 +72,13 @@ bool util::SSHChannel::blockingExecute(const std::vector<std::string> &builder) 
         return false;
     }
     std::ostringstream out;
-    return read(out, false);
+    return read(out, true, [&](std::string_view error) {
+        if (error.empty()) {
+            return false;
+        }
+        LOG(ERROR) << error;
+        return true;
+    });
 }
 
 std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session_struct* session) {

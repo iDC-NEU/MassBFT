@@ -142,9 +142,9 @@ namespace ca {
             if (!channel) {
                 return;
             }
-            channel->execute("pkill -f nc_bft.jar");
-            std::ostringstream out;
-            channel->read(out, false);
+            if (!channel->blockingExecute({"pkill -f nc_bft.jar"})) {
+                LOG(WARNING) << "Kill bft instance failed!";
+            }
 
             channel = _session->createChannel();
             if (!channel) {
@@ -158,11 +158,9 @@ namespace ca {
                     "hosts_" + std::to_string(_processId) + ".config",
                     "currentView",
             };
-            std::string command;
-            for (const auto& it: builder) {
-                command.append(it).append(" ");
+            if (!channel->blockingExecute(builder)) {
+                LOG(WARNING) << "Clear bft config failed!";
             }
-            channel->execute(command);
         }
 
         static bool IsInstanceReady(const std::string& log) {

@@ -24,7 +24,9 @@ namespace util {
 
         SSHChannel(SSHChannel&&) = delete;
 
-        bool execute(const std::string &command);
+        bool execute(const std::string& command);
+
+        bool blockingExecute(const std::vector<std::string>& builder);
 
         // When the buffer is not full, wait until timeout occurs
         bool read(std::ostream& buf, int errFlag, const std::function<bool(std::string_view append)>& callback=nullptr);

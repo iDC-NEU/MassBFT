@@ -63,6 +63,18 @@ bool util::SSHChannel::execute(const std::string &command) {
     return true;
 }
 
+bool util::SSHChannel::blockingExecute(const std::vector<std::string> &builder) {
+    std::string command;
+    for (const auto& it: builder) {
+        command.append(it).append(" ");
+    }
+    if (!execute(command)) {
+        return false;
+    }
+    std::ostringstream out;
+    return read(out, false);
+}
+
 std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session_struct* session) {
     auto sftp = sftp_new(session);
     if(sftp == nullptr) {

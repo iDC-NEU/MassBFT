@@ -2,9 +2,9 @@
 // Created by user on 23-7-7.
 //
 #include "ca/config_initializer.h"
+#include "ycsb/core/common/ycsb_property.h"
 #include "common/property.h"
 #include "common/crypto.h"
-#include "ycsb/core/common/ycsb_property.h"
 #include "common/ssh.h"
 
 namespace ca {
@@ -53,8 +53,6 @@ namespace ca {
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, true);
         util::Properties::SetProperties(util::Properties::SSH_USERNAME, "root");
         util::Properties::SetProperties(util::Properties::SSH_PASSWORD, "neu1234.");
-        util::Properties::SetProperties(util::Properties::JVM_PATH, "/root/nc_bft/corretto-16.0.2/bin/java");
-        util::Properties::SetProperties(util::Properties::RUNNING_PATH, "/root/nc_bft");
 
         // init ycsb property
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);
@@ -89,32 +87,28 @@ namespace ca {
         if (nodePtr == nullptr) {
             return false;
         }
-        nodePtr->pubIp = pub;
-        nodePtr->priIp = pri;
+        if (pub.empty()) {
+            nodePtr->pubIp = pri;
+        } else {
+            nodePtr->pubIp = pub;
+        }
+        if (pri.empty()) {
+            nodePtr->priIp = pub;
+        } else {
+            nodePtr->priIp = pri;
+        }
         nodeProperties.setSingleNodeInfo(*nodePtr);
         return true;
     }
 
-    bool Initializer::SaveConfig(const std::string &fileName) {
-        return util::Properties::SaveProperties(fileName);
-    }
-
     Dispatcher::Dispatcher(std::filesystem::path runningPath, std::string bftFolderName, std::string ncZipFolderName)
-            :_runningPath(std::move(runningPath)),
-             _bftFolderName(std::move(bftFolderName)),
-             _ncZipFolderName(std::move(ncZipFolderName)) { }
+            : _runningPath(std::move(runningPath)),
+              _bftFolderName(std::move(bftFolderName)),
+              _ncFolderName(std::move(ncZipFolderName)) { }
 
-    bool Dispatcher::transmitFileToRemote(const std::string &ip) {
-        auto* properties = util::Properties::GetProperties();
-        // create session
-        auto session = util::SSHSession::NewSSHSession(ip);
-        CHECK(session != nullptr);
-        auto [userName, password, success] = properties->getSSHInfo();
-        if (!success) {
-            return false;
-        }
-        success = session->connect(userName, password);
-        if (!success) {
+    bool Dispatcher::transmitFileToRemote(const std::string &ip) const {
+        auto session = Connect(ip);
+        if (session == nullptr) {
             return false;
         }
         LOG(INFO) << "Cleaning the old files.";
@@ -122,6 +116,8 @@ namespace ca {
         if (!session->executeCommand({"mkdir -p", _runningPath}, true)) {
             return false;
         }
+        auto bftZipName = _bftFolderName + ".zip";
+        auto ncZipName = _ncFolderName + ".zip";
         // clear the old file
         std::vector<std::string> builder = {
                 "cd",
@@ -129,14 +125,19 @@ namespace ca {
                 "&&",
                 "rm -rf",
                 _bftFolderName,
-                _bftFolderName.append(".zip"),
-                _ncZipFolderName,
-                _ncZipFolderName.append(".zip"), };
+                bftZipName,
+                _ncFolderName,
+                ncZipName, };
         if (!session->executeCommand(builder, true)) {
             return false;
         }
         LOG(INFO) << "Installing dependencies.";
-        // install unzip
+        // install unzip, load the password
+        auto* properties = util::Properties::GetProperties();
+        auto [userName, password, success] = properties->getSSHInfo();
+        if (!success) {
+            return false;
+        }
         builder = {
                 "echo",
                 password,
@@ -150,11 +151,11 @@ namespace ca {
         LOG(INFO) << "Uploading sourcecode.";
         // upload the new files
         auto sftp = session->createSFTPSession();
-        if (!sftp->putFile(_runningPath / _ncZipFolderName, true, _runningPath / _ncZipFolderName)) {
+        if (!sftp->putFile(_runningPath / ncZipName, true, _runningPath / ncZipName)) {
             return false;
         }
         LOG(INFO) << "Uploading nc_bft.";
-        if (!sftp->putFile(_runningPath / _bftFolderName, true, _runningPath / _bftFolderName)) {
+        if (!sftp->putFile(_runningPath / bftZipName, true, _runningPath / bftZipName)) {
             return false;
         }
         LOG(INFO) << "Unzip sourcecode and nc_bft.";
@@ -167,10 +168,72 @@ namespace ca {
                 _runningPath / _bftFolderName,
                 "&&",
                 "unzip -q",
-                _runningPath / _ncZipFolderName, };
+                _runningPath / _ncFolderName, };
         if (!session->executeCommand(builder, true)) {
             return false;
         }
         return true;
+    }
+
+    void Dispatcher::overrideProperties() {
+        auto peerRunningPath = _runningPath / _bftFolderName;
+        auto jvmPath = peerRunningPath / "corretto-16.0.2/bin/java";
+        util::Properties::SetProperties(util::Properties::JVM_PATH, jvmPath.string());
+        util::Properties::SetProperties(util::Properties::RUNNING_PATH, peerRunningPath.string());
+    }
+
+    bool Dispatcher::transmitPropertiesToRemote(const std::string &ip) const {
+        auto session = Connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        auto configFilename = "peer_cfg_" + ip + "_tmp";
+        if (!util::Properties::SaveProperties(configFilename)) {
+            return false;
+        }
+        LOG(INFO) << "Uploading config file.";
+        // upload the new files
+        auto sftp = session->createSFTPSession();
+        if (!sftp->putFile(_runningPath / _bftFolderName / "peer.yaml", true, configFilename)) {
+            return false;
+        }
+        return true;
+    }
+
+    std::unique_ptr<util::SSHSession> Dispatcher::Connect(const std::string &ip) {
+        auto* properties = util::Properties::GetProperties();
+        // create session
+        auto session = util::SSHSession::NewSSHSession(ip);
+        if (session == nullptr) {
+            return nullptr;
+        }
+        auto [userName, password, success] = properties->getSSHInfo();
+        if (!success) {
+            return nullptr;
+        }
+        success = session->connect(userName, password);
+        if (!success) {
+            return nullptr;
+        }
+        return session;
+    }
+
+    bool Dispatcher::transmitFileParallel(const std::vector<std::string> &ips) const {
+        volatile bool success = true;
+        std::vector<std::thread> threads;
+        threads.reserve(ips.size());
+        for (const auto& it: ips) {
+            threads.emplace_back([&, ip=it] {
+                auto ret = transmitFileToRemote(ip);
+                if (!ret) {
+                    LOG(WARNING) << "Send files to " << ip << " failed!";
+                    success = false;
+                }
+            });
+        }
+        for (auto& it: threads) {
+            it.join();
+        }
+        return success;
     }
 }

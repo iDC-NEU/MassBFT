@@ -27,8 +27,6 @@ namespace ca {
 
         bool initDefaultConfig();
 
-        static bool SaveConfig(const std::string &fileName);
-
     private:
         const std::vector<int> _groupNodeCount;
     };
@@ -39,12 +37,22 @@ namespace ca {
                    std::string bftFolderName,
                    std::string ncZipFolderName);
 
-        bool transmitFileToRemote(const std::string &ip);
+        [[nodiscard]] bool transmitFileToRemote(const std::string &ip) const;
+
+        void overrideProperties();
+
+        // Note: caller must not transmit prop concurrently
+        [[nodiscard]] bool transmitPropertiesToRemote(const std::string &ip) const;
+
+        [[nodiscard]] bool transmitFileParallel(const std::vector<std::string>& ips) const;
+
+    protected:
+        static std::unique_ptr<util::SSHSession> Connect(const std::string &ip);
 
     private:
         // The local and remote node share the same running path
         std::filesystem::path _runningPath;
         std::string _bftFolderName;
-        std::string _ncZipFolderName;
+        std::string _ncFolderName;
     };
 }

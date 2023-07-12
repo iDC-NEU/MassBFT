@@ -117,12 +117,9 @@ namespace ca {
         if (!success) {
             return false;
         }
+        LOG(INFO) << "Cleaning the old files.";
         // transmit file
-        auto channel = session->createChannel();
-        if (channel == nullptr) {
-            return false;
-        }
-        if (!channel->blockingExecute( {"mkdir -p", _runningPath} )) {
+        if (!session->executeCommand({"mkdir -p", _runningPath}, true)) {
             return false;
         }
         // clear the old file
@@ -135,13 +132,10 @@ namespace ca {
                 _bftFolderName.append(".zip"),
                 _ncZipFolderName,
                 _ncZipFolderName.append(".zip"), };
-        channel = session->createChannel();
-        if (channel == nullptr) {
+        if (!session->executeCommand(builder, true)) {
             return false;
         }
-        if (!channel->blockingExecute(builder)) {
-            return false;
-        }
+        LOG(INFO) << "Installing dependencies.";
         // install unzip
         builder = {
                 "echo",
@@ -149,22 +143,21 @@ namespace ca {
                 "|",
                 "sudo -S apt update",
                 "&&",
-                "sudo apt install unzip openssh-server -y", };
-        channel = session->createChannel();
-        if (channel == nullptr) {
+                "sudo apt install unzip -y", };
+        if (!session->executeCommand(builder, true)) {
             return false;
         }
-        if (!channel->blockingExecute(builder)) {
-            return false;
-        }
+        LOG(INFO) << "Uploading sourcecode.";
         // upload the new files
         auto sftp = session->createSFTPSession();
         if (!sftp->putFile(_runningPath / _ncZipFolderName, true, _runningPath / _ncZipFolderName)) {
             return false;
         }
+        LOG(INFO) << "Uploading nc_bft.";
         if (!sftp->putFile(_runningPath / _bftFolderName, true, _runningPath / _bftFolderName)) {
             return false;
         }
+        LOG(INFO) << "Unzip sourcecode and nc_bft.";
         // unzip the files
         builder = {
                 "cd",
@@ -175,11 +168,7 @@ namespace ca {
                 "&&",
                 "unzip -q",
                 _runningPath / _ncZipFolderName, };
-        channel = session->createChannel();
-        if (channel == nullptr) {
-            return false;
-        }
-        if (!channel->blockingExecute(builder)) {
+        if (!session->executeCommand(builder, true)) {
             return false;
         }
         return true;

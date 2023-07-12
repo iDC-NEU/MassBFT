@@ -138,17 +138,8 @@ namespace ca {
         }
 
         void stopAndClean() {
-            auto channel = _session->createChannel();
-            if (!channel) {
-                return;
-            }
-            if (!channel->blockingExecute({"pkill -f nc_bft.jar"})) {
+            if (!_session->executeCommand({"pkill -f nc_bft.jar"})) {
                 LOG(WARNING) << "Kill bft instance failed!";
-            }
-
-            channel = _session->createChannel();
-            if (!channel) {
-                return;
             }
             std::vector<std::string> builder {
                     "cd",
@@ -158,7 +149,7 @@ namespace ca {
                     "hosts_" + std::to_string(_processId) + ".config",
                     "currentView",
             };
-            if (!channel->blockingExecute(builder)) {
+            if (!_session->executeCommand(builder)) {
                 LOG(WARNING) << "Clear bft config failed!";
             }
         }

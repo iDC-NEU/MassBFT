@@ -8,6 +8,10 @@
 #include <string>
 #include <filesystem>
 
+namespace util {
+    class SSHSession;
+}
+
 namespace ca {
     /* The initializer is responsible for initializing the public and private keys of the node
      * and generating the default configuration file.

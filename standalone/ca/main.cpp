@@ -6,7 +6,6 @@
 #include "glog/logging.h"
 
 int main(int argc, char *argv[]) {
-    google::InitGoogleLogging(argv[0]);
     ca::Initializer i({1});
     i.initDefaultConfig();
     ca::Initializer::SetLocalId(0, 1);
@@ -14,6 +13,6 @@ int main(int argc, char *argv[]) {
     ca::Initializer::SaveConfig("peer.yaml");
 
     auto d = ca::Dispatcher("/home/user", "nc_bft", "ncp");
-    d.transmitFileToRemote("39.100.81.251");
+    d.transmitFileToRemote("47.92.107.184");
     return 0;
 }

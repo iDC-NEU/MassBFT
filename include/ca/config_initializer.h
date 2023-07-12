@@ -4,12 +4,14 @@
 
 #pragma once
 
+#include "common/phmap.h"
 #include <vector>
 #include <string>
 #include <filesystem>
 
 namespace util {
     class SSHSession;
+    class SSHChannel;
 }
 
 namespace ca {
@@ -37,24 +39,49 @@ namespace ca {
                    std::string bftFolderName,
                    std::string ncZipFolderName);
 
+        ~Dispatcher();
+
+    protected:
         [[nodiscard]] bool transmitFileToRemote(const std::string &ip) const;
 
         [[nodiscard]] bool remoteCompileSystem(const std::string &ip) const;
 
+        [[nodiscard]] bool generateDatabase(const std::string &ip, const std::string& chaincodeName) const;
+
+        [[nodiscard]] std::unique_ptr<util::SSHChannel> startPeer(const std::string &ip) const;
+
+        [[nodiscard]] std::unique_ptr<util::SSHChannel> startUser(const std::string &ip) const;
+
+    public:
         void overrideProperties();
+
+        void setUserExecName(auto&& rhs) { _userExecName = std::forward<decltype(rhs)>(rhs); }
+
+        void setPeerExecName(auto&& rhs) { _peerExecName = std::forward<decltype(rhs)>(rhs); }
 
         // Note: caller must not transmit prop concurrently
         [[nodiscard]] bool transmitPropertiesToRemote(const std::string &ip) const;
 
         [[nodiscard]] bool transmitFileParallel(const std::vector<std::string>& ips, bool send=true, bool compile=false) const;
 
+        [[nodiscard]] bool generateDatabaseParallel(const std::vector<std::string> &ips, const std::string& chaincodeName) const;
+
     protected:
-        static std::unique_ptr<util::SSHSession> Connect(const std::string &ip);
+        util::SSHSession * connect(const std::string &ip) const;
+
+        template<typename Func>
+        void processParallel(Func f, int count) const;
 
     private:
         // The local and remote node share the same running path
         std::filesystem::path _runningPath;
         std::string _bftFolderName;
         std::string _ncFolderName;
+
+        std::string _peerExecName = "peer";
+        std::string _userExecName = "ycab";
+
+        mutable std::mutex createMutex;
+        mutable util::MyFlatHashMap<std::string, std::unique_ptr<util::SSHSession>> sessionPool;
     };
 }

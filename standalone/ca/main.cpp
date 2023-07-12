@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
     d.overrideProperties();
 
     std::vector<std::string> ips = {"47.92.107.184", "47.92.206.117", "47.92.193.119", "47.92.97.14"};
-    if (!d.transmitFileParallel(ips, true, true)) {
+    if (!d.transmitFileParallel(ips, false, true)) {
         return -1;
     }
     for (int i=0; i<3; i++) {
@@ -28,6 +28,9 @@ int main(int argc, char *argv[]) {
 
     ca::Initializer::SetLocalId(0, 0);
     if (!d.transmitPropertiesToRemote(ips[3])) {
+        return -1;
+    }
+    if (!d.generateDatabaseParallel(ips, "ycsb")) {
         return -1;
     }
     return 0;

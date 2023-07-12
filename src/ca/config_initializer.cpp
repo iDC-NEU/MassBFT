@@ -107,7 +107,7 @@ namespace ca {
               _ncFolderName(std::move(ncZipFolderName)) { }
 
     bool Dispatcher::transmitFileToRemote(const std::string &ip) const {
-        auto session = Connect(ip);
+        auto session = connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -178,7 +178,7 @@ namespace ca {
     }
 
     bool Dispatcher::remoteCompileSystem(const std::string &ip) const {
-        auto session = Connect(ip);
+        auto session = connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -223,7 +223,7 @@ namespace ca {
     }
 
     bool Dispatcher::transmitPropertiesToRemote(const std::string &ip) const {
-        auto session = Connect(ip);
+        auto session = connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -240,7 +240,31 @@ namespace ca {
         return true;
     }
 
-    std::unique_ptr<util::SSHSession> Dispatcher::Connect(const std::string &ip) {
+    bool Dispatcher::generateDatabase(const std::string &ip, const std::string &chaincodeName) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Generating database.";
+        auto peerExecFull = _runningPath / _ncFolderName / "build" / "standalone" / _peerExecName;
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath / _bftFolderName,
+                "&&",
+                peerExecFull,
+                "-i=" + chaincodeName, };
+        if (!session->executeCommand(builder, true)) {
+            return false;
+        }
+        return true;
+    }
+
+    util::SSHSession * Dispatcher::connect(const std::string &ip) const {
+        std::unique_lock lock(createMutex);
+        util::SSHSession* ret = nullptr;
+        if (sessionPool.if_contains(ip, [&](const auto &v) { ret = v.second.get(); })) {
+            return ret;
+        }
         auto* properties = util::Properties::GetProperties();
         // create session
         auto session = util::SSHSession::NewSSHSession(ip);
@@ -255,34 +279,86 @@ namespace ca {
         if (!success) {
             return nullptr;
         }
-        return session;
+        sessionPool[ip] = std::move(session);
+        return sessionPool[ip].get();
     }
 
-    bool Dispatcher::transmitFileParallel(const std::vector<std::string> &ips, bool send, bool compile) const {
-        volatile bool success = true;
+    template<typename Func>
+    void Dispatcher::processParallel(Func f, int count) const {
         std::vector<std::thread> threads;
-        threads.reserve(ips.size());
-        for (const auto& it: ips) {
-            threads.emplace_back([&, ip=it] {
-                if (send) {
-                    auto ret = transmitFileToRemote(ip);
-                    if (!ret) {
-                        LOG(WARNING) << "Send files to " << ip << " failed!";
-                        success = false;
-                    }
-                }
-                if (compile) {
-                    auto ret = remoteCompileSystem(ip);
-                    if (!ret) {
-                        LOG(WARNING) << "Compile system at " << ip << " failed!";
-                        success = false;
-                    }
-                }
-            });
+        threads.reserve(count);
+        for (int i=0; i<count; i++) {
+            threads.emplace_back(f, i);
         }
         for (auto& it: threads) {
             it.join();
         }
+    }
+
+    bool Dispatcher::transmitFileParallel(const std::vector<std::string> &ips, bool send, bool compile) const {
+        volatile bool success = true;
+        processParallel([&] (int idx) {
+            const auto& ip = ips.at(idx);
+            if (send) {
+                auto ret = transmitFileToRemote(ip);
+                if (!ret) {
+                    LOG(WARNING) << "Send files to " << ip << " failed!";
+                    success = false;
+                }
+            }
+            if (compile) {
+                auto ret = remoteCompileSystem(ip);
+                if (!ret) {
+                    LOG(WARNING) << "Compile system at " << ip << " failed!";
+                    success = false;
+                }
+            }
+        }, (int)ips.size());
         return success;
     }
+
+    bool Dispatcher::generateDatabaseParallel(const std::vector<std::string> &ips, const std::string &chaincodeName) const {
+        volatile bool success = true;
+        processParallel([&] (int idx) {
+            const auto& ip = ips.at(idx);
+            auto ret = generateDatabase(ip, chaincodeName);
+            if (!ret) {
+                LOG(WARNING) << "generateDatabase to " << ip << " failed!";
+                success = false;
+            }
+        }, (int)ips.size());
+        return success;
+    }
+
+    std::unique_ptr<util::SSHChannel> Dispatcher::startPeer(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return nullptr;
+        }
+        LOG(INFO) << "Starting peer.";
+        auto peerExecFull = _runningPath / _ncFolderName / "build" / "standalone" / _peerExecName;
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath / _bftFolderName,
+                "&&",
+                peerExecFull, };
+        return session->executeCommandNoWait(builder);
+    }
+
+    std::unique_ptr<util::SSHChannel> Dispatcher::startUser(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return nullptr;
+        }
+        LOG(INFO) << "Starting user.";
+        auto userExecFull = _runningPath / _ncFolderName / "build" / "standalone" / _userExecName;
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath / _bftFolderName,
+                "&&",
+                userExecFull, };
+        return session->executeCommandNoWait(builder);
+    }
+
+    Dispatcher::~Dispatcher() = default;
 }

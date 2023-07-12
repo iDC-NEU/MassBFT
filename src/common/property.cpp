@@ -99,7 +99,7 @@ namespace util {
     }
 
     int Properties::getBCCSPWorkerCount() const {
-        auto workerCount = std::max((int)std::thread::hardware_concurrency() / 2, 1);
+        auto workerCount = std::max((int)std::thread::hardware_concurrency() * 7 / 8, 1);
         try {
             return _node[BCCSP_WORKER_COUNT].as<int>();
         } catch (const YAML::Exception &e) {

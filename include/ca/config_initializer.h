@@ -5,14 +5,10 @@
 #pragma once
 
 #include "common/phmap.h"
+#include "common/ssh.h"
 #include <vector>
 #include <string>
 #include <filesystem>
-
-namespace util {
-    class SSHSession;
-    class SSHChannel;
-}
 
 namespace ca {
     /* The initializer is responsible for initializing the public and private keys of the node
@@ -41,7 +37,7 @@ namespace ca {
 
         ~Dispatcher();
 
-    protected:
+    public:
         [[nodiscard]] bool transmitFileToRemote(const std::string &ip) const;
 
         [[nodiscard]] bool remoteCompileSystem(const std::string &ip) const;
@@ -51,6 +47,14 @@ namespace ca {
         [[nodiscard]] std::unique_ptr<util::SSHChannel> startPeer(const std::string &ip) const;
 
         [[nodiscard]] std::unique_ptr<util::SSHChannel> startUser(const std::string &ip) const;
+
+        [[nodiscard]] bool updateRemoteSourcecode(const std::string &ip) const;
+
+        [[nodiscard]] bool updateRemoteBFTPack(const std::string &ip) const;
+
+        [[nodiscard]] bool backupRemoteDatabase(const std::string &ip) const;
+
+        [[nodiscard]] bool restoreRemoteDatabase(const std::string &ip) const;
 
     public:
         void overrideProperties();
@@ -66,6 +70,8 @@ namespace ca {
 
         [[nodiscard]] bool generateDatabaseParallel(const std::vector<std::string> &ips, const std::string& chaincodeName) const;
 
+        [[nodiscard]] std::vector<std::unique_ptr<util::SSHChannel>> startPeerParallel(const std::vector<std::string> &ips) const;
+
     protected:
         util::SSHSession * connect(const std::string &ip) const;
 
@@ -79,7 +85,7 @@ namespace ca {
         std::string _ncFolderName;
 
         std::string _peerExecName = "peer";
-        std::string _userExecName = "ycab";
+        std::string _userExecName = "ycsb";
 
         mutable std::mutex createMutex;
         mutable util::MyFlatHashMap<std::string, std::unique_ptr<util::SSHSession>> sessionPool;

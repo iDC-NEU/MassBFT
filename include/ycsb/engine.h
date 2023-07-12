@@ -66,10 +66,11 @@ namespace ycsb {
                 threadOpCount += 1;
             }
             auto tpsPerThread = ycsbProperties->getTargetTPSPerThread();
+            auto seed = (int) util::Timer::time_now_ns();
             for (int tid = 0; tid < threadCount; tid++) {   // create a set of clients
                 auto db = factory.newDB();  // each client create a connection
                 // TODO: optimize zmq connection
-                auto t = std::make_unique<core::ClientThread>(std::move(db), workload, tid, (int)threadOpCount, tpsPerThread);
+                auto t = std::make_unique<core::ClientThread>(std::move(db), workload, seed++, (int)threadOpCount, tpsPerThread);
                 clients.emplace_back(std::move(t));
             }
         }

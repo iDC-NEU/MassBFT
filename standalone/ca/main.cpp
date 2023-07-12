@@ -3,6 +3,7 @@
 //
 
 #include "ca/config_initializer.h"
+#include "common/ssh.h"
 #include "glog/logging.h"
 
 int main(int argc, char *argv[]) {
@@ -32,6 +33,10 @@ int main(int argc, char *argv[]) {
     }
     if (!d.generateDatabaseParallel(ips, "ycsb")) {
         return -1;
-    }
+    };
+    auto chan0 = d.startPeerParallel({ips[0], ips[1], ips[2]});
+    sleep(20);
+    auto chan3 = d.startUser(ips[3]);
+    chan3->waitUntilCommandFinished(true);
     return 0;
 }

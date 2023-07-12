@@ -150,28 +150,10 @@ namespace ca {
         if (!session->executeCommand(builder, true)) {
             return false;
         }
-        LOG(INFO) << "Uploading sourcecode.";
-        // upload the new files
-        auto sftp = session->createSFTPSession();
-        if (!sftp->putFile(_runningPath / ncZipName, true, _runningPath / ncZipName)) {
+        if (!updateRemoteSourcecode(ip)) {
             return false;
         }
-        LOG(INFO) << "Uploading nc_bft.";
-        if (!sftp->putFile(_runningPath / bftZipName, true, _runningPath / bftZipName)) {
-            return false;
-        }
-        LOG(INFO) << "Unzip sourcecode and nc_bft.";
-        // unzip the files
-        builder = {
-                "cd",
-                _runningPath,
-                "&&",
-                "unzip -q",
-                _runningPath / _bftFolderName,
-                "&&",
-                "unzip -q",
-                _runningPath / _ncFolderName, };
-        if (!session->executeCommand(builder, true)) {
+        if (!updateRemoteBFTPack(ip)) {
             return false;
         }
         return true;
@@ -358,6 +340,108 @@ namespace ca {
                 "&&",
                 userExecFull, };
         return session->executeCommandNoWait(builder);
+    }
+
+    std::vector<std::unique_ptr<util::SSHChannel>> Dispatcher::startPeerParallel(const std::vector<std::string> &ips) const {
+        volatile bool success = true;
+        std::vector<std::unique_ptr<util::SSHChannel>> peerList;
+        peerList.resize(ips.size());
+        processParallel([&] (int idx) {
+            const auto& ip = ips.at(idx);
+            peerList[idx] = startPeer(ip);
+            if (peerList[idx] == nullptr) {
+                LOG(WARNING) << "Start peer ip: " << ip << " failed!";
+                success = false;
+            }
+        }, (int)ips.size());
+        return peerList;
+    }
+
+    bool Dispatcher::updateRemoteSourcecode(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Uploading sourcecode.";
+        // upload the new files
+        auto sftp = session->createSFTPSession();
+        auto ncZipName = _ncFolderName + ".zip";
+        if (!sftp->putFile(_runningPath / ncZipName, true, _runningPath / ncZipName)) {
+            return false;
+        }
+        LOG(INFO) << "Unzip sourcecode.";
+        // unzip the files
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath,
+                "&&",
+                "unzip -q -o",
+                _runningPath / _ncFolderName, };
+        if (!session->executeCommand(builder, true)) {
+            return false;
+        }
+        return true;
+    }
+
+    bool Dispatcher::updateRemoteBFTPack(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Uploading nc_bft.";
+        // upload the new files
+        auto sftp = session->createSFTPSession();
+        auto bftZipName = _bftFolderName + ".zip";
+        if (!sftp->putFile(_runningPath / bftZipName, true, _runningPath / bftZipName)) {
+            return false;
+        }
+        LOG(INFO) << "Unzip nc_bft.";
+        // unzip the files
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath,
+                "&&",
+                "unzip -q -o",
+                _runningPath / _bftFolderName, };
+        if (!session->executeCommand(builder, true)) {
+            return false;
+        }
+        return true;
+    }
+
+    bool Dispatcher::backupRemoteDatabase(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Backup peer data.";
+        std::vector<std::string> builder = {
+                "cp -r -f",
+                _runningPath / _bftFolderName / "data",
+                _runningPath / _bftFolderName / "data_bk", };
+        if (!session->executeCommand(builder, true)) {
+            LOG(ERROR) << "Backup peer data failed.";
+        }
+        return true;
+    }
+
+    bool Dispatcher::restoreRemoteDatabase(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Clear peer data.";
+        std::vector<std::string> builder = {
+                "rm -rf ",
+                _runningPath / _bftFolderName / "data",
+                "&&",
+                "cp -r -f",
+                _runningPath / _bftFolderName / "data_bk",
+                _runningPath / _bftFolderName / "data", };
+        if (!session->executeCommand(builder, true)) {
+            LOG(ERROR) << "Clear peer data failed.";
+        }
+        return true;
     }
 
     Dispatcher::~Dispatcher() = default;

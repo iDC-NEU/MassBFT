@@ -31,6 +31,10 @@ namespace util {
 
         void setTimeout(int timeout) { _timeout = timeout; }
 
+        bool waitUntilCommandFinished(bool printInfo);
+
+        [[nodiscard]] bool isChannelClosed() const;
+
     protected:
         SSHChannel() = default;
 
@@ -93,6 +97,8 @@ namespace util {
         auto createSFTPSession() { return SFTPSession::NewSFTPSession(this->_session); }
 
         bool executeCommand(const std::vector<std::string> &builder, bool printInfo=false);
+
+        std::unique_ptr<SSHChannel> executeCommandNoWait(const std::vector<std::string> &builder);
 
     protected:
         SSHSession() = default;

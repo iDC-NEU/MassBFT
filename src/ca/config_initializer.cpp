@@ -2,9 +2,9 @@
 // Created by user on 23-7-7.
 //
 #include "ca/config_initializer.h"
+#include "ycsb/core/common/ycsb_property.h"
 #include "common/property.h"
 #include "common/crypto.h"
-#include "ycsb/core/common/ycsb_property.h"
 #include "common/ssh.h"
 
 namespace ca {
@@ -53,8 +53,6 @@ namespace ca {
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, true);
         util::Properties::SetProperties(util::Properties::SSH_USERNAME, "root");
         util::Properties::SetProperties(util::Properties::SSH_PASSWORD, "neu1234.");
-        util::Properties::SetProperties(util::Properties::JVM_PATH, "/root/nc_bft/corretto-16.0.2/bin/java");
-        util::Properties::SetProperties(util::Properties::RUNNING_PATH, "/root/nc_bft");
 
         // init ycsb property
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);
@@ -89,32 +87,28 @@ namespace ca {
         if (nodePtr == nullptr) {
             return false;
         }
-        nodePtr->pubIp = pub;
-        nodePtr->priIp = pri;
+        if (pub.empty()) {
+            nodePtr->pubIp = pri;
+        } else {
+            nodePtr->pubIp = pub;
+        }
+        if (pri.empty()) {
+            nodePtr->priIp = pub;
+        } else {
+            nodePtr->priIp = pri;
+        }
         nodeProperties.setSingleNodeInfo(*nodePtr);
         return true;
     }
 
-    bool Initializer::SaveConfig(const std::string &fileName) {
-        return util::Properties::SaveProperties(fileName);
-    }
-
     Dispatcher::Dispatcher(std::filesystem::path runningPath, std::string bftFolderName, std::string ncZipFolderName)
-            :_runningPath(std::move(runningPath)),
-             _bftFolderName(std::move(bftFolderName)),
-             _ncZipFolderName(std::move(ncZipFolderName)) { }
+            : _runningPath(std::move(runningPath)),
+              _bftFolderName(std::move(bftFolderName)),
+              _ncFolderName(std::move(ncZipFolderName)) { }
 
-    bool Dispatcher::transmitFileToRemote(const std::string &ip) {
-        auto* properties = util::Properties::GetProperties();
-        // create session
-        auto session = util::SSHSession::NewSSHSession(ip);
-        CHECK(session != nullptr);
-        auto [userName, password, success] = properties->getSSHInfo();
-        if (!success) {
-            return false;
-        }
-        success = session->connect(userName, password);
-        if (!success) {
+    bool Dispatcher::transmitFileToRemote(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
             return false;
         }
         LOG(INFO) << "Cleaning the old files.";
@@ -122,6 +116,8 @@ namespace ca {
         if (!session->executeCommand({"mkdir -p", _runningPath}, true)) {
             return false;
         }
+        auto bftZipName = _bftFolderName + ".zip";
+        auto ncZipName = _ncFolderName + ".zip";
         // clear the old file
         std::vector<std::string> builder = {
                 "cd",
@@ -129,32 +125,39 @@ namespace ca {
                 "&&",
                 "rm -rf",
                 _bftFolderName,
-                _bftFolderName.append(".zip"),
-                _ncZipFolderName,
-                _ncZipFolderName.append(".zip"), };
+                bftZipName,
+                _ncFolderName,
+                ncZipName, };
         if (!session->executeCommand(builder, true)) {
             return false;
         }
         LOG(INFO) << "Installing dependencies.";
-        // install unzip
+        // install unzip, load the password
+        auto* properties = util::Properties::GetProperties();
+        auto [userName, password, success] = properties->getSSHInfo();
+        if (!success) {
+            return false;
+        }
         builder = {
+                "export DEBIAN_FRONTEND=noninteractive",
+                "&&",
                 "echo",
                 password,
                 "|",
                 "sudo -S apt update",
                 "&&",
-                "sudo apt install unzip -y", };
+                "sudo apt install zip unzip git cmake libtool make autoconf g++-11 zlib1g-dev libgoogle-perftools-dev g++ openssh-server -y", };
         if (!session->executeCommand(builder, true)) {
             return false;
         }
         LOG(INFO) << "Uploading sourcecode.";
         // upload the new files
         auto sftp = session->createSFTPSession();
-        if (!sftp->putFile(_runningPath / _ncZipFolderName, true, _runningPath / _ncZipFolderName)) {
+        if (!sftp->putFile(_runningPath / ncZipName, true, _runningPath / ncZipName)) {
             return false;
         }
         LOG(INFO) << "Uploading nc_bft.";
-        if (!sftp->putFile(_runningPath / _bftFolderName, true, _runningPath / _bftFolderName)) {
+        if (!sftp->putFile(_runningPath / bftZipName, true, _runningPath / bftZipName)) {
             return false;
         }
         LOG(INFO) << "Unzip sourcecode and nc_bft.";
@@ -167,10 +170,195 @@ namespace ca {
                 _runningPath / _bftFolderName,
                 "&&",
                 "unzip -q",
-                _runningPath / _ncZipFolderName, };
+                _runningPath / _ncFolderName, };
         if (!session->executeCommand(builder, true)) {
             return false;
         }
         return true;
     }
+
+    bool Dispatcher::remoteCompileSystem(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Stopping proxy.";
+        if (!session->executeCommand({ "kill -9 $(pidof clash-linux-amd64-v3)" }, true)) {
+            return false;
+        }
+        LOG(INFO) << "Sleep for 5 seconds.";
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        LOG(INFO) << "Starting proxy.";
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath / _bftFolderName,
+                "&&",
+                "chmod +x clash-linux-amd64-v3",
+                "&&",
+                "./clash-linux-amd64-v3 -f proxy.yaml", };
+        auto clashChannel = session->executeCommandNoWait(builder);
+        LOG(INFO) << "Sleep for 5 seconds.";
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        LOG(INFO) << "Configure and installing nc_bft.";
+        builder = {
+                "cd",
+                _runningPath / _ncFolderName,
+                "&&",
+                "export https_proxy=http://127.0.0.1:7890 && export http_proxy=http://127.0.0.1:7890 && export all_proxy=socks5://127.0.0.1:7890",
+                "&&",
+                "cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/gcc-11 -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 -B build",
+                "&&",
+                "cmake --build build --target NBPStandalone_peer NBPStandalone_ycsb NBPStandalone_ca -j", };
+        if (!session->executeCommand(builder, true)) {
+            return false;
+        }
+        return true;
+    }
+
+    void Dispatcher::overrideProperties() {
+        auto peerRunningPath = _runningPath / _bftFolderName;
+        auto jvmPath = peerRunningPath / "corretto-16.0.2/bin/java";
+        util::Properties::SetProperties(util::Properties::JVM_PATH, jvmPath.string());
+        util::Properties::SetProperties(util::Properties::RUNNING_PATH, peerRunningPath.string());
+    }
+
+    bool Dispatcher::transmitPropertiesToRemote(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        auto configFilename = "peer_cfg_" + ip + "_tmp";
+        if (!util::Properties::SaveProperties(configFilename)) {
+            return false;
+        }
+        LOG(INFO) << "Uploading config file.";
+        // upload the new files
+        auto sftp = session->createSFTPSession();
+        if (!sftp->putFile(_runningPath / _bftFolderName / "peer.yaml", true, std::filesystem::current_path() / configFilename)) {
+            return false;
+        }
+        return true;
+    }
+
+    bool Dispatcher::generateDatabase(const std::string &ip, const std::string &chaincodeName) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Generating database.";
+        auto peerExecFull = _runningPath / _ncFolderName / "build" / "standalone" / _peerExecName;
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath / _bftFolderName,
+                "&&",
+                peerExecFull,
+                "-i=" + chaincodeName, };
+        if (!session->executeCommand(builder, true)) {
+            return false;
+        }
+        return true;
+    }
+
+    util::SSHSession * Dispatcher::connect(const std::string &ip) const {
+        std::unique_lock lock(createMutex);
+        util::SSHSession* ret = nullptr;
+        if (sessionPool.if_contains(ip, [&](const auto &v) { ret = v.second.get(); })) {
+            return ret;
+        }
+        auto* properties = util::Properties::GetProperties();
+        // create session
+        auto session = util::SSHSession::NewSSHSession(ip);
+        if (session == nullptr) {
+            return nullptr;
+        }
+        auto [userName, password, success] = properties->getSSHInfo();
+        if (!success) {
+            return nullptr;
+        }
+        success = session->connect(userName, password);
+        if (!success) {
+            return nullptr;
+        }
+        sessionPool[ip] = std::move(session);
+        return sessionPool[ip].get();
+    }
+
+    template<typename Func>
+    void Dispatcher::processParallel(Func f, int count) const {
+        std::vector<std::thread> threads;
+        threads.reserve(count);
+        for (int i=0; i<count; i++) {
+            threads.emplace_back(f, i);
+        }
+        for (auto& it: threads) {
+            it.join();
+        }
+    }
+
+    bool Dispatcher::transmitFileParallel(const std::vector<std::string> &ips, bool send, bool compile) const {
+        volatile bool success = true;
+        processParallel([&] (int idx) {
+            const auto& ip = ips.at(idx);
+            if (send) {
+                auto ret = transmitFileToRemote(ip);
+                if (!ret) {
+                    LOG(WARNING) << "Send files to " << ip << " failed!";
+                    success = false;
+                }
+            }
+            if (compile) {
+                auto ret = remoteCompileSystem(ip);
+                if (!ret) {
+                    LOG(WARNING) << "Compile system at " << ip << " failed!";
+                    success = false;
+                }
+            }
+        }, (int)ips.size());
+        return success;
+    }
+
+    bool Dispatcher::generateDatabaseParallel(const std::vector<std::string> &ips, const std::string &chaincodeName) const {
+        volatile bool success = true;
+        processParallel([&] (int idx) {
+            const auto& ip = ips.at(idx);
+            auto ret = generateDatabase(ip, chaincodeName);
+            if (!ret) {
+                LOG(WARNING) << "generateDatabase to " << ip << " failed!";
+                success = false;
+            }
+        }, (int)ips.size());
+        return success;
+    }
+
+    std::unique_ptr<util::SSHChannel> Dispatcher::startPeer(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return nullptr;
+        }
+        LOG(INFO) << "Starting peer.";
+        auto peerExecFull = _runningPath / _ncFolderName / "build" / "standalone" / _peerExecName;
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath / _bftFolderName,
+                "&&",
+                peerExecFull, };
+        return session->executeCommandNoWait(builder);
+    }
+
+    std::unique_ptr<util::SSHChannel> Dispatcher::startUser(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return nullptr;
+        }
+        LOG(INFO) << "Starting user.";
+        auto userExecFull = _runningPath / _ncFolderName / "build" / "standalone" / _userExecName;
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath / _bftFolderName,
+                "&&",
+                userExecFull, };
+        return session->executeCommandNoWait(builder);
+    }
+
+    Dispatcher::~Dispatcher() = default;
 }

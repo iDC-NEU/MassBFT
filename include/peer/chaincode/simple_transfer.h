@@ -22,7 +22,7 @@ namespace peer::chaincode {
             if (args.size() != 2) {
                 // init data here
                 if (funcNameSV == "init" && args.size() == 1) {
-                    return InitDatabase(std::stoi(std::string(args[0])));
+                    return initDatabase(std::stoi(std::string(args[0])));
                 }
                 return -1;
             }
@@ -44,7 +44,7 @@ namespace peer::chaincode {
             return 0;
         }
 
-        int InitDatabase(int recordCount) {
+        int initDatabase(int recordCount) {
             LOG(INFO) << "Start initializing data: " << recordCount;
             for (int i=0; i<recordCount; i++) {
                 orm->put(std::to_string(i), "0");

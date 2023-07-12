@@ -63,6 +63,39 @@ bool util::SSHChannel::execute(const std::string &command) {
     return true;
 }
 
+bool util::SSHChannel::waitUntilCommandFinished(bool printInfo) {
+    // get result
+    std::stringstream out;
+    setTimeout(0);
+    while (!isChannelClosed()) {
+        out.clear();
+        if (printInfo) {
+            this->read(out, false, [&](std::string_view out) {
+                if (out.empty()) {
+                    return false;
+                }
+                std::cout << out;
+                return true;
+            });
+        }
+        this->read(out, true, [&](std::string_view error) {
+            if (error.empty()) {
+                return false;
+            }
+            std::cerr << error;
+            return true;
+        });
+    }
+    return true;
+}
+
+bool util::SSHChannel::isChannelClosed() const {
+    if (ssh_channel_is_eof(_channel) != 1) {
+        return false;
+    }
+    return true;
+}
+
 std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session_struct* session) {
     auto sftp = sftp_new(session);
     if(sftp == nullptr) {
@@ -168,9 +201,9 @@ bool util::SFTPSession::putFile(const std::string &remoteFilePath, bool override
     }
     // finally, write the file to sftp remote endpoint
     // write buffer to remote file
-    for (int i=0; i<size; i+=1024*50) {
+    for (int i=0; i<size; i+=65535) {
         auto* ptr =  reinterpret_cast<unsigned char *>(data) + i;
-        auto bufSize = 1024*50;
+        auto bufSize = std::min(65535, size-i);
         do {
             /* write data in a loop until we block */
             auto rc = (int) sftp_write(file.get(), ptr, bufSize);
@@ -272,9 +305,13 @@ std::unique_ptr<util::SSHSession> util::SSHSession::NewSSHSession(std::string ip
     std::unique_ptr<util::SSHSession> sshSession(new util::SSHSession());
     sshSession->_session = session;
     auto ret = ssh_connect(sshSession->_session);
-    if (ret != SSH_OK) {
-        LOG(ERROR) << "Error connecting to " << ip << " : " << ssh_get_error(sshSession->_session);
-        return nullptr;
+    int i=0;
+    while (ret != SSH_OK) {
+        if (i++ == 3) {
+            LOG(ERROR) << "Error connecting to " << ip << " : " << ssh_get_error(sshSession->_session);
+            return nullptr;
+        }
+        ret = ssh_connect(sshSession->_session);
     }
     sshSession->_ip = std::move(ip);
     sshSession->_port = port;
@@ -365,9 +402,17 @@ bool util::SSHSession::connect(const std::string& user, const std::string &passw
 }
 
 bool util::SSHSession::executeCommand(const std::vector<std::string> &builder, bool printInfo) {
-    auto channel = createChannel();
+    auto channel = executeCommandNoWait(builder);
     if (channel == nullptr) {
         return false;
+    }
+    return channel->waitUntilCommandFinished(printInfo);
+}
+
+std::unique_ptr<util::SSHChannel> util::SSHSession::executeCommandNoWait(const std::vector<std::string> &builder) {
+    auto channel = createChannel();
+    if (channel == nullptr) {
+        return nullptr;
     }
     // build command
     std::string command;
@@ -376,24 +421,7 @@ bool util::SSHSession::executeCommand(const std::vector<std::string> &builder, b
     }
     // exec command
     if (!channel->execute(command)) {
-        return false;
+        return nullptr;
     }
-    // get result
-    std::stringstream out;
-    if (printInfo && !channel->read(out, false, [&](std::string_view out) {
-        if (out.empty()) {
-            return false;
-        }
-        std::cout << out;
-        return true;
-    })) {
-        return false;
-    }
-    return channel->read(out, true, [&](std::string_view error) {
-        if (error.empty()) {
-            return false;
-        }
-        std::cerr << error;
-        return true;
-    });
+    return channel;
 }

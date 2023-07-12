@@ -139,12 +139,14 @@ namespace ca {
             return false;
         }
         builder = {
+                "export DEBIAN_FRONTEND=noninteractive",
+                "&&",
                 "echo",
                 password,
                 "|",
                 "sudo -S apt update",
                 "&&",
-                "sudo apt install unzip -y", };
+                "sudo apt install zip unzip git cmake libtool make autoconf g++-11 zlib1g-dev libgoogle-perftools-dev g++ openssh-server -y", };
         if (!session->executeCommand(builder, true)) {
             return false;
         }
@@ -175,6 +177,44 @@ namespace ca {
         return true;
     }
 
+    bool Dispatcher::remoteCompileSystem(const std::string &ip) const {
+        auto session = Connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Stopping proxy.";
+        if (!session->executeCommand({ "kill -9 $(pidof clash-linux-amd64-v3)" }, true)) {
+            return false;
+        }
+        LOG(INFO) << "Sleep for 5 seconds.";
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        LOG(INFO) << "Starting proxy.";
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath / _bftFolderName,
+                "&&",
+                "chmod +x clash-linux-amd64-v3",
+                "&&",
+                "./clash-linux-amd64-v3 -f proxy.yaml", };
+        auto clashChannel = session->executeCommandNoWait(builder);
+        LOG(INFO) << "Sleep for 5 seconds.";
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        LOG(INFO) << "Configure and installing nc_bft.";
+        builder = {
+                "cd",
+                _runningPath / _ncFolderName,
+                "&&",
+                "export https_proxy=http://127.0.0.1:7890 && export http_proxy=http://127.0.0.1:7890 && export all_proxy=socks5://127.0.0.1:7890",
+                "&&",
+                "cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/gcc-11 -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 -B build",
+                "&&",
+                "cmake --build build --target NBPStandalone_peer NBPStandalone_ycsb NBPStandalone_ca -j", };
+        if (!session->executeCommand(builder, true)) {
+            return false;
+        }
+        return true;
+    }
+
     void Dispatcher::overrideProperties() {
         auto peerRunningPath = _runningPath / _bftFolderName;
         auto jvmPath = peerRunningPath / "corretto-16.0.2/bin/java";
@@ -194,7 +234,7 @@ namespace ca {
         LOG(INFO) << "Uploading config file.";
         // upload the new files
         auto sftp = session->createSFTPSession();
-        if (!sftp->putFile(_runningPath / _bftFolderName / "peer.yaml", true, configFilename)) {
+        if (!sftp->putFile(_runningPath / _bftFolderName / "peer.yaml", true, std::filesystem::current_path() / configFilename)) {
             return false;
         }
         return true;
@@ -218,16 +258,25 @@ namespace ca {
         return session;
     }
 
-    bool Dispatcher::transmitFileParallel(const std::vector<std::string> &ips) const {
+    bool Dispatcher::transmitFileParallel(const std::vector<std::string> &ips, bool send, bool compile) const {
         volatile bool success = true;
         std::vector<std::thread> threads;
         threads.reserve(ips.size());
         for (const auto& it: ips) {
             threads.emplace_back([&, ip=it] {
-                auto ret = transmitFileToRemote(ip);
-                if (!ret) {
-                    LOG(WARNING) << "Send files to " << ip << " failed!";
-                    success = false;
+                if (send) {
+                    auto ret = transmitFileToRemote(ip);
+                    if (!ret) {
+                        LOG(WARNING) << "Send files to " << ip << " failed!";
+                        success = false;
+                    }
+                }
+                if (compile) {
+                    auto ret = remoteCompileSystem(ip);
+                    if (!ret) {
+                        LOG(WARNING) << "Compile system at " << ip << " failed!";
+                        success = false;
+                    }
                 }
             });
         }

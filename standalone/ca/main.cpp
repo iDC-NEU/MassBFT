@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
     d.overrideProperties();
 
     std::vector<std::string> ips = {"47.92.107.184", "47.92.206.117", "47.92.193.119", "47.92.97.14"};
-    if (!d.transmitFileParallel(ips)) {
+    if (!d.transmitFileParallel(ips, true, true)) {
         return -1;
     }
     for (int i=0; i<3; i++) {

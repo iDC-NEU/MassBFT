@@ -39,12 +39,14 @@ namespace ca {
 
         [[nodiscard]] bool transmitFileToRemote(const std::string &ip) const;
 
+        [[nodiscard]] bool remoteCompileSystem(const std::string &ip) const;
+
         void overrideProperties();
 
         // Note: caller must not transmit prop concurrently
         [[nodiscard]] bool transmitPropertiesToRemote(const std::string &ip) const;
 
-        [[nodiscard]] bool transmitFileParallel(const std::vector<std::string>& ips) const;
+        [[nodiscard]] bool transmitFileParallel(const std::vector<std::string>& ips, bool send=true, bool compile=false) const;
 
     protected:
         static std::unique_ptr<util::SSHSession> Connect(const std::string &ip);

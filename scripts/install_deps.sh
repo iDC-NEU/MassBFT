@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # make sure the nc-bft package is under ../
 
+export DEBIAN_FRONTEND=noninteractive
+
 apt-get update
 apt-get install -y zip unzip git cmake libtool make autoconf g++-11 zlib1g-dev libgoogle-perftools-dev g++ openssh-server
 

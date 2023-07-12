@@ -3,6 +3,7 @@
 //
 
 #include "ycsb/neuchain_db.h"
+#include "ycsb/neuchain_dbc.h"
 #include "ycsb/core/workload/core_workload.h"
 #include "ycsb/core/common/random_uint64.h"
 #include "proto/user_request.h"

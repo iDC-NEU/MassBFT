@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <thread>
 
 namespace ca {
     /* The initializer is responsible for initializing the public and private keys of the node
@@ -40,7 +41,9 @@ namespace ca {
     public:
         [[nodiscard]] bool transmitFileToRemote(const std::string &ip) const;
 
-        [[nodiscard]] bool remoteCompileSystem(const std::string &ip) const;
+        [[nodiscard]] bool transmitPropertiesToRemote(const std::string &ip) const;
+
+        [[nodiscard]] bool compileRemoteSourcecode(const std::string &ip) const;
 
         [[nodiscard]] bool generateDatabase(const std::string &ip, const std::string& chaincodeName) const;
 
@@ -56,6 +59,8 @@ namespace ca {
 
         [[nodiscard]] bool restoreRemoteDatabase(const std::string &ip) const;
 
+        bool stopAll(const std::string& ip) const;
+
     public:
         void overrideProperties();
 
@@ -63,20 +68,27 @@ namespace ca {
 
         void setPeerExecName(auto&& rhs) { _peerExecName = std::forward<decltype(rhs)>(rhs); }
 
-        // Note: caller must not transmit prop concurrently
-        [[nodiscard]] bool transmitPropertiesToRemote(const std::string &ip) const;
-
-        [[nodiscard]] bool transmitFileParallel(const std::vector<std::string>& ips, bool send=true, bool compile=false) const;
-
-        [[nodiscard]] bool generateDatabaseParallel(const std::vector<std::string> &ips, const std::string& chaincodeName) const;
-
-        [[nodiscard]] std::vector<std::unique_ptr<util::SSHChannel>> startPeerParallel(const std::vector<std::string> &ips) const;
+        template <typename F, typename... A>
+        bool processParallel(F&& task, const std::vector<std::string>& ips, A&&... args) {
+            volatile bool success = true;
+            std::vector<std::thread> threads;
+            threads.reserve(ips.size());
+            for (const auto & ip : ips) {
+                threads.emplace_back([&, ip=ip]() {
+                    auto ret = (this->*task)(ip, std::forward<A>(args)...);
+                    if (!ret) {
+                        success = false;
+                    }
+                });
+            }
+            for (auto& it: threads) {
+                it.join();
+            }
+            return success;
+        }
 
     protected:
         util::SSHSession * connect(const std::string &ip) const;
-
-        template<typename Func>
-        void processParallel(Func f, int count) const;
 
     private:
         // The local and remote node share the same running path

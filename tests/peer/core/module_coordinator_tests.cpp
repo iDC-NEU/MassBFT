@@ -88,7 +88,7 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
         }
     }
     for (auto& it: mcList) {
-        it->startInstance();
+        CHECK(it->startInstance());
     }
     for (auto& it: mcList) {
         it->waitInstanceReady();

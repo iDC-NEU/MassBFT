@@ -24,7 +24,7 @@ namespace util {
 
         SSHChannel(SSHChannel&&) = delete;
 
-        bool execute(const std::string &command);
+        bool execute(const std::string& command);
 
         // When the buffer is not full, wait until timeout occurs
         bool read(std::ostream& buf, int errFlag, const std::function<bool(std::string_view append)>& callback=nullptr);
@@ -91,6 +91,8 @@ namespace util {
         auto createChannel() { return SSHChannel::NewSSHChannel(this->_session); }
 
         auto createSFTPSession() { return SFTPSession::NewSFTPSession(this->_session); }
+
+        bool executeCommand(const std::vector<std::string> &builder, bool printInfo=false);
 
     protected:
         SSHSession() = default;

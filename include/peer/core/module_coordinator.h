@@ -11,7 +11,7 @@
 
 namespace util {
     class Properties;
-    class NodeConfig;
+    struct NodeConfig;
 }
 
 namespace peer {
@@ -35,6 +35,8 @@ namespace peer::core {
     public:
         static std::unique_ptr<ModuleCoordinator> NewModuleCoordinator(const std::shared_ptr<util::Properties>& properties);
 
+        bool initChaincodeData(const std::string& ccName);
+
         ~ModuleCoordinator();
 
         ModuleCoordinator(const ModuleCoordinator&) = delete;
@@ -43,7 +45,7 @@ namespace peer::core {
 
         [[nodiscard]] auto& getModuleFactory() const { return *_moduleFactory; }
 
-        void startInstance();
+        bool startInstance();
 
         void waitInstanceReady() const;
 

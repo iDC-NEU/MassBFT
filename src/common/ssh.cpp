@@ -8,7 +8,7 @@
 #include <fstream>
 #include <fcntl.h>
 #include "glog/logging.h"
-
+#include <iostream>
 
 std::unique_ptr<util::SSHChannel> util::SSHChannel::NewSSHChannel(ssh_session_struct *session) {
     auto channel = ssh_channel_new(session);
@@ -160,21 +160,27 @@ bool util::SFTPSession::putFile(const std::string &remoteFilePath, bool override
     if (!override) {
         accessType |= O_EXCL;   // if file exists, return false
     }
-    std::shared_ptr<sftp_file_struct> file(sftp_open(this->_sftp, remoteFilePath.data(), accessType, S_IRWXU),
-                                           [](auto* p) {
-                                               if (p != nullptr) {
-                                                   sftp_close(p);
-                                               }
-                                           });
+    std::shared_ptr<sftp_file_struct> file(sftp_open(this->_sftp, remoteFilePath.data(), accessType, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH),
+                                           [](auto* p) { if (p != nullptr) { sftp_close(p); } });
     if (file == nullptr) {
         LOG(ERROR) << "Can't open file for writing: " << ssh_get_error(this->_session);
         return false;
     }
     // finally, write the file to sftp remote endpoint
     // write buffer to remote file
-    if (sftp_write(file.get(), data, size) < 0) {
-        LOG(ERROR) << "Can't send file: " << ssh_get_error(this->_session);
-        return false;
+    for (int i=0; i<size; i+=1024*50) {
+        auto* ptr =  reinterpret_cast<unsigned char *>(data) + i;
+        auto bufSize = 1024*50;
+        do {
+            /* write data in a loop until we block */
+            auto rc = (int) sftp_write(file.get(), ptr, bufSize);
+            if(rc <= 0) {
+                LOG(ERROR) << "Can't send file: " << ssh_get_error(this->_session);
+                return false;
+            }
+            ptr += rc;
+            bufSize -= rc;
+        } while (bufSize);
     }
     return true;
 }
@@ -356,4 +362,38 @@ bool util::SSHSession::connect(const std::string& user, const std::string &passw
         return false;
     }
     return true;
+}
+
+bool util::SSHSession::executeCommand(const std::vector<std::string> &builder, bool printInfo) {
+    auto channel = createChannel();
+    if (channel == nullptr) {
+        return false;
+    }
+    // build command
+    std::string command;
+    for (const auto& it: builder) {
+        command.append(it).append(" ");
+    }
+    // exec command
+    if (!channel->execute(command)) {
+        return false;
+    }
+    // get result
+    std::stringstream out;
+    if (printInfo && !channel->read(out, false, [&](std::string_view out) {
+        if (out.empty()) {
+            return false;
+        }
+        std::cout << out;
+        return true;
+    })) {
+        return false;
+    }
+    return channel->read(out, true, [&](std::string_view error) {
+        if (error.empty()) {
+            return false;
+        }
+        std::cerr << error;
+        return true;
+    });
 }

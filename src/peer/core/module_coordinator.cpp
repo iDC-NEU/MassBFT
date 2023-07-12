@@ -23,6 +23,9 @@ namespace peer::core {
         auto mc = std::unique_ptr<ModuleCoordinator>(new ModuleCoordinator);
         auto nodeProperties = properties->getNodeProperties();
         mc->_localNode = nodeProperties.getLocalNodeInfo();
+        if (mc->_localNode == nullptr) {
+            return nullptr; // local config error
+        }
         // 1.01 init concurrency control
         auto dbPath = std::filesystem::current_path().append("data").append(mc->_localNode->ski + "_db");
         if (!exists(dbPath) && !create_directories(dbPath)) {
@@ -108,6 +111,7 @@ namespace peer::core {
     }
 
     void ModuleCoordinator::contentLeaderReceiverLoop() {
+        pthread_setname_np(pthread_self(), "exec_receiver");
         CHECK(_gbo->isLeader()) << "node must be leader to invoke this function!";
         while(_running) {
             auto [regionId, block] = _contentStorage->subscriberWaitForBlock(_subscriberId, 1000);
@@ -133,10 +137,29 @@ namespace peer::core {
         _localContentBFT->waitUntilReady();
     }
 
-    void ModuleCoordinator::startInstance() {
+    bool ModuleCoordinator::startInstance() {
         if (!_moduleFactory->startReplicatorSender()) {
-            CHECK(false) << "ReplicatorSender client start failed!";
+            LOG(ERROR) << "ReplicatorSender client start failed!";
+            return false;
         }
         _localContentBFT->startInstance();
+        return true;
+    }
+
+    bool ModuleCoordinator::initChaincodeData(const std::string& ccName) {
+        auto orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_db.get());
+        auto cc = ::peer::chaincode::NewChaincodeByName(ccName, std::move(orm));
+        if (cc->InitDatabase() != 0) {
+            return false;
+        }
+        auto [reads, writes] = cc->reset();
+        return _db->syncWriteBatch([&](rocksdb::WriteBatch* batch) ->bool {
+            for (const auto& it: *writes) {
+                CHECK(batch->Put({it->getKeySV().data(), it->getKeySV().size()},
+                                 {it->getValueSV().data(), it->getValueSV().size()})
+                      == rocksdb::Status::OK());
+            }
+            return true;
+        });
     }
 }

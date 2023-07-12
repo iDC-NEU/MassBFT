@@ -40,6 +40,7 @@ namespace peer::core {
 
     protected:
         void run() {
+            pthread_setname_np(pthread_self(), "bft_ctl");
             std::stringbuf buf;
             bool isInit = true;
             while(_running) {

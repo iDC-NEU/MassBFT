@@ -14,7 +14,7 @@ file(GLOB ycsb_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ycsb/*.cpp)
 
 add_executable(${PROJECT_NAME}_ycsb ${ycsb_sources})
 
-set_target_properties(${PROJECT_NAME}_ycsb PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "NBP_ycsb")
+set_target_properties(${PROJECT_NAME}_ycsb PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "ycsb")
 
 target_link_libraries(${PROJECT_NAME}_ycsb NBP cxxopts ${COMMON_DEPENDENCIES})
 
@@ -24,16 +24,16 @@ file(GLOB peer_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/peer/*.cpp)
 
 add_executable(${PROJECT_NAME}_peer ${peer_sources})
 
-set_target_properties(${PROJECT_NAME}_peer PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "NBP_peer")
+set_target_properties(${PROJECT_NAME}_peer PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "peer")
 
 target_link_libraries(${PROJECT_NAME}_peer NBP cxxopts ${COMMON_DEPENDENCIES})
 
-# ---- Create initializer standalone executable ----
+# ---- Create ca standalone executable ----
 
-file(GLOB initializer_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/initializer/*.cpp)
+file(GLOB ca_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ca/*.cpp)
 
-add_executable(${PROJECT_NAME}_initializer ${initializer_sources})
+add_executable(${PROJECT_NAME}_ca ${ca_sources})
 
-set_target_properties(${PROJECT_NAME}_initializer PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "NBP_initializer")
+set_target_properties(${PROJECT_NAME}_ca PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "ca")
 
-target_link_libraries(${PROJECT_NAME}_initializer NBP cxxopts ${COMMON_DEPENDENCIES})
+target_link_libraries(${PROJECT_NAME}_ca NBP cxxopts ${COMMON_DEPENDENCIES})

@@ -25,7 +25,7 @@ namespace peer::core {
         }
         auto node = _properties->getCustomProperties("bccsp");
         _bccsp = std::make_shared<util::BCCSP>(std::make_unique<util::YAMLKeyStorage>(node));
-        _threadPoolForBCCSP = std::make_shared<util::thread_pool_light>();
+        _threadPoolForBCCSP = std::make_shared<util::thread_pool_light>(_properties->getBCCSPWorkerCount(), "bccsp_tp");
         return { _bccsp, _threadPoolForBCCSP };
     }
 

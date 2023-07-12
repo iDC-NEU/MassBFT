@@ -269,7 +269,7 @@ namespace util {
         }
 
     public:
-        static std::unique_ptr<ReliableZmqClient> NewPublishClient(const std::string& ip, int port, int rpcPort = 9500, int retry=5, int timeout_ms=50) {
+        static std::unique_ptr<ReliableZmqClient> NewPublishClient(const std::string& ip, int port, int rpcPort=9500, int retry=10, int timeout_ms=100) {
             std::unique_ptr<ReliableZmqClient> rClient(new ReliableZmqClient);
             rClient->client = util::ZMQInstance::NewClient<zmq::socket_type::pub>(ip, port);
             if (rClient->client == nullptr) {
@@ -309,12 +309,11 @@ namespace util {
                     LOG(WARNING) << "RPC failed, reason:" << ctl.ErrorText();
                     continue;
                 }
-                DLOG(INFO) << "Received response from " << ctl.remote_side()
-                           << " to " << ctl.local_side()
-                           << " latency=" << ctl.latency_us() << "us";
+                // DLOG(INFO) << "Received response from " << ctl.remote_side() << " to " << ctl.local_side() << " latency=" << ctl.latency_us() << "us";
                 if (!response.success()) {
                     DLOG(WARNING) << "RPC failed, reason: " << response.payload();
                     std::this_thread::sleep_for(std::chrono::milliseconds(timeout_ms));
+                    timeout_ms = std::max(timeout_ms*2, 1000);
                     continue;
                 }
                 return rClient;

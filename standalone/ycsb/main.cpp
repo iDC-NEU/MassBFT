@@ -4,7 +4,11 @@
 
 #include "ycsb/engine.h"
 
-int main(int, char *[]) {
+int main(int argc, char *argv[]) {
+    google::InitGoogleLogging(argv[0]);
+    util::OpenSSLSHA256::initCrypto();
+    util::OpenSSLED25519::initCrypto();
+    util::Properties::LoadProperties("peer.yaml");
     auto* p = util::Properties::GetProperties();
     ycsb::YCSBEngine engine(*p);
     engine.startTest();

@@ -7,6 +7,33 @@
 #include <thread>
 
 namespace util {
+    void NodeProperties::setSingleNodeInfo(const NodeConfig &cfg)  {
+        auto groupKey = BuildGroupKey(cfg.groupId);
+        auto list = n[groupKey];
+        // search the key
+        for (auto && it : list) {
+            try {
+                if (it["ski"].as<std::string>() == cfg.ski) {
+                    it["node_id"] = cfg.nodeId;
+                    it["group_id"] = cfg.groupId;
+                    it["pri_ip"] = cfg.priIp;
+                    it["pub_ip"] = cfg.pubIp;
+                    return;
+                }
+            } catch (const YAML::Exception &e) {
+                LOG(INFO) << "Can not load ski: " << e.what();
+            }
+        }
+        // insert a new key
+        YAML::Node node;
+        node["node_id"] = cfg.nodeId;
+        node["group_id"] = cfg.groupId;
+        node["ski"] = cfg.ski;
+        node["pri_ip"] = cfg.priIp;
+        node["pub_ip"] = cfg.pubIp;
+        list.push_back(node);
+    }
+
     bool Properties::LoadProperties(const std::string &fileName) {
         if (fileName.empty()) {
             properties = std::make_unique<Properties>();
@@ -56,6 +83,16 @@ namespace util {
             return _node[ARIA_WORKER_COUNT].as<int>();
         } catch (const YAML::Exception &e) {
             LOG(INFO) << "Can not find ARIA_WORKER_COUNT, leave it to " << workerCount << ".";
+        }
+        return workerCount;
+    }
+
+    int Properties::getBCCSPWorkerCount() const {
+        auto workerCount = std::max((int)std::thread::hardware_concurrency() / 2, 1);
+        try {
+            return _node[BCCSP_WORKER_COUNT].as<int>();
+        } catch (const YAML::Exception &e) {
+            LOG(INFO) << "Can not find BCCSP_WORKER_COUNT, leave it to " << workerCount << ".";
         }
         return workerCount;
     }

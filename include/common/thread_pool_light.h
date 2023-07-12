@@ -7,6 +7,7 @@
 #include <memory>
 #include <thread>
 #include <type_traits>
+#include <utility>
 
 #include "concurrentqueue.h"
 #include "lightweightsemaphore.h"
@@ -34,10 +35,17 @@ namespace util {
         /**
          * @brief Construct a new thread pool.
          *
-         * @param thread_count_ The number of threads to use. The default value is the total number of hardware threads available, as reported by the implementation. This is usually determined by the number of cores in the CPU. If a core is hyperthreaded, it will count as two threads.
+         * @param thread_count_ The number of threads to use.
+         * The default value is the total number of hardware threads available,
+         * as reported by the implementation. This is usually determined by the number of cores in the CPU.
+         * If a core is hyperthreaded, it will count as two threads.
          */
-        explicit thread_pool_light(const concurrency_t thread_count_ = 0)
-            : thread_count(determine_thread_count(thread_count_)), sema(0, 0), tasks(), threads(std::make_unique<std::thread[]>(determine_thread_count(thread_count_))) {
+        explicit thread_pool_light(const concurrency_t thread_count_ = 0, std::string worker_name_ = "thread_pool")
+                : thread_count(determine_thread_count(thread_count_)),
+                  worker_name(std::move(worker_name_)),
+                  sema(0, 0),
+                  tasks(),
+                  threads(std::make_unique<std::thread[]>(determine_thread_count(thread_count_))) {
             create_threads();
         }
 
@@ -177,7 +185,7 @@ namespace util {
         }
 
         void worker() {
-            pthread_setname_np(pthread_self(), "Worker");
+            pthread_setname_np(pthread_self(), worker_name.c_str());
             while (running.load(std::memory_order_relaxed)) {
                 std::function<void()> task;
                 while(!sema.wait());    // wait a task
@@ -190,6 +198,8 @@ namespace util {
         }
 
         const concurrency_t thread_count;
+
+        const std::string worker_name;
 
         std::atomic<bool> running = false;
 

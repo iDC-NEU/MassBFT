@@ -115,35 +115,31 @@ namespace ca {
             if (_bftInstanceChannel == nullptr) {
                 return false;
             }
-            auto callback = [&](std::string_view bftLog) {
-                if (bftLog.empty()) {
-                    return false;
-                }
-                DLOG(INFO) << bftLog;
-                return true;
-            };
             // do not catch the return value!
             if (out) {
-                _bftInstanceChannel->read(*out, false, callback);
+                _bftInstanceChannel->read(*out, false, [&](std::string_view info) {
+                    if (info.empty()) {
+                        return false;
+                    }
+                    DLOG(INFO) << info;
+                    return true;
+                });
             }
             if (error) {
-                _bftInstanceChannel->read(*error, true, callback);
+                _bftInstanceChannel->read(*error, true, [&](std::string_view error) {
+                    if (error.empty()) {
+                        return false;
+                    }
+                    LOG(ERROR) << error;
+                    return true;
+                });
             }
             return true;
         }
 
         void stopAndClean() {
-            auto channel = _session->createChannel();
-            if (!channel) {
-                return;
-            }
-            channel->execute("pkill -f nc_bft.jar");
-            std::ostringstream out;
-            channel->read(out, false);
-
-            channel = _session->createChannel();
-            if (!channel) {
-                return;
+            if (!_session->executeCommand({"pkill -f nc_bft.jar"})) {
+                LOG(WARNING) << "Kill bft instance failed!";
             }
             std::vector<std::string> builder {
                     "cd",
@@ -153,11 +149,9 @@ namespace ca {
                     "hosts_" + std::to_string(_processId) + ".config",
                     "currentView",
             };
-            std::string command;
-            for (const auto& it: builder) {
-                command.append(it).append(" ");
+            if (!_session->executeCommand(builder)) {
+                LOG(WARNING) << "Clear bft config failed!";
             }
-            channel->execute(command);
         }
 
         static bool IsInstanceReady(const std::string& log) {

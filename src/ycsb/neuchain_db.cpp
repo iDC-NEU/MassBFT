@@ -204,9 +204,8 @@ std::unique_ptr<proto::Block> ycsb::client::NeuChainStatus::getBlock(int blockNu
     _stub->pullBlock(&ctl, &request, &response, nullptr);
     if (ctl.Failed()) {
         // RMessage is too big
-        LOG(ERROR) << "Failed to get block: " << blockNumber
-                   << ", Text: " << ctl.ErrorText()
-                   << ", Code: " << berror(ctl.ErrorCode());
+        LOG(ERROR) << "Failed to get block: " << blockNumber << ", Text: " << ctl.ErrorText() << ", Code: " << berror(ctl.ErrorCode());
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         return nullptr;
     }
     if (!response.success()) {

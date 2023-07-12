@@ -4,7 +4,8 @@
 apt-get update
 apt-get install -y zip unzip git cmake libtool make autoconf g++-11 zlib1g-dev libgoogle-perftools-dev g++ openssh-server
 
-unzip -q ../nc_bft.zip ../
+# the zip is already decompressed by ca
+# unzip -q ../nc_bft.zip ../
 
 chmod +x ../nc_bft/clash-linux-amd64-v3
 nohup ../nc_bft/clash-linux-amd64-v3 -f ../nc_bft/proxy.yaml &

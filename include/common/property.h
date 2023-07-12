@@ -231,7 +231,11 @@ namespace util {
         // Load from file, if fileName is null, create an empty property
         static bool LoadProperties(const std::string& fileName = {});
 
+        static std::unique_ptr<Properties> NewProperties(const std::string& fileName);
+
         static bool SaveProperties(const std::string& fileName);
+
+        static bool SaveProperties(const std::string& fileName, const Properties& prop);
 
         static Properties *GetProperties() {
             DCHECK(properties != nullptr) << "properties is not generated (or loaded) yet";
@@ -250,6 +254,7 @@ namespace util {
 
         ~Properties() = default;
 
+    public:
         ChaincodeProperties getChaincodeProperties() const { return ChaincodeProperties(_node[CHAINCODE_PROPERTIES]); }
 
         NodeProperties getNodeProperties() const { return NodeProperties(_node[NODES_PROPERTIES]); }

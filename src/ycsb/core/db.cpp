@@ -4,6 +4,7 @@
 
 #include "ycsb/core/db.h"
 #include "ycsb/neuchain_db.h"
+#include "ycsb/neuchain_dbc.h"
 #include "common/zmq_port_util.h"
 #include "common/yaml_key_storage.h"
 

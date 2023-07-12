@@ -35,39 +35,50 @@ namespace util {
     }
 
     bool Properties::LoadProperties(const std::string &fileName) {
+        properties = NewProperties(fileName);
+        if (properties == nullptr) {
+            return false;
+        }
+        return true;
+    }
+
+    std::unique_ptr<Properties> Properties::NewProperties(const std::string &fileName) {
+        auto prop = std::make_unique<Properties>();
         if (fileName.empty()) {
-            properties = std::make_unique<Properties>();
             YAML::Node node;
             node[CHAINCODE_PROPERTIES] = {};
             node[NODES_PROPERTIES] = {};
-            properties->_node = node;
-            return true;
+            prop->_node = node;
+            return prop;
         }
-        properties = std::make_unique<Properties>();
         try {
             auto node = YAML::LoadFile(fileName);
             if (!node[CHAINCODE_PROPERTIES].IsDefined() || node[CHAINCODE_PROPERTIES].IsNull()) {
                 LOG(ERROR) << "CHAINCODE_PROPERTIES not exist.";
-                return false;
+                return nullptr;
             }
             if (!node[NODES_PROPERTIES].IsDefined() || node[NODES_PROPERTIES].IsNull()) {
                 LOG(ERROR) << "NODES_PROPERTIES not exist.";
-                return false;
+                return nullptr;
             }
-            properties->_node = node;
-            return true;
+            prop->_node = node;
+            return prop;
         } catch (const YAML::Exception &e) {
             LOG(ERROR) << "Can not load config: " << e.what();
         }
-        return false;
+        return nullptr;
     }
 
     bool Properties::SaveProperties(const std::string &fileName) {
         if (properties == nullptr) {
             return false;
         }
+        return SaveProperties(fileName, *properties);
+    }
+
+    bool Properties::SaveProperties(const std::string &fileName, const Properties &prop) {
         YAML::Emitter emitter;
-        emitter << properties->_node;
+        emitter << prop._node;
         if (!emitter.good()) {
             return false;
         }

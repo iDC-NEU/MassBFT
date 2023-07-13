@@ -67,7 +67,7 @@ namespace peer::chaincode {
             writes->push_back(std::move(writeKV));
         }
 
-        static std::unique_ptr<ORM> NewORMFromLeveldb(const db::DBConnection* dbInstance) {
+        static std::unique_ptr<ORM> NewORMFromDBInterface(const db::DBConnection* dbInstance) {
             std::unique_ptr<ORM> orm(new ORM());
             orm->getFromDB = [dbInstance](auto && PH1, auto && PH2) {
                 return dbInstance->get(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2));

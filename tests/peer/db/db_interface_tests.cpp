@@ -7,9 +7,9 @@
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
-class RocksDBCTest : public ::testing::Test {
+class DBInterfaceTest : public ::testing::Test {
 public:
-    RocksDBCTest() {
+    DBInterfaceTest() {
         dbc = peer::db::DBConnection::NewConnection("testDB");
         CHECK(dbc != nullptr) << "create db failed!";
         CHECK(dbc->getDBName() == "testDB") << "create db failed!";
@@ -23,7 +23,7 @@ protected:
     std::unique_ptr<peer::db::DBConnection> dbc;
 };
 
-TEST_F(RocksDBCTest, TestGetPutDelete) {
+TEST_F(DBInterfaceTest, TestGetPutDelete) {
     auto key = "testKey";
     std::string value;
     // async version

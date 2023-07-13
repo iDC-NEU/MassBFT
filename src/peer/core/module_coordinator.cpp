@@ -147,7 +147,7 @@ namespace peer::core {
     }
 
     bool ModuleCoordinator::initChaincodeData(const std::string& ccName) {
-        auto orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_db.get());
+        auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(_db.get());
         auto cc = ::peer::chaincode::NewChaincodeByName(ccName, std::move(orm));
         if (cc->InitDatabase() != 0) {
             return false;

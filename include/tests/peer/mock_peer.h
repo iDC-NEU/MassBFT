@@ -44,7 +44,7 @@ namespace tests::peer {
             _execResults.reserve(1000 * 1000);
             _dbc = ::peer::db::DBConnection::NewConnection("YCSBChaincodeTestDB");
             CHECK(_dbc != nullptr) << "failed to init db!";
-            auto orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_dbc.get());
+            auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(_dbc.get());
             _chaincode = ::peer::chaincode::NewChaincodeByName("ycsb", std::move(orm));
             if (_chaincode->InitDatabase() != 0) {
                 return false;

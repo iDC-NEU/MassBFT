@@ -50,7 +50,7 @@ protected:
     };
 
     static bool FillCCData(::peer::db::DBConnection& db, const auto& dbName) {
-        auto orm = ::peer::chaincode::ORM::NewORMFromLeveldb(&db);
+        auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(&db);
         auto cc = ::peer::chaincode::NewChaincodeByName(dbName, std::move(orm));
         if (cc->InitDatabase() != 0) {
             return false;

@@ -27,7 +27,7 @@ protected:
     void initDB() {
         db = peer::db::DBConnection::NewConnection("ChaincodeTestDB");
         CHECK(db != nullptr) << "failed to init db!";
-        auto orm = peer::chaincode::ORM::NewORMFromLeveldb(db.get());
+        auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db.get());
         chaincode = peer::chaincode::NewChaincodeByName("transfer", std::move(orm));
         chaincode->InvokeChaincode("init", ParamToString({"100"}));
         auto [reads, writes] = chaincode->reset();

@@ -66,10 +66,17 @@ namespace ycsb {
                 threadOpCount += 1;
             }
             auto tpsPerThread = ycsbProperties->getTargetTPSPerThread();
-            auto seed = (int) util::Timer::time_now_ns();
+            // use static seed
+            auto seed = 0;
+            if (ycsbProperties->getUseRandomSeed()) {
+                // Generate a random seed
+                seed = (int) util::Timer::time_now_ns();
+            }
+            // Randomize seed of this thread
+            ::ycsb::core::GetThreadLocalRandomGenerator()->seed(seed++);
             for (int tid = 0; tid < threadCount; tid++) {   // create a set of clients
                 auto db = factory.newDB();  // each client create a connection
-                // TODO: optimize zmq connection
+                // Randomize seed of client thread
                 auto t = std::make_unique<core::ClientThread>(std::move(db), workload, seed++, (int)threadOpCount, tpsPerThread);
                 clients.emplace_back(std::move(t));
             }

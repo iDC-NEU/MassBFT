@@ -4,33 +4,34 @@
 
 #pragma once
 
-#include "rocksdb/db.h"
+#include "leveldb/db.h"
+#include "leveldb/write_batch.h"
 
 #include "glog/logging.h"
 #include <memory>
 
 namespace peer::db {
-    class RocksdbConnection {
+    class LeveldbConnection {
     public:
-        using WriteBatch = rocksdb::WriteBatch;
+        using WriteBatch = leveldb::WriteBatch;
 
-        RocksdbConnection(const RocksdbConnection&) = delete;
+        LeveldbConnection(const LeveldbConnection&) = delete;
 
-        RocksdbConnection(RocksdbConnection&&) = delete;
+        LeveldbConnection(LeveldbConnection&&) = delete;
 
-        virtual ~RocksdbConnection() = default;
+        virtual ~LeveldbConnection() = default;
 
         // create a new db connection
-        static std::unique_ptr<RocksdbConnection> NewConnection(const std::string& dbName) {
-            rocksdb::Options options;
+        static std::unique_ptr<LeveldbConnection> NewConnection(const std::string& dbName) {
+            leveldb::Options options;
             options.create_if_missing = true;
-            rocksdb::DB* db;
-            rocksdb::Status status = rocksdb::DB::Open(options, dbName, &db);
+            leveldb::DB* db;
+            leveldb::Status status = leveldb::DB::Open(options, dbName, &db);
             if (!status.ok()) {
                 LOG(WARNING) << "Can not open database: " << dbName;
                 return nullptr;
             }
-            std::unique_ptr<RocksdbConnection> dbc(new RocksdbConnection());
+            std::unique_ptr<LeveldbConnection> dbc(new LeveldbConnection());
             dbc->dbName = dbName;
             dbc->db.reset(db);
             return dbc;
@@ -40,34 +41,34 @@ namespace peer::db {
 
         bool asyncPut(std::string_view key, std::string_view value) {
             auto status = db->Put(asyncWrite,
-                                  rocksdb::Slice{key.data(), key.size()},
-                                  rocksdb::Slice{value.data(), value.size()});
+                                  leveldb::Slice{key.data(), key.size()},
+                                  leveldb::Slice{value.data(), value.size()});
             return status.ok();
         }
 
         bool syncPut(std::string_view key, std::string_view value) {
             auto status = db->Put(syncWrite,
-                                  rocksdb::Slice{key.data(), key.size()},
-                                  rocksdb::Slice{value.data(), value.size()});
+                                  leveldb::Slice{key.data(), key.size()},
+                                  leveldb::Slice{value.data(), value.size()});
             return status.ok();
         }
 
         // It is not an error if "key" did not exist in the database.
         bool asyncDelete(std::string_view key) {
-            auto status = db->Delete(asyncWrite, rocksdb::Slice{key.data(), key.size()});
+            auto status = db->Delete(asyncWrite, leveldb::Slice{key.data(), key.size()});
             return status.ok();
         }
 
         // It is not an error if "key" did not exist in the database.
         bool syncDelete(std::string_view key) {
-            auto status = db->Delete(syncWrite, rocksdb::Slice{key.data(), key.size()});
+            auto status = db->Delete(syncWrite, leveldb::Slice{key.data(), key.size()});
             return status.ok();
         }
 
         // batch.Put(key, value);
         // batch.Delete(key);
-        bool syncWriteBatch(const std::function<bool(rocksdb::WriteBatch* batch)>& callback) {
-            rocksdb::WriteBatch batch;
+        bool syncWriteBatch(const std::function<bool(leveldb::WriteBatch* batch)>& callback) {
+            leveldb::WriteBatch batch;
             if (!callback(&batch)) {
                 return false;
             }
@@ -76,21 +77,21 @@ namespace peer::db {
         }
 
         bool get(std::string_view key, std::string* value) const {
-            rocksdb::Status status = db->Get(rocksdb::ReadOptions(), rocksdb::Slice{key.data(), key.size()}, value);
+            leveldb::Status status = db->Get(leveldb::ReadOptions(), leveldb::Slice{key.data(), key.size()}, value);
             return status.ok();
         }
 
     protected:
-        RocksdbConnection() {
+        LeveldbConnection() {
             syncWrite.sync = true;
             asyncWrite.sync= false;
         }
 
     private:
-        rocksdb::WriteOptions syncWrite;
-        rocksdb::WriteOptions asyncWrite;
+        leveldb::WriteOptions syncWrite;
+        leveldb::WriteOptions asyncWrite;
         std::string dbName;
-        std::unique_ptr<rocksdb::DB> db;
+        std::unique_ptr<leveldb::DB> db;
     };
 
 }

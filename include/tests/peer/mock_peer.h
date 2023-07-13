@@ -12,7 +12,6 @@
 #include "common/zmq_port_util.h"
 #include "proto/block.h"
 #include "tests/mock_property_generator.h"
-#include "peer/db/rocksdb_connection.h"
 #include "peer/chaincode/orm.h"
 #include "peer/chaincode/chaincode.h"
 
@@ -43,19 +42,17 @@ namespace tests::peer {
 
         bool initDatabase() {
             _execResults.reserve(1000 * 1000);
-            _dbc = ::peer::db::RocksdbConnection::NewConnection("YCSBChaincodeTestDB");
+            _dbc = ::peer::db::DBConnection::NewConnection("YCSBChaincodeTestDB");
             CHECK(_dbc != nullptr) << "failed to init db!";
-            auto orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_dbc.get());
+            auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(_dbc.get());
             _chaincode = ::peer::chaincode::NewChaincodeByName("ycsb", std::move(orm));
             if (_chaincode->InitDatabase() != 0) {
                 return false;
             }
             auto [reads, writes] = _chaincode->reset();
-            return _dbc->syncWriteBatch([&](rocksdb::WriteBatch* batch) ->bool {
+            return _dbc->syncWriteBatch([&](auto* batch) ->bool {
                 for (const auto& it: *writes) {
-                    CHECK(batch->Put({it->getKeySV().data(), it->getKeySV().size()},
-                                     {it->getValueSV().data(), it->getValueSV().size()})
-                          == rocksdb::Status::OK());
+                    batch->Put({it->getKeySV().data(), it->getKeySV().size()}, {it->getValueSV().data(), it->getValueSV().size()});
                 }
                 return true;
             });
@@ -136,7 +133,7 @@ namespace tests::peer {
         std::shared_ptr<::peer::MRBlockStorage> _blockStorage;
         std::shared_ptr<util::ZMQInstance> _subscriber;
         std::unique_ptr<std::thread> _collectorThread;
-        std::unique_ptr<::peer::db::RocksdbConnection> _dbc;
+        std::unique_ptr<::peer::db::DBConnection> _dbc;
         std::unique_ptr<::peer::chaincode::Chaincode> _chaincode;
         // the actual contents are in the block envelop
         std::vector<std::tuple<std::unique_ptr<proto::UserRequest>, std::unique_ptr<proto::KVList>, std::unique_ptr<proto::KVList>>> _execResults;

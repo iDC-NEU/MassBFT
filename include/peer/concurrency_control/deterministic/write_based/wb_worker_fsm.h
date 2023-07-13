@@ -7,7 +7,6 @@
 #include "peer/concurrency_control/deterministic/worker_fsm.h"
 #include "peer/concurrency_control/deterministic/write_based/wb_reserve_table.h"
 
-#include "peer/db/rocksdb_connection.h"
 #include "peer/chaincode/orm.h"
 #include "peer/chaincode/chaincode.h"
 
@@ -42,7 +41,7 @@ namespace peer::cc {
                     auto it = ccList.find(ccNameSV);
                     if (it == ccList.end()) {   // chaincode not found
                         auto ccName = std::string(ccNameSV);
-                        auto orm = peer::chaincode::ORM::NewORMFromLeveldb(db.get());
+                        auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db.get());
                         auto ret = peer::chaincode::NewChaincodeByName(ccName, std::move(orm));
                         CHECK(ret != nullptr) << "chaincode name not exist!";
                         ccList[ccName] = std::move(ret);
@@ -87,7 +86,7 @@ namespace peer::cc {
 
         void setReserveTable(std::shared_ptr<WBReserveTable> reserveTable_) { reserveTable = std::move(reserveTable_); }
 
-        void setDB(std::shared_ptr<db::RocksdbConnection> db_) { db = std::move(db_); }
+        void setDB(std::shared_ptr<db::DBConnection> db_) { db = std::move(db_); }
 
     protected:
         ReceiverState onFirstCommit() {
@@ -116,7 +115,7 @@ namespace peer::cc {
         }
 
         ReceiverState onSecondCommit() {
-            auto saveToDBFunc = [&](rocksdb::WriteBatch* batch) {
+            auto saveToDBFunc = [&](db::DBConnection::WriteBatch* batch) {
                 auto updateDBCallback = [batch](std::string_view keySV, std::string_view valueSV) {
                     if (valueSV.empty()) {
                         batch->Delete({keySV.data(), keySV.size()});
@@ -148,7 +147,7 @@ namespace peer::cc {
         // Do not use a shared pointer
         std::shared_ptr<WBReserveTable> reserveTable;
         // TODO: use hash map for multiple tables
-        std::shared_ptr<db::RocksdbConnection> db;
+        std::shared_ptr<db::DBConnection> db;
     };
 
 }

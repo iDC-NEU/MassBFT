@@ -3,7 +3,6 @@
 //
 
 #include "peer/chaincode/chaincode.h"
-#include "peer/db/rocksdb_connection.h"
 
 #include "gtest/gtest.h"
 
@@ -26,9 +25,9 @@ protected:
     }
 
     void initDB() {
-        db = peer::db::RocksdbConnection::NewConnection("ChaincodeTestDB");
+        db = peer::db::DBConnection::NewConnection("ChaincodeTestDB");
         CHECK(db != nullptr) << "failed to init db!";
-        auto orm = peer::chaincode::ORM::NewORMFromLeveldb(db.get());
+        auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db.get());
         chaincode = peer::chaincode::NewChaincodeByName("transfer", std::move(orm));
         chaincode->InvokeChaincode("init", ParamToString({"100"}));
         auto [reads, writes] = chaincode->reset();
@@ -38,7 +37,7 @@ protected:
         ASSERT_TRUE((*writes)[99]->getValueSV() == "0");
     }
 
-    std::unique_ptr<peer::db::RocksdbConnection> db;
+    std::unique_ptr<peer::db::DBConnection> db;
     std::unique_ptr<peer::chaincode::Chaincode> chaincode;
 
 };

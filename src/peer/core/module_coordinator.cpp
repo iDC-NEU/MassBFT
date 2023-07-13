@@ -31,7 +31,7 @@ namespace peer::core {
         if (!exists(dbPath) && !create_directories(dbPath)) {
             return nullptr; // create directory failed
         }
-        mc->_db = peer::db::RocksdbConnection::NewConnection(dbPath);
+        mc->_db = peer::db::DBConnection::NewConnection(dbPath);
         if (mc->_db == nullptr) {
             return nullptr;
         }
@@ -147,17 +147,16 @@ namespace peer::core {
     }
 
     bool ModuleCoordinator::initChaincodeData(const std::string& ccName) {
-        auto orm = ::peer::chaincode::ORM::NewORMFromLeveldb(_db.get());
+        auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(_db.get());
         auto cc = ::peer::chaincode::NewChaincodeByName(ccName, std::move(orm));
         if (cc->InitDatabase() != 0) {
             return false;
         }
         auto [reads, writes] = cc->reset();
-        return _db->syncWriteBatch([&](rocksdb::WriteBatch* batch) ->bool {
+        return _db->syncWriteBatch([&](auto* batch) ->bool {
             for (const auto& it: *writes) {
-                CHECK(batch->Put({it->getKeySV().data(), it->getKeySV().size()},
-                                 {it->getValueSV().data(), it->getValueSV().size()})
-                      == rocksdb::Status::OK());
+                // Never go wrong
+                batch->Put({it->getKeySV().data(), it->getKeySV().size()}, {it->getValueSV().data(), it->getValueSV().size()});
             }
             return true;
         });

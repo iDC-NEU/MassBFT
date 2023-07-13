@@ -4,21 +4,20 @@
 #pragma once
 
 #include "tests/transaction_utils.h"
+#include "peer/db/db_interface.h"
 #include "common/timer.h"
 #include "common/property.h"
 
 #include "glog/logging.h"
-#include "peer/db/rocksdb_connection.h"
-
 
 namespace tests {
     class CoordinatorUtils {
     public:
         static auto initDB(int recordCount=100000) {
-            std::shared_ptr<peer::db::RocksdbConnection> dbc = peer::db::RocksdbConnection::NewConnection("testDB");
+            std::shared_ptr<peer::db::DBConnection> dbc = peer::db::DBConnection::NewConnection("testDB");
             CHECK(dbc != nullptr) << "create db failed!";
             // init db
-            dbc->syncWriteBatch([&recordCount](rocksdb::WriteBatch* batch){
+            dbc->syncWriteBatch([&recordCount](peer::db::DBConnection::WriteBatch* batch){
                 for (int i=0; i<recordCount; i++) {
                     batch->Put(std::to_string(i), "0");
                 }

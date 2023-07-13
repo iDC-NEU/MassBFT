@@ -2,15 +2,15 @@
 // Created by peng on 2/21/23.
 //
 
-#include "peer/db/rocksdb_connection.h"
+#include "peer/db/db_interface.h"
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
 
-class RocksDBCTest : public ::testing::Test {
+class DBInterfaceTest : public ::testing::Test {
 public:
-    RocksDBCTest() {
-        dbc = peer::db::RocksdbConnection::NewConnection("testDB");
+    DBInterfaceTest() {
+        dbc = peer::db::DBConnection::NewConnection("testDB");
         CHECK(dbc != nullptr) << "create db failed!";
         CHECK(dbc->getDBName() == "testDB") << "create db failed!";
     }
@@ -20,10 +20,10 @@ protected:
 
     void TearDown() override {
     };
-    std::unique_ptr<peer::db::RocksdbConnection> dbc;
+    std::unique_ptr<peer::db::DBConnection> dbc;
 };
 
-TEST_F(RocksDBCTest, TestGetPutDelete) {
+TEST_F(DBInterfaceTest, TestGetPutDelete) {
     auto key = "testKey";
     std::string value;
     // async version
@@ -41,14 +41,14 @@ TEST_F(RocksDBCTest, TestGetPutDelete) {
     ASSERT_TRUE(!dbc->get(key, &value)) << "get after delete!";
 
     // batch
-    auto ret = dbc->syncWriteBatch([&](rocksdb::WriteBatch* batch){
+    auto ret = dbc->syncWriteBatch([&](peer::db::DBConnection::WriteBatch* batch){
         batch->Put(key, "testValue");
         return true;
     });
     ASSERT_TRUE(ret);
     ASSERT_TRUE(dbc->get(key, &value));
     ASSERT_TRUE(value == "testValue");
-    ret = dbc->syncWriteBatch([&](rocksdb::WriteBatch* batch){
+    ret = dbc->syncWriteBatch([&](peer::db::DBConnection::WriteBatch* batch){
         batch->Delete(key);
         return true;
     });

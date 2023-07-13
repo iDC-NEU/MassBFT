@@ -33,7 +33,7 @@ TEST_F(WorkerImplTest, TestSignalSendReceive) {
     CHECK(dbc != nullptr) << "create db failed!";
     fsm->setDB(dbc);
     // init db
-    dbc->syncWriteBatch([](peer::db::DBConnection::WriteBatch* batch){
+    dbc->syncWriteBatch([](peer::db::DBConnection::WriteBatch* batch) {
         for (int i=0; i<recordCount; i++) {
             batch->Put(std::to_string(i), "0");
         }

@@ -10,16 +10,16 @@ namespace peer::db {
     class PHMapConnection {
     public:
         struct WriteBatch {
-            void Put(std::string_view key, std::string_view value) {
-                writes.emplace_back(key, value);
+            void Put(std::string key, std::string value) {
+                writes.emplace_back(std::move(key), std::move(value));
             }
 
-            void Delete(std::string_view key) {
-                deletes.push_back(key);
+            void Delete(std::string key) {
+                deletes.push_back(std::move(key));
             }
 
-            std::vector<std::pair<std::string_view, std::string_view>> writes;
-            std::vector<std::string_view> deletes;
+            std::vector<std::pair<std::string, std::string>> writes;
+            std::vector<std::string> deletes;
         };
 
         static std::unique_ptr<PHMapConnection> NewConnection(const std::string& dbName) {
@@ -38,38 +38,44 @@ namespace peer::db {
 
             if (!std::ranges::all_of(batch.writes.begin(),
                                      batch.writes.end(),
-                                     [this](auto&& it) { return syncPut(it.first, it.second); })) {
+                                     [this](auto&& it) { return syncPut(std::move(it.first), std::move(it.second)); })) {
                 return false;
             }
 
             for (auto& it: batch.deletes) {
-                syncDelete(it);
+                syncDelete(std::move(it));
             }
             return true;
         }
 
-        bool syncPut(std::string_view key, std::string_view value) {
+        bool syncPut(auto&& key, auto&& value) {
             auto exist = [&](TableType::value_type &v) {
-                v.second = value;
+                v.second = std::forward<decltype(value)>(value);
             };
-            return db.try_emplace_l(key, exist, value);
-        }
-
-        inline bool asyncPut(std::string_view key, std::string_view value) { return syncPut(key, value); }
-
-        bool get(std::string_view key, std::string* value) const {
-            return db.if_contains_unsafe(key, [&](const TableType::value_type &v) {
-                *value = v.second;
-            });
-        }
-
-        // It is not an error if "key" did not exist in the database.
-        bool syncDelete(std::string_view key) {
-            db.erase(key);
+            db.try_emplace_l(std::forward<decltype(key)>(key), exist, std::forward<decltype(value)>(value));
             return true;
         }
 
-        inline bool asyncDelete(std::string_view key) { return syncDelete(key); }
+        inline bool asyncPut(auto&& key, auto&& value) {
+            return syncPut(std::forward<decltype(key)>(key), std::forward<decltype(value)>(value));
+        }
+
+        bool get(auto&& key, std::string* value) const {
+            auto ret = db.if_contains(std::forward<decltype(key)>(key), [&](const TableType::value_type &v) {
+                *value = v.second;
+            });
+            return ret;
+        }
+
+        // It is not an error if "key" did not exist in the database.
+        bool syncDelete(auto&& key) {
+            db.erase(std::forward<decltype(key)>(key));
+            return true;
+        }
+
+        inline bool asyncDelete(auto&& key) {
+            return syncDelete(std::forward<decltype(key)>(key));
+        }
 
     protected:
         PHMapConnection() = default;

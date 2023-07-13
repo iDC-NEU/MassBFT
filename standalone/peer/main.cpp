@@ -64,7 +64,10 @@ int main(int argc, char *argv[]) {
             return -1;
         }
         LOG(INFO) << "Init db for chaincode: " << *ccName << " completed.";
-        return 0;
+        if (!peer::db::IsDBHashMap()) {
+            return 0;
+        }
+        LOG(INFO) << "Using hashmap as db, continue starting peer.";
     }
     // startup
     if (!peer.startInstance()) {

@@ -24,4 +24,6 @@ namespace peer::db {
         t.get("key", getValue);
     };
     static_assert(db_like<DBConnection>);
+
+    inline bool IsDBHashMap() { return std::is_same<DBConnection, PHMapConnection>::value; }
 }

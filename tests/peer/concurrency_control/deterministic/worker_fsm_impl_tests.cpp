@@ -78,4 +78,5 @@ TEST_F(WorkerImplTest, TestSignalSendReceive) {
         totalValue += std::atoi(value.data());
     }
     ASSERT_TRUE(totalValue == 0);
+    LOG(WARNING) << "Make sure there are no additional warning log other than this one.";
 }

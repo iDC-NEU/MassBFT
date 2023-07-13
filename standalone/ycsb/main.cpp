@@ -5,7 +5,6 @@
 #include "ycsb/engine.h"
 
 int main(int argc, char *argv[]) {
-    google::InitGoogleLogging(argv[0]);
     util::OpenSSLSHA256::initCrypto();
     util::OpenSSLED25519::initCrypto();
     util::Properties::LoadProperties("peer.yaml");

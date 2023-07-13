@@ -48,7 +48,7 @@ namespace ca {
 
         // init properties
         SetLocalId(0, 0);
-        util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 1000);
+        util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 700);
         util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 1000);
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, true);
         util::Properties::SetProperties(util::Properties::SSH_USERNAME, "root");
@@ -56,8 +56,8 @@ namespace ca {
 
         // init ycsb property
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 1000 * 20* 30);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 20);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 1000 * 25 * 30);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 25);
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 10);
         // ycsb-a example
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
@@ -150,34 +150,16 @@ namespace ca {
         if (!session->executeCommand(builder, true)) {
             return false;
         }
-        LOG(INFO) << "Uploading sourcecode.";
-        // upload the new files
-        auto sftp = session->createSFTPSession();
-        if (!sftp->putFile(_runningPath / ncZipName, true, _runningPath / ncZipName)) {
+        if (!updateRemoteSourcecode(ip)) {
             return false;
         }
-        LOG(INFO) << "Uploading nc_bft.";
-        if (!sftp->putFile(_runningPath / bftZipName, true, _runningPath / bftZipName)) {
-            return false;
-        }
-        LOG(INFO) << "Unzip sourcecode and nc_bft.";
-        // unzip the files
-        builder = {
-                "cd",
-                _runningPath,
-                "&&",
-                "unzip -q",
-                _runningPath / _bftFolderName,
-                "&&",
-                "unzip -q",
-                _runningPath / _ncFolderName, };
-        if (!session->executeCommand(builder, true)) {
+        if (!updateRemoteBFTPack(ip)) {
             return false;
         }
         return true;
     }
 
-    bool Dispatcher::remoteCompileSystem(const std::string &ip) const {
+    bool Dispatcher::compileRemoteSourcecode(const std::string &ip) const {
         auto session = connect(ip);
         if (session == nullptr) {
             return false;
@@ -195,7 +177,8 @@ namespace ca {
                 "&&",
                 "chmod +x clash-linux-amd64-v3",
                 "&&",
-                "./clash-linux-amd64-v3 -f proxy.yaml", };
+                "./clash-linux-amd64-v3 -f proxy.yaml -d",
+                _runningPath / _bftFolderName / "clash", };
         auto clashChannel = session->executeCommandNoWait(builder);
         LOG(INFO) << "Sleep for 5 seconds.";
         std::this_thread::sleep_for(std::chrono::seconds(5));
@@ -251,6 +234,9 @@ namespace ca {
                 "cd",
                 _runningPath / _bftFolderName,
                 "&&",
+                "rm -rf ",
+                _runningPath / _bftFolderName / "data",
+                "&&",
                 peerExecFull,
                 "-i=" + chaincodeName, };
         if (!session->executeCommand(builder, true)) {
@@ -260,14 +246,14 @@ namespace ca {
     }
 
     util::SSHSession * Dispatcher::connect(const std::string &ip) const {
-        std::unique_lock lock(createMutex);
-        util::SSHSession* ret = nullptr;
-        if (sessionPool.if_contains(ip, [&](const auto &v) { ret = v.second.get(); })) {
-            return ret;
+        if (sessionPool.contains(ip)) {
+            return sessionPool[ip].get();
         }
         auto* properties = util::Properties::GetProperties();
         // create session
+        createMutex.lock();
         auto session = util::SSHSession::NewSSHSession(ip);
+        createMutex.unlock();
         if (session == nullptr) {
             return nullptr;
         }
@@ -283,53 +269,6 @@ namespace ca {
         return sessionPool[ip].get();
     }
 
-    template<typename Func>
-    void Dispatcher::processParallel(Func f, int count) const {
-        std::vector<std::thread> threads;
-        threads.reserve(count);
-        for (int i=0; i<count; i++) {
-            threads.emplace_back(f, i);
-        }
-        for (auto& it: threads) {
-            it.join();
-        }
-    }
-
-    bool Dispatcher::transmitFileParallel(const std::vector<std::string> &ips, bool send, bool compile) const {
-        volatile bool success = true;
-        processParallel([&] (int idx) {
-            const auto& ip = ips.at(idx);
-            if (send) {
-                auto ret = transmitFileToRemote(ip);
-                if (!ret) {
-                    LOG(WARNING) << "Send files to " << ip << " failed!";
-                    success = false;
-                }
-            }
-            if (compile) {
-                auto ret = remoteCompileSystem(ip);
-                if (!ret) {
-                    LOG(WARNING) << "Compile system at " << ip << " failed!";
-                    success = false;
-                }
-            }
-        }, (int)ips.size());
-        return success;
-    }
-
-    bool Dispatcher::generateDatabaseParallel(const std::vector<std::string> &ips, const std::string &chaincodeName) const {
-        volatile bool success = true;
-        processParallel([&] (int idx) {
-            const auto& ip = ips.at(idx);
-            auto ret = generateDatabase(ip, chaincodeName);
-            if (!ret) {
-                LOG(WARNING) << "generateDatabase to " << ip << " failed!";
-                success = false;
-            }
-        }, (int)ips.size());
-        return success;
-    }
-
     std::unique_ptr<util::SSHChannel> Dispatcher::startPeer(const std::string &ip) const {
         auto session = connect(ip);
         if (session == nullptr) {
@@ -341,7 +280,8 @@ namespace ca {
                 "cd",
                 _runningPath / _bftFolderName,
                 "&&",
-                peerExecFull, };
+                peerExecFull,
+                ">peer_log.txt 2>&1", };
         return session->executeCommandNoWait(builder);
     }
 
@@ -358,6 +298,112 @@ namespace ca {
                 "&&",
                 userExecFull, };
         return session->executeCommandNoWait(builder);
+    }
+
+    bool Dispatcher::updateRemoteSourcecode(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Uploading sourcecode.";
+        // upload the new files
+        auto sftp = session->createSFTPSession();
+        auto ncZipName = _ncFolderName + ".zip";
+        if (!sftp->putFile(_runningPath / ncZipName, true, _runningPath / ncZipName)) {
+            return false;
+        }
+        LOG(INFO) << "Unzip sourcecode.";
+        // unzip the files
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath,
+                "&&",
+                "unzip -q -o",
+                _runningPath / _ncFolderName, };
+        if (!session->executeCommand(builder, true)) {
+            return false;
+        }
+        return true;
+    }
+
+    bool Dispatcher::updateRemoteBFTPack(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Uploading nc_bft.";
+        // upload the new files
+        auto sftp = session->createSFTPSession();
+        auto bftZipName = _bftFolderName + ".zip";
+        if (!sftp->putFile(_runningPath / bftZipName, true, _runningPath / bftZipName)) {
+            return false;
+        }
+        LOG(INFO) << "Unzip nc_bft.";
+        // unzip the files
+        std::vector<std::string> builder = {
+                "cd",
+                _runningPath,
+                "&&",
+                "unzip -q -o",
+                _runningPath / _bftFolderName, };
+        if (!session->executeCommand(builder, true)) {
+            return false;
+        }
+        return true;
+    }
+
+    bool Dispatcher::backupRemoteDatabase(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Backup peer data.";
+        std::vector<std::string> builder = {
+                "cp -r -f",
+                _runningPath / _bftFolderName / "data",
+                _runningPath / _bftFolderName / "data_bk", };
+        if (!session->executeCommand(builder, true)) {
+            LOG(ERROR) << "Backup peer data failed.";
+        }
+        return true;
+    }
+
+    bool Dispatcher::restoreRemoteDatabase(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Clear peer data.";
+        std::vector<std::string> builder = {
+                "rm -rf ",
+                _runningPath / _bftFolderName / "data",
+                "&&",
+                "cp -r -f",
+                _runningPath / _bftFolderName / "data_bk",
+                _runningPath / _bftFolderName / "data",
+                "&&",
+                "rm -rf ",
+                _runningPath / _bftFolderName / "data" / "*:*:*", };
+        if (!session->executeCommand(builder, true)) {
+            LOG(ERROR) << "Clear peer data failed.";
+        }
+        return true;
+    }
+
+    bool Dispatcher::stopAll(const std::string &ip) const {
+        auto session = connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        LOG(INFO) << "Stopping peer.";
+        if (!session->executeCommand({ "kill -9 $(pidof peer)" }, true)) {
+            return false;
+        }
+        LOG(INFO) << "Stopping ycsb.";
+        if (!session->executeCommand({ "kill -9 $(pidof ycsb)" }, true)) {
+            return false;
+        }
+        return true;
     }
 
     Dispatcher::~Dispatcher() = default;

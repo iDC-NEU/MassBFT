@@ -20,9 +20,12 @@ namespace util {
                     std::string option = std::string(arg.substr(0, pos));
                     std::string value = std::string(arg.substr(pos + 1));
                     _options[option] = value;
-                } else if (isOption(arg)) {
+                    continue;
+                }
+                if (isOption(arg)) {
                     // Option without value (flag)
                     _options[std::string(arg)] = "true";
+                    continue;
                 }
                 LOG(WARNING) << "Invalid option: " << arg;
             }

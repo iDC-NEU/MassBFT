@@ -66,7 +66,7 @@ bool util::SSHChannel::execute(const std::string &command) {
 bool util::SSHChannel::waitUntilCommandFinished(bool printInfo) {
     // get result
     std::stringstream out;
-    setTimeout(0);
+    setTimeout(50);
     while (!isChannelClosed()) {
         out.clear();
         if (printInfo) {

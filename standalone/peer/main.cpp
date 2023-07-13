@@ -51,7 +51,6 @@ protected:
  *  -i = [chaincode_name]: init chaincode data of chaincode_name.
  */
 int main(int argc, char *argv[]) {
-    google::InitGoogleLogging(argv[0]);
     util::ArgParser argParser(argc, argv);
     util::Properties::LoadProperties("peer.yaml");
     auto peer = PeerInstance();

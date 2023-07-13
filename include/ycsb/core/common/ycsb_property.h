@@ -137,6 +137,9 @@ namespace ycsb::utils {
         constexpr static const auto EXPONENTIAL_FRAC_PROPERTY = "exponential.frac";
         constexpr static const auto EXPONENTIAL_FRAC_DEFAULT = 0.8571428571;  // 1/7
 
+        // Use random seed to init ycsb client
+        constexpr static const auto RANDOM_SEED = "random_seed";
+
         static std::unique_ptr<YCSBProperties> NewFromProperty(const util::Properties &n) {
             auto ret = std::unique_ptr<YCSBProperties>(new YCSBProperties(n.getCustomPropertiesOrPanic(YCSB_PROPERTIES)));
             return ret;
@@ -307,6 +310,10 @@ namespace ycsb::utils {
 
         inline auto getInsertRetryInterval() const {
             return n[INSERTION_RETRY_INTERVAL].as<int>(1);  // second
+        }
+
+        inline bool getUseRandomSeed() const {
+            return n[RANDOM_SEED].as<bool>(true);
         }
 
     protected:

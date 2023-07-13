@@ -234,6 +234,9 @@ namespace ca {
                 "cd",
                 _runningPath / _bftFolderName,
                 "&&",
+                "rm -rf ",
+                _runningPath / _bftFolderName / "data",
+                "&&",
                 peerExecFull,
                 "-i=" + chaincodeName, };
         if (!session->executeCommand(builder, true)) {

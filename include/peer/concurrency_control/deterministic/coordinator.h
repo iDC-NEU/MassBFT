@@ -6,14 +6,14 @@
 
 #include "peer/concurrency_control/deterministic/worker_fsm.h"
 #include "bthread/countdown_event.h"
-#include "peer/db/rocksdb_connection.h"
+#include "peer/db/db_interface.h"
 #include "reserve_table.h"
 
 namespace peer::cc {
     template<class WorkerFSMType, class ReserveTableType, class Derived>
     class Coordinator {
     public:
-        static std::unique_ptr<Derived> NewCoordinator(const std::shared_ptr<peer::db::RocksdbConnection>& dbc, int workerCount) {
+        static std::unique_ptr<Derived> NewCoordinator(const std::shared_ptr<peer::db::DBConnection>& dbc, int workerCount) {
             std::unique_ptr<Derived> ptr(new Derived());
             auto* c = static_cast<Coordinator*>(ptr.get());
             auto table = std::make_shared<ReserveTableType>();

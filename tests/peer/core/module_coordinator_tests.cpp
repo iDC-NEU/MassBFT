@@ -49,18 +49,16 @@ protected:
         util::MetaRpcServer::Stop();
     };
 
-    static bool FillCCData(::peer::db::RocksdbConnection& db, const auto& dbName) {
+    static bool FillCCData(::peer::db::DBConnection& db, const auto& dbName) {
         auto orm = ::peer::chaincode::ORM::NewORMFromLeveldb(&db);
         auto cc = ::peer::chaincode::NewChaincodeByName(dbName, std::move(orm));
         if (cc->InitDatabase() != 0) {
             return false;
         }
         auto [reads, writes] = cc->reset();
-        return db.syncWriteBatch([&](rocksdb::WriteBatch* batch) ->bool {
+        return db.syncWriteBatch([&](auto* batch) ->bool {
             for (const auto& it: *writes) {
-                CHECK(batch->Put({it->getKeySV().data(), it->getKeySV().size()},
-                                 {it->getValueSV().data(), it->getValueSV().size()})
-                      == rocksdb::Status::OK());
+                batch->Put({it->getKeySV().data(), it->getKeySV().size()}, {it->getValueSV().data(), it->getValueSV().size()});
             }
             return true;
         });

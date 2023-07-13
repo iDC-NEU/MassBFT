@@ -8,6 +8,7 @@
 #include <atomic>
 #include <thread>
 #include "common/async_serial_executor.h"
+#include "peer/db/db_interface.h"
 
 namespace util {
     class Properties;
@@ -21,9 +22,6 @@ namespace peer {
     }
     namespace cc {
         class CoordinatorImpl;
-    }
-    namespace db {
-        class RocksdbConnection;
     }
 }
 
@@ -49,7 +47,7 @@ namespace peer::core {
 
         void waitInstanceReady() const;
 
-        [[nodiscard]] std::shared_ptr<peer::db::RocksdbConnection> getDBHandle() const { return _db; }
+        [[nodiscard]] std::shared_ptr<peer::db::DBConnection> getDBHandle() const { return _db; }
 
     protected:
         ModuleCoordinator() = default;
@@ -72,7 +70,7 @@ namespace peer::core {
         // for debug
         std::shared_ptr<util::NodeConfig> _localNode;
         // for concurrency control
-        std::shared_ptr<peer::db::RocksdbConnection> _db;
+        std::shared_ptr<peer::db::DBConnection> _db;
         std::unique_ptr<peer::cc::CoordinatorImpl> _cc;
         util::AsyncSerialExecutor _serialExecutor;
         // for user rpc

@@ -33,7 +33,7 @@ TEST_F(WorkerImplTest, TestSignalSendReceive) {
     CHECK(dbc != nullptr) << "create db failed!";
     fsm->setDB(dbc);
     // init db
-    dbc->syncWriteBatch([](peer::db::DBConnection::WriteBatch* batch){
+    dbc->syncWriteBatch([](peer::db::DBConnection::WriteBatch* batch) {
         for (int i=0; i<recordCount; i++) {
             batch->Put(std::to_string(i), "0");
         }
@@ -78,4 +78,5 @@ TEST_F(WorkerImplTest, TestSignalSendReceive) {
         totalValue += std::atoi(value.data());
     }
     ASSERT_TRUE(totalValue == 0);
+    LOG(WARNING) << "Make sure there are no additional warning log other than this one.";
 }

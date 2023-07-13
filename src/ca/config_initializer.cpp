@@ -48,7 +48,7 @@ namespace ca {
 
         // init properties
         SetLocalId(0, 0);
-        util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 1000);
+        util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 700);
         util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 1000);
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, true);
         util::Properties::SetProperties(util::Properties::SSH_USERNAME, "root");
@@ -56,8 +56,8 @@ namespace ca {
 
         // init ycsb property
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 1000 * 20* 30);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 20);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 1000 * 25 * 30);
+        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 25);
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 10);
         // ycsb-a example
         ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);

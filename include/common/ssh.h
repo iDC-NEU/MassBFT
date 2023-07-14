@@ -7,7 +7,7 @@
 #include <utility>
 #include <memory>
 #include <functional>
-
+#include <optional>
 
 struct ssh_session_struct;
 struct ssh_channel_struct;
@@ -32,6 +32,9 @@ namespace util {
         void setTimeout(int timeout) { _timeout = timeout; }
 
         bool waitUntilCommandFinished(bool printInfo);
+
+        // if channel is close, return null opt;
+        std::optional<bool> waitUntilReceiveKeyword(const std::string& keyword, bool printInfo, int timeoutMs);
 
         [[nodiscard]] bool isChannelClosed() const;
 

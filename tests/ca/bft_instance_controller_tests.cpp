@@ -3,7 +3,6 @@
 //
 
 #include "ca/bft_instance_controller.h"
-#include "common/timer.h"
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
@@ -49,16 +48,15 @@ TEST_F(ControllerTest, StartTest) {
     for (int i=0; i<4; i++) {
         ASSERT_TRUE(ctlList[i]->startInstance(""));
     }
-    std::stringbuf buf;
     for (int i=0; i<4; i++) {
-        std::ostream out(&buf);
-        auto success = ctlList[i]->getChannelResponse(&out, &out);
-        ASSERT_TRUE(success);
+        auto success = ctlList[i]->isInstanceReady(20 * 1000);
+        ASSERT_TRUE(success && *success);
     }
+    std::this_thread::sleep_for(std::chrono::seconds(10));
     for (int i=0; i<4; i++) {
         ctlList[i]->stopAndClean();
     }
-    util::Timer::sleep_sec(5);
+    std::this_thread::sleep_for(std::chrono::seconds(5));
 }
 
 TEST_F(ControllerTest, StartDemoInstance) {
@@ -81,12 +79,9 @@ TEST_F(ControllerTest, StartDemoInstance) {
     for (int i=0; i<4; i++) {
         ASSERT_TRUE(ctlList[i]->startInstance(""));
     }
-    std::stringbuf buf;
-    for (int i=0; i<1000; i++) {
-        std::ostream out(&buf);
-        auto success = ctlList[0]->getChannelResponse(&out, &out);
-        ASSERT_TRUE(success);
-    }
+    auto success = ctlList[0]->isInstanceReady(20 * 1000);
+    ASSERT_TRUE(success && *success);
+    std::this_thread::sleep_for(std::chrono::seconds(10));
     for (int i=0; i<4; i++) {
         ctlList[i]->stopAndClean();
     }

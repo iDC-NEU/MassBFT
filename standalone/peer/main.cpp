@@ -45,14 +45,36 @@ protected:
     std::unique_ptr<peer::core::ModuleCoordinator> _mc;
 };
 
+void OverrideLocalNodeInfo(const util::ArgParser& argParser) {
+    auto* p = util::Properties::GetProperties();
+    auto n = p->getNodeProperties();
+    auto localNode = n.getLocalNodeInfo();
+    try {
+        if (auto nodeId = argParser.getOption("-n"); nodeId != std::nullopt) {
+            localNode->nodeId = std::stoi(*nodeId);
+        }
+        if (auto groupId = argParser.getOption("-g"); groupId != std::nullopt) {
+            localNode->groupId = std::stoi(*groupId);
+        }
+    } catch(...) {
+        LOG(ERROR) << "Load input params error";
+    }
+    n.setLocalNodeInfo(localNode->groupId, localNode->nodeId);
+}
+
 /*
  * Usage:
  *  default: transaction mode.
+ *  -n = [node_id]: override local node id
+ *  -g = [group_id]: override local group id
  *  -i = [chaincode_name]: init chaincode data of chaincode_name.
  */
 int main(int argc, char *argv[]) {
     util::ArgParser argParser(argc, argv);
     util::Properties::LoadProperties("peer.yaml");
+    // override node id and group id
+    OverrideLocalNodeInfo(argParser);
+
     auto peer = PeerInstance();
     if (!peer.initInstance()) {
         return -1;

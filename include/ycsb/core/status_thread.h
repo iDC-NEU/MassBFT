@@ -39,7 +39,7 @@ namespace ycsb::core {
             size_t lastTimePending = 0;
             auto sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
             bool warmedUp = false;
-            auto warmedUpTime = std::chrono::system_clock::now() + std::chrono::seconds(3);
+            auto warmedUpTime = std::chrono::system_clock::now() + std::chrono::seconds(5);
 
             while(running.load(std::memory_order_relaxed)) {
                 if (!warmedUp && sleepUntil > warmedUpTime) {

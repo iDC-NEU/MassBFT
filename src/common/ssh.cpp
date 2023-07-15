@@ -89,6 +89,37 @@ bool util::SSHChannel::waitUntilCommandFinished(bool printInfo) {
     return true;
 }
 
+std::optional<bool> util::SSHChannel::waitUntilReceiveKeyword(const std::string &keyword, bool printInfo, int timeoutMs) {
+    auto waitUntil = std::chrono::system_clock::now() + std::chrono::milliseconds(timeoutMs);
+    std::stringstream out;
+    while (!isChannelClosed()) {
+        if (waitUntil <= std::chrono::system_clock::now()) {
+            return false;
+        }
+        this->read(out, false, [&](std::string_view out) {
+            if (out.empty()) {
+                return false;
+            }
+            if (printInfo) {
+                std::cout << out;
+            }
+            return true;
+        });
+        this->read(out, true, [&](std::string_view error) {
+            if (error.empty()) {
+                return false;
+            }
+            std::cerr << error;
+            return true;
+        });
+        size_t foundPos = out.str().find(keyword);
+        if (foundPos != std::string::npos) {
+            return true;
+        }
+    }
+    return std::nullopt;
+}
+
 bool util::SSHChannel::isChannelClosed() const {
     if (ssh_channel_is_eof(_channel) != 1) {
         return false;
@@ -419,6 +450,7 @@ std::unique_ptr<util::SSHChannel> util::SSHSession::executeCommandNoWait(const s
     for (const auto& it: builder) {
         command.append(it).append(" ");
     }
+    DLOG(INFO) << "Execute command: " << command;
     // exec command
     if (!channel->execute(command)) {
         return nullptr;

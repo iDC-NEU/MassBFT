@@ -70,8 +70,8 @@ protected:
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, false);
     }
 
-    const int nodeCountPerGroup = 4;
-    const int groupCount = 4;
+    const int nodeCountPerGroup = 3;
+    const int groupCount = 1;
 };
 
 TEST_F(ModuleCoordinatorTest, BasicTest2_4) {

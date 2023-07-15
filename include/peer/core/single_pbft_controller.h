@@ -42,22 +42,17 @@ namespace peer::core {
         void run() {
             pthread_setname_np(pthread_self(), "bft_ctl");
             std::stringbuf buf;
-            bool isInit = true;
             while(_running) {
-                std::ostream out(&buf);
-                auto success = _instanceManager->getChannelResponse(&out, &out);
-                if (!success) {
-                    LOG(WARNING) << "SinglePBFTController get log error!";
-                    continue;
+                auto ret = _instanceManager->isInstanceReady(10 * 1000);
+                if (ret == std::nullopt) {
+                    LOG(ERROR) << "BFT instance is crashed, return.";
+                    break;  // channel is close
                 }
-                if (isInit) {
-                    out.flush();
-                    auto log = buf.str();
-                    if (::ca::BFTInstanceController::IsInstanceReady(log)) {
-                        isInit = false;
-                        _ce.signal();
-                    }
+                if (*ret == true) {
+                    _ce.signal();
+                    break;
                 }
+                LOG(INFO) << "Waiting for bft instance to be ready.";
             }
             auto fileName = "bft_log_" + std::to_string(_nodeGroupId) + "_"
                             + std::to_string(_instanceId) + "_"

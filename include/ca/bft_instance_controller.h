@@ -97,66 +97,41 @@ namespace ca {
                     std::to_string(_groupId),
                     std::to_string(_processId),
             };
-            std::string command;
-            for (const auto& it: builder) {
-                command.append(it).append(" ");
-            }
-            DLOG(INFO) << "The execute command: " << command;
-            auto channel = this->_session->createChannel();
-            if(channel == nullptr) {
+            _bftInstanceChannel = this->_session->executeCommandNoWait(builder);
+            if(_bftInstanceChannel == nullptr) {
                 return false;
-            }
-            _bftInstanceChannel = std::move(channel);
-            return _bftInstanceChannel->execute(command);
-        }
-
-        // return isSuccess, stdout, stderr
-        bool getChannelResponse(std::ostream* out, std::ostream* error) {
-            if (_bftInstanceChannel == nullptr) {
-                return false;
-            }
-            // do not catch the return value!
-            if (out) {
-                _bftInstanceChannel->read(*out, false, [&](std::string_view info) {
-                    if (info.empty()) {
-                        return false;
-                    }
-                    DLOG(INFO) << info;
-                    return true;
-                });
-            }
-            if (error) {
-                _bftInstanceChannel->read(*error, true, [&](std::string_view error) {
-                    if (error.empty()) {
-                        return false;
-                    }
-                    LOG(ERROR) << error;
-                    return true;
-                });
             }
             return true;
         }
 
         void stopAndClean() {
-            if (!_session->executeCommand({"pkill -f nc_bft.jar"})) {
+            std::vector<std::string> builder {
+                    "kill -9 $(pgrep -f \"./nc_bft.jar bftsmart.demo.neuchainplus.NeuChainServer",
+                    std::to_string(_groupId),
+                    std::to_string(_processId) + "\")",
+            };
+            if (!_session->executeCommand(builder)) {
                 LOG(WARNING) << "Kill bft instance failed!";
             }
-            std::vector<std::string> builder {
+            builder = {
                     "cd",
                     _runningPath / "config",
                     "&&",
                     "rm",
                     "hosts_" + std::to_string(_processId) + ".config",
-                    "currentView",
             };
             if (!_session->executeCommand(builder)) {
                 LOG(WARNING) << "Clear bft config failed!";
             }
         }
 
-        static bool IsInstanceReady(const std::string& log) {
-            size_t foundPos = log.find("Ready to process operations");
-            return foundPos != std::string::npos;
+        std::optional<bool> isInstanceReady(int timeoutMs) {
+            if (_bftInstanceChannel == nullptr) {
+                return false;
+            }
+            bool printInfo = false;
+            IF_DEBUG_MODE(printInfo = true;)
+            return _bftInstanceChannel->waitUntilReceiveKeyword("Ready to process operations", printInfo, timeoutMs);
         }
 
         [[nodiscard]] const auto& getConfig() const { return _config; };

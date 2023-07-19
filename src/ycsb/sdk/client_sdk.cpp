@@ -63,7 +63,7 @@ namespace ycsb::sdk {
 
     bool ClientSDK::connect() {
         const auto& server = _impl->_targetLocalNode;
-        LOG(INFO) << "Connecting to peer:" << server->priIp;
+        LOG(INFO) << "Connecting to peer: " << server->priIp << ":" << _impl->_receivePort;
         brpc::ChannelOptions options;
         options.protocol = "h2:grpc";
         options.timeout_ms = 200 /*milliseconds*/;

@@ -1,0 +1,36 @@
+syntax = "proto2";
+
+package client.proto;
+
+option cc_generic_services = true;
+
+// 定义插入请求消息类型
+message InsertRequest {
+  required string key = 1;
+  required string value = 2;
+};
+
+// 定义插入响应消息类型
+message InsertResponse {
+  required bool success = 1;
+};
+
+// 定义查询请求消息类型
+message QueryRequest {
+  required string key = 1;
+  required string value =2;
+};
+
+// 定义查询响应消息类型
+message QueryResponse {
+  optional string hash = 1;
+  required string message = 2;
+};
+
+service CLIENTService {
+  // 定义RPC方法，用于插入数据
+  rpc InsertData(InsertRequest) returns (InsertResponse);
+
+  // 定义RPC方法，用于查询数据
+  rpc QueryData(QueryRequest) returns (QueryResponse);
+};

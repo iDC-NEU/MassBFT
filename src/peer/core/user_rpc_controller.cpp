@@ -65,4 +65,16 @@ namespace peer::core {
         }
         response->set_success(true);
     }
+
+    void UserRPCController::getTop(::google::protobuf::RpcController *,
+                                   const ::ycsb::client::proto::GetTopRequest *request,
+                                   ::ycsb::client::proto::GetTopResponse *response, ::google::protobuf::Closure *done) {
+        brpc::ClosureGuard guard(done);
+        response->set_success(false);
+        DLOG(INFO) << "pullBlock, chainId: " << request->chainid()  << ".";
+        auto blockId = _storage->getMaxStoredBlockNumber(request->chainid());
+        response->set_chainid(request->chainid());
+        response->set_blockid(blockId);
+        response->set_success(true);
+    }
 }

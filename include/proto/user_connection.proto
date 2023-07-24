@@ -24,9 +24,22 @@ message PullBlockResponse {
   optional bytes payload = 2;
 };
 
+message GetTopRequest {
+  required bytes ski = 1;
+  required int32 chainId = 2;
+};
+
+message GetTopResponse {
+  required bool success = 1;
+  required int32 chainId = 2;
+  required int32 blockId = 3;
+};
+
 service UserService {
   // Client test if the port is connectable
   rpc hello(HelloRequest) returns (HelloResponse);
   // Pull a block
   rpc pullBlock(PullBlockRequest) returns (PullBlockResponse);
+  // Get the current block chain head
+  rpc getTop(GetTopRequest) returns (GetTopResponse);
 };

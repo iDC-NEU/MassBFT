@@ -54,11 +54,16 @@ namespace peer::consensus {
 
         [[nodiscard]] auto getBlockDelivered() const { return _deliveredBlock; }
 
-        [[nodiscard]] bool isDeliveredBlockHeaderValid(proto::Block::Header& header) {
+        [[nodiscard]] bool isDeliveredBlockHeaderValid(const proto::Block::Header& header) {
             if (_deliveredBlock == nullptr) {
                 return true;    // 1st block
             }
-            if (_deliveredBlock->header.dataHash != header.previousHash ||
+            auto exceptPreviousHash = CalculatePreviousHash(_deliveredBlock->header);
+            if (exceptPreviousHash == std::nullopt) {
+                return false;
+            }
+
+            if (*exceptPreviousHash != header.previousHash ||
                 _deliveredBlock->header.number + 1 != header.number) {
                 LOG(ERROR) << "Expect number: " << _deliveredBlock->header.number + 1 << ", got: " << header.number;
                 LOG(ERROR) << "Expect prevHash: " << util::OpenSSLSHA256::toString(_deliveredBlock->header.dataHash)
@@ -75,8 +80,18 @@ namespace peer::consensus {
             if (_proposedLastBlock == nullptr) {
                 return;
             }
-            header.previousHash = _proposedLastBlock->header.dataHash;
+            header.previousHash = CalculatePreviousHash(_proposedLastBlock->header).value_or(proto::HashString{});
             header.number = _proposedLastBlock->header.number + 1;
+        }
+
+    protected:
+        inline static std::optional<proto::HashString> CalculatePreviousHash(const proto::Block::Header& header) {
+            std::string serializedBlockHeader;
+            serializedBlockHeader.reserve(128);
+            if (!header.serializeToString(&serializedBlockHeader, 0)) {
+                return std::nullopt;
+            }
+            return util::OpenSSLSHA256::generateDigest(serializedBlockHeader.data(), serializedBlockHeader.size());
         }
 
     private:

@@ -18,10 +18,12 @@ namespace proto {
     public:
         class Header {
         public:
+            // current block number
             BlockNumber number{};
-            // previous hash of ALL the user request
+            // previous block header hash
             HashString previousHash{};
-            // current user request hash
+            // current block body (user request) hash
+            // exclude the execution result
             HashString dataHash{};
 
         public:

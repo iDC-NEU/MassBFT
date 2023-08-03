@@ -40,13 +40,14 @@ namespace tests {
             b.metadata.validateSignatures.emplace_back("", sig3);
             b.metadata.validateSignatures.emplace_back("", sig4);
 
-            proto::SignatureString sig5 = {"ski", 5, {"sig4"}};
-            std::unique_ptr<proto::Envelop> env1(new proto::Envelop());
-            env1->setSignature(std::move(sig5));
-            std::string payload("payload for sig5");
-            env1->setPayload(std::move(payload));
-            b.body.userRequests.push_back(std::move(env1));
-
+            for (int i=0; i<10; i++) {
+                proto::SignatureString sig5 = {"ski", i, {"sig4"}};
+                std::unique_ptr<proto::Envelop> env1(new proto::Envelop());
+                env1->setSignature(std::move(sig5));
+                std::string payload("payload for sig5");
+                env1->setPayload(std::move(payload));
+                b.body.userRequests.push_back(std::move(env1));
+            }
             return realBlock;
         }
 

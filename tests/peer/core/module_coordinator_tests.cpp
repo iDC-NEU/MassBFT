@@ -3,7 +3,7 @@
 //
 
 #include "peer/core/module_coordinator.h"
-#include "peer/core/bootstrap.h"
+#include "peer/core/module_factory.h"
 
 #include "common/bccsp.h"
 #include "common/crypto.h"

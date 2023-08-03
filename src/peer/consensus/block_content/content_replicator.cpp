@@ -4,6 +4,7 @@
 
 #include "peer/consensus/block_content/content_replicator.h"
 #include "peer/consensus/block_content/pbft_block_cache.h"
+#include "common/proof_generator.h"
 
 namespace peer::consensus {
 
@@ -76,7 +77,7 @@ namespace peer::consensus {
         _sender = std::make_unique<ContentSender>(targetNodes, localId);
         _receiver = std::make_unique<ContentReceiver>(targetNodes[localId]->port);
         _receiver->setCallback([this](auto&& raw){ this->validateUnorderedBlock(std::forward<decltype(raw)>(raw)); });
-        _blockCache = std::unique_ptr<PBFTBlockCache>(new PBFTBlockCache());
+        _blockCache = std::make_unique<PBFTBlockCache>();
     }
 
     ContentReplicator::~ContentReplicator() = default;
@@ -89,16 +90,30 @@ namespace peer::consensus {
     bool ContentReplicator::pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>> &&batch, bool skipValidate) {
         std::shared_ptr<::proto::Block> block(new proto::Block);
         block->body.userRequests = std::move(batch);
-        if (skipValidate) {
-            auto rawBlock = std::make_unique<std::string>();
-            auto pos = block->serializeToString(rawBlock.get());
-            auto ret = util::OpenSSLSHA256::generateDigest(rawBlock->data() + pos.bodyPos, pos.execResultPos - pos.bodyPos);
-            if (ret == std::nullopt) {
-                LOG(WARNING) << "Signature generate failed.";
+        auto updateDataHashAndSerializeBlock = [&]() -> bool {
+            // generate merkle root
+            util::ProofGenerator pg(block->body);
+            auto mt = pg.generateMerkleTree(pmt::ModeType::ModeTreeBuild);
+            if (mt == nullptr) {
+                LOG(WARNING) << "Generate merkle tree failed.";
                 return false;
             }
-            block->header.dataHash = *ret;
+            block->header.dataHash = mt->getRoot();
+            // generate serialized block
+            std::string rawBlock;
+            auto pos = block->serializeToString(&rawBlock);
+            if (!pos.valid) {
+                LOG(WARNING) << "Serialize block failed.";
+                return false;
+            }
             block->setSerializedMessage(std::move(rawBlock));
+            return true;
+        };
+
+        if (skipValidate) {
+            if (!updateDataHashAndSerializeBlock()) {
+                return false;
+            }
             if (!_requestBatchQueue.enqueue(std::move(block))) {
                 CHECK(false) << "Queue max size achieve!";
             }
@@ -121,16 +136,14 @@ namespace peer::consensus {
             });
         }
         // main thread generate data hash
-        auto rawBlock = std::make_unique<std::string>();
-        auto pos = block->serializeToString(rawBlock.get());
-        auto ret = util::OpenSSLSHA256::generateDigest(rawBlock->data() + pos.bodyPos, pos.execResultPos - pos.bodyPos);
+        if (!updateDataHashAndSerializeBlock()) {
+            success = false;
+        }
         countdown.wait();
-        if (!success || ret == std::nullopt) {
-            LOG(WARNING) << "Signature generate failed.";
+        if (!success) {
+            LOG(WARNING) << "Validate block failed.";
             return false;
         }
-        block->header.dataHash = *ret;
-        block->setSerializedMessage(std::move(rawBlock));
         // Block number and previous data hash are set in OnRequestProposal as leader
         if (!_requestBatchQueue.enqueue(std::move(block))) {
             CHECK(false) << "Queue max size achieve!";
@@ -160,11 +173,21 @@ namespace peer::consensus {
                 countdown.signal();
             });
         }
-        // main thread calculate data hash
-        auto rawBlock = block->getSerializedMessage();
-        auto digest = util::OpenSSLSHA256::generateDigest(rawBlock->data()+pos.bodyPos, pos.execResultPos-pos.bodyPos);
+        // main thread validate merkle root
+        util::ProofGenerator pg(block->body);
+        auto mt = pg.generateMerkleTree(pmt::ModeType::ModeTreeBuild);
+        if (success && mt == nullptr) {
+            LOG(WARNING) << "Generate merkle tree failed.";
+            success = false;
+        }
+        if (success && block->header.dataHash != mt->getRoot()) {
+            LOG(WARNING) << "Validate merkle tree failed"
+                         << ", expect: " << util::OpenSSLSHA256 ::toString(block->header.dataHash)
+                         << ", got: " << util::OpenSSLSHA256 ::toString(mt->getRoot());
+            success = false;
+        }
         countdown.wait();
-        if (!success || digest != block->header.dataHash) {
+        if (!success) {
             LOG(WARNING) << "Signature validate failed.";
             return;
         }
@@ -245,7 +268,7 @@ namespace peer::consensus {
             return std::nullopt;
         }
         std::shared_ptr<::proto::Block> block;
-        while (!_requestBatchQueue.wait_dequeue_timed(block,  std::chrono::seconds(5))) {
+        while (!_requestBatchQueue.wait_dequeue_timed(block, std::chrono::seconds(5))) {
             if (!_running) {
                 LOG(INFO) << "The rpc instance is not running, return.";
                 return std::nullopt;

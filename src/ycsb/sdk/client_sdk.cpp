@@ -164,8 +164,18 @@ namespace ycsb::sdk {
     }
 
     int ClientSDK::getChainHeight(int chainId, int timeoutMs) const {
-        CHECK(false);
-        return 0;
+        // We will receive response synchronously, safe to put variables on stack.
+        client::proto::GetTopRequest request;
+        request.set_ski(_impl->_targetLocalNode->ski);
+        request.set_chainid(chainId);
+        client::proto::GetTopResponse response;
+        brpc::Controller ctl;
+        ctl.set_timeout_ms(timeoutMs);
+        _impl->_receiveStub->getTop(&ctl, &request, &response, nullptr);
+        if (!ctl.Failed() && response.success()) {
+            return response.blockid();
+        }
+        return -1;
     }
 
     std::unique_ptr<BlockHeaderProof> ClientSDK::getBlockHeader(int chainId, int blockId, int timeoutMs) const {

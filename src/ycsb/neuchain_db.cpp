@@ -134,9 +134,9 @@ ycsb::core::Status ycsb::client::NeuChainDB::sendInvokeRequest(const std::string
     std::string data;
     zpp::bits::out out(data);
     UserRequestLikeStruct u {
-        InvokeRequestType::YCSB,
-        funcName,
-        args
+            InvokeRequestType::YCSB,
+            funcName,
+            args
     };
     if (failure(::proto::UserRequest::serialize(out, u))) {
         return core::ERROR;
@@ -222,9 +222,9 @@ std::unique_ptr<proto::Block> ycsb::client::NeuChainStatus::getBlock(int blockNu
     return block;
 }
 
-bool ycsb::client::NeuChainStatus::connect() {
-    // Send a request and wait for the response every 1 second.
-    for (int i=0; i<100; i++) {
+bool ycsb::client::NeuChainStatus::connect(int retryCount, int retryTimeoutMs) {
+    // Send a request and wait for the response every retryTimeoutMs second.
+    for (int i=0; i<retryCount; i++) {
         // We will receive response synchronously, safe to put variables on stack.
         proto::HelloRequest request;
         request.set_ski(_serverConfig->ski);
@@ -235,7 +235,27 @@ bool ycsb::client::NeuChainStatus::connect() {
             DLOG(INFO) << "Connected: " << response.payload();
             return true;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(retryTimeoutMs));
+    }
+    return false;
+}
+
+bool ycsb::client::NeuChainStatus::getTop(int& blockNumber, int retryCount, int retryTimeoutMs) {
+    // Get the current maximum block height
+    for (int i=0; i<retryCount; i++) {
+        // We will receive response synchronously, safe to put variables on stack.
+        proto::GetTopRequest request;
+        request.set_ski(_serverConfig->ski);
+        request.set_chainid(_serverConfig->groupId);
+        proto::GetTopResponse response;
+        brpc::Controller ctl;
+        _stub->getTop(&ctl, &request, &response, nullptr);
+        if (!ctl.Failed() && response.success()) {
+            DLOG(INFO) << "Start from block: " << response.blockid();
+            blockNumber = response.blockid();
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(retryTimeoutMs));
     }
     return false;
 }

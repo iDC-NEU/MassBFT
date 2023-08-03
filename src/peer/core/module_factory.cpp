@@ -2,7 +2,7 @@
 // Created by user on 23-5-8.
 //
 
-#include "peer/core/bootstrap.h"
+#include "peer/core/module_factory.h"
 #include "peer/core/single_pbft_controller.h"
 #include "peer/replicator/replicator.h"
 #include "peer/consensus/block_order/global_ordering.h"

@@ -51,6 +51,10 @@ namespace ycsb::core {
         virtual ~DBStatus();
 
         virtual std::unique_ptr<proto::Block> getBlock(int blockNumber) = 0;
+
+        virtual bool connect(int retryCount, int retryTimeoutMs) = 0;
+
+        virtual bool getTop(int& blockNumber, int retryCount, int retryTimeoutMs) = 0;
     };
 
     class DBFactory {

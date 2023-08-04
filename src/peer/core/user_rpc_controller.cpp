@@ -111,8 +111,10 @@ namespace peer::core {
             if (envelop == nullptr) {
                 continue;
             }
+            response->set_chainid(regionId);
+            response->set_blockid((int)block->header.number);
             // generate request proof
-            if (request->requestproof()) {
+            {
                 if (!envelop->serializeToString(response->mutable_envelop())) {
                     LOG(ERROR) << "Serialize envelop failed!";
                     return;
@@ -120,6 +122,10 @@ namespace peer::core {
                 // build the merkle tree
                 auto pg = std::make_unique<util::ProofGenerator>(block->body);
                 auto mt = pg->generateMerkleTree();
+                if (mt == nullptr) {
+                    LOG(ERROR) << "merkleTree generation failed!";
+                    return;
+                }
                 auto ret = util::ProofGenerator::GenerateProof(*mt, *response->mutable_envelop());
                 if (ret == std::nullopt) {
                     LOG(ERROR) << "GenerateProof failed!";
@@ -130,8 +136,9 @@ namespace peer::core {
                     return;
                 }
             }
+            response->set_success(true);
             // generate response proof
-            if (request->responseproof()) {
+            {
                 auto rwSet = block->executeResult.findRWSet(request->txid());
                 if (rwSet == nullptr) {
                     LOG(ERROR) << "Corresponding RWSets not found!";
@@ -141,28 +148,23 @@ namespace peer::core {
                 if (failure(out(*rwSet))) {
                     return;
                 }
-                if (request->responseproof()) {
-                    // build the merkle tree
-                    auto pg = std::make_unique<util::ProofGenerator>(block->executeResult);
-                    auto mt = pg->generateMerkleTree();
-                    auto ret = util::ProofGenerator::GenerateProof(*mt, *response->mutable_rwset());
-                    if (ret == std::nullopt) {
-                        LOG(ERROR) << "GenerateProof failed!";
-                        return;
-                    }
-                    if (!util::serializeToString(*ret, *response->mutable_rwsetproof())) {
-                        LOG(ERROR) << "SerializeProof failed!";
-                        return;
-                    }
+                // build the merkle tree
+                auto pg = std::make_unique<util::ProofGenerator>(block->executeResult);
+                auto mt = pg->generateMerkleTree();
+                if (mt == nullptr) {
+                    LOG(ERROR) << "merkleTree generation failed!";
+                    return;
+                }
+                auto ret = util::ProofGenerator::GenerateProof(*mt, *response->mutable_rwset());
+                if (ret == std::nullopt) {
+                    LOG(ERROR) << "GenerateProof failed!";
+                    return;
+                }
+                if (!util::serializeToString(*ret, *response->mutable_rwsetproof())) {
+                    LOG(ERROR) << "SerializeProof failed!";
+                    return;
                 }
             }
-            if (!request->requirerequest()) {
-                response->mutable_envelop()->clear();
-            }
-            if (!request->requireresponse()) {
-                response->mutable_rwset()->clear();
-            }
-            response->set_success(true);
             return;
         }
     }

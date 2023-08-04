@@ -39,10 +39,7 @@ message GetTxRequest {
   required int32 chainIdHint = 1;
   required int32 blockIdHint = 2;
   required bytes txId = 3;
-  required bool requireRequest = 4;
-  required bool requireResponse = 5;
-  required bool requestProof = 6;
-  required bool responseProof = 7;
+  optional int32 timeoutMs = 4;
 };
 
 message GetTxResponse {
@@ -51,8 +48,8 @@ message GetTxResponse {
   required int32 blockId = 3;
   required bytes envelop = 4;
   required bytes envelopProof = 5;
-  required bytes rwSet = 6;
-  required bytes rwSetProof = 7;
+  optional bytes rwSet = 6;
+  optional bytes rwSetProof = 7;
 };
 
 service UserService {

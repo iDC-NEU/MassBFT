@@ -12,7 +12,7 @@ protected:
     void SetUp() override {
         tests::MockPropertyGenerator::GenerateDefaultProperties(1, 3);
         tests::MockPropertyGenerator::SetLocalId(0, 0);
-        util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 1);
+        util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 2);
         ycsb::sdk::ClientSDK::InitSDKDependencies();
     };
 
@@ -30,10 +30,14 @@ TEST_F(ClientSDKTest, BasicTest) {
     // wait until server ready
     std::this_thread::sleep_for(std::chrono::seconds(1));
     ASSERT_TRUE(receiver->getChainHeight(0, 100) == -1);
-    auto ret = sender->invokeChaincode("ycsb", "w", "args");
-    ASSERT_TRUE(ret);
+    auto ret1 = sender->invokeChaincode("ycsb", "w", "args1");
+    ASSERT_TRUE(ret1);
+    auto ret2 = sender->invokeChaincode("ycsb", "w", "args2");
+    ASSERT_TRUE(ret2);
     auto block = receiver->getBlock(0, 0, 1000);
     ASSERT_TRUE(block);
-    ASSERT_TRUE(block->body.userRequests.size() == 1);
+    ASSERT_TRUE(block->body.userRequests.size() == 2);
     ASSERT_TRUE(receiver->getChainHeight(0, 100) == 0);
+    auto ret3 = receiver->getTransaction(block->body.userRequests[0]->getSignature().digest, 0, 0, 1000);
+    ASSERT_TRUE(ret3);
 }

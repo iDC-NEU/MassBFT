@@ -6,6 +6,7 @@
 #include "ycsb/neuchain_dbc.h"
 #include "common/crypto.h"
 #include "common/property.h"
+#include "common/proof_generator.h"
 #include "common/zmq_port_util.h"
 #include "common/bccsp.h"
 #include "common/yaml_key_storage.h"
@@ -188,9 +189,67 @@ namespace ycsb::sdk {
         return nullptr;
     }
 
-    std::unique_ptr<TxMerkleProof> ClientSDK::getTransaction(const proto::DigestString &txId, int timeoutMs) const {
-        CHECK(false);
-        return nullptr;
+    std::unique_ptr<TxMerkleProof> ClientSDK::getTransaction(const proto::DigestString &txId,
+                                                             int chainIdHint,
+                                                             int blockIdHint,
+                                                             int timeoutMs) const {
+        client::proto::GetTxRequest request;
+        request.set_chainidhint(chainIdHint);
+        request.set_blockidhint(blockIdHint);
+        request.set_txid(txId.data(), txId.size());
+        request.set_timeoutms(timeoutMs);
+        client::proto::GetTxResponse response;
+        brpc::Controller ctl;
+        ctl.set_timeout_ms(timeoutMs);
+        _impl->_receiveStub->getTxWithProof(&ctl, &request, &response, nullptr);
+        if (ctl.Failed()) {
+            return nullptr;
+        }
+        if (!response.success()) {
+            LOG(ERROR) << "Failed to get transaction.";
+            return nullptr;
+        }
+        // --- set envelop
+        auto respWithProof = std::make_unique<TxMerkleProof>();
+        if (!deserializeFromString(response.envelopproof(), respWithProof->envelopProof)) {
+            return nullptr;
+        }
+        auto envelop = std::make_unique<proto::Envelop>();
+        envelop->setSerializedMessage(std::move(*response.mutable_envelop()));
+        if (!envelop->deserializeFromString()) {
+            return nullptr;
+        }
+        respWithProof->envelop = std::move(envelop);
+        // ---set rw set.
+        if (response.has_rwsetproof() && !deserializeFromString(response.rwsetproof(), respWithProof->rwSetProof)) {
+            return nullptr;
+        }
+        if (response.has_rwset()) {
+            auto rwSet = std::make_unique<proto::TxReadWriteSet>();
+            zpp::bits::in in(response.rwset());
+            if (failure(in(*rwSet))) {
+                return nullptr;
+            }
+            respWithProof->rwSet = std::move(rwSet);
+        }
+        return respWithProof;
     }
+
+    bool deserializeFromString(const std::string &raw, ProofLikeStruct &ret, int startPos) {
+        zpp::bits::in in(raw);
+        in.reset(startPos);
+        int64_t proofSize;
+        if (failure(in(ret.Path, proofSize))) {
+            return false;
+        }
+        ret.Siblings.resize(proofSize);
+        for (int i=0; i<(int)proofSize; i++) {
+            if(failure(in(ret.Siblings[i]))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }
 

@@ -59,6 +59,15 @@ namespace util {
             return mt.GenerateProof(mdb);
         }
 
+        static bool ValidateProof(const proto::HashString &root, const pmt::Proof& proof, const std::string& dataBlock) {
+            UserRequestDataBlock mdb(dataBlock);
+            auto ret = pmt::MerkleTree::Verify(mdb, proof, root);
+            if (ret == std::nullopt || !*ret) {
+                return false;
+            }
+            return true;
+        }
+
     private:
         std::vector<int> posList;
         std::string serializedBody;

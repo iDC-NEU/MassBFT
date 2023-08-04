@@ -67,6 +67,8 @@ namespace ycsb::sdk {
 
         [[nodiscard]] virtual std::unique_ptr<proto::Block> getBlock(int chainId, int blockId, int timeoutMs) const = 0;
 
+        static bool ValidateMerkleProof(const proto::HashString &root, const ProofLikeStruct& proof, const std::string& dataBlock);
+
     protected:
         ReceiveInterface() = default;
     };

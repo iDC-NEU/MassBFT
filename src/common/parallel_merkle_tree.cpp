@@ -322,26 +322,24 @@ namespace pmt {
     }
 
     std::optional<bool> MerkleTree::Verify(const DataBlock &dataBlock, const Proof &proof, const HashString &root) {
-        auto ret2 = Config::HashFunc(dataBlock.Serialize());
-        if (!ret2) {
+        auto hash = Config::HashFunc(dataBlock.Serialize());
+        if (!hash) {
             LOG(ERROR) << "Call hash func error";
             return std::nullopt;
         }
-        auto hash(*ret2);
         auto path = proof.Path;
         for (const auto &n: proof.Siblings) {
             if ((path & 1) == 1) {  // hash leaf 1 before leaf 0
-                ret2 = Config::HashFunc(hash, *n);
+                hash = Config::HashFunc(*hash, *n);
             } else {
-                ret2 = Config::HashFunc(*n, hash);
+                hash = Config::HashFunc(*n, *hash);
             }
-            if (!ret2) {
+            if (!hash) {
                 return std::nullopt;
             }
-            hash = *ret2;
             path >>= 1;
         }
-        return hash == root;
+        return *hash == root;
     }
 
     std::optional<Proof> MerkleTree::GenerateProof(const DataBlock &dataBlock) const {

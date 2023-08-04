@@ -165,7 +165,7 @@ namespace proto {
             return true;
         }
 
-        bool serializeToString(std::string *buf, int pos = 0) {
+        bool serializeToString(std::string *buf, int pos = 0) const {
             zpp::bits::out out(*buf);
             out.reset(pos);
             if(failure(out(*this))) {

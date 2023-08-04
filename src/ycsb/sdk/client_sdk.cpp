@@ -6,6 +6,7 @@
 #include "ycsb/neuchain_dbc.h"
 #include "common/crypto.h"
 #include "common/property.h"
+#include "common/proof_generator.h"
 #include "common/zmq_port_util.h"
 #include "common/bccsp.h"
 #include "common/yaml_key_storage.h"
@@ -164,8 +165,18 @@ namespace ycsb::sdk {
     }
 
     int ClientSDK::getChainHeight(int chainId, int timeoutMs) const {
-        CHECK(false);
-        return 0;
+        // We will receive response synchronously, safe to put variables on stack.
+        client::proto::GetTopRequest request;
+        request.set_ski(_impl->_targetLocalNode->ski);
+        request.set_chainid(chainId);
+        client::proto::GetTopResponse response;
+        brpc::Controller ctl;
+        ctl.set_timeout_ms(timeoutMs);
+        _impl->_receiveStub->getTop(&ctl, &request, &response, nullptr);
+        if (!ctl.Failed() && response.success()) {
+            return response.blockid();
+        }
+        return -1;
     }
 
     std::unique_ptr<BlockHeaderProof> ClientSDK::getBlockHeader(int chainId, int blockId, int timeoutMs) const {
@@ -178,9 +189,76 @@ namespace ycsb::sdk {
         return nullptr;
     }
 
-    std::unique_ptr<TxMerkleProof> ClientSDK::getTransaction(const proto::DigestString &txId, int timeoutMs) const {
-        CHECK(false);
-        return nullptr;
+    std::unique_ptr<TxMerkleProof> ClientSDK::getTransaction(const proto::DigestString &txId,
+                                                             int chainIdHint,
+                                                             int blockIdHint,
+                                                             int timeoutMs) const {
+        client::proto::GetTxRequest request;
+        request.set_chainidhint(chainIdHint);
+        request.set_blockidhint(blockIdHint);
+        request.set_txid(txId.data(), txId.size());
+        request.set_timeoutms(timeoutMs);
+        client::proto::GetTxResponse response;
+        brpc::Controller ctl;
+        ctl.set_timeout_ms(timeoutMs);
+        _impl->_receiveStub->getTxWithProof(&ctl, &request, &response, nullptr);
+        if (ctl.Failed()) {
+            return nullptr;
+        }
+        if (!response.success()) {
+            LOG(ERROR) << "Failed to get transaction.";
+            return nullptr;
+        }
+        // --- set envelop
+        auto respWithProof = std::make_unique<TxMerkleProof>();
+        if (!deserializeFromString(response.envelopproof(), respWithProof->envelopProof)) {
+            return nullptr;
+        }
+        auto envelop = std::make_unique<proto::Envelop>();
+        envelop->setSerializedMessage(std::move(*response.mutable_envelop()));
+        if (!envelop->deserializeFromString()) {
+            return nullptr;
+        }
+        respWithProof->envelop = std::move(envelop);
+        // ---set rw set.
+        if (response.has_rwsetproof() && !deserializeFromString(response.rwsetproof(), respWithProof->rwSetProof)) {
+            return nullptr;
+        }
+        if (response.has_rwset()) {
+            auto rwSet = std::make_unique<proto::TxReadWriteSet>();
+            zpp::bits::in in(response.rwset());
+            if (failure(in(*rwSet))) {
+                return nullptr;
+            }
+            respWithProof->rwSet = std::move(rwSet);
+        }
+        return respWithProof;
+    }
+
+    bool deserializeFromString(const std::string &raw, ProofLikeStruct &ret, int startPos) {
+        zpp::bits::in in(raw);
+        in.reset(startPos);
+        int64_t proofSize;
+        if (failure(in(ret.Path, proofSize))) {
+            return false;
+        }
+        ret.Siblings.resize(proofSize);
+        for (int i=0; i<(int)proofSize; i++) {
+            if(failure(in(ret.Siblings[i]))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool ReceiveInterface::ValidateMerkleProof(const proto::HashString &root, const ProofLikeStruct &proof,
+                                               const std::string &dataBlock) {
+        pmt::Proof proofView;
+        for (const auto& it: proof.Siblings) {
+            proofView.Siblings.push_back(&it);
+        }
+        proofView.Path = proof.Path;
+        return util::ProofGenerator::ValidateProof(root, proofView, dataBlock);
     }
 }
 

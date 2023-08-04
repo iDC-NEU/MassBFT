@@ -22,6 +22,7 @@ namespace peer {
         class OrderACB;
     }
     class MRBlockStorage;
+    class BlockLRUCache;
     class Replicator;
 }
 
@@ -40,7 +41,7 @@ namespace peer::core {
 
         bool startReplicatorSender();
 
-        std::shared_ptr<::peer::MRBlockStorage> initUserRPCController();
+        std::shared_ptr<::peer::BlockLRUCache> initUserRPCController();
 
         std::pair<std::shared_ptr<::util::BCCSP>,
                 std::shared_ptr<::util::thread_pool_light>> getOrInitBCCSPAndThreadPool();

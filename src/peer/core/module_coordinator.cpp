@@ -3,7 +3,7 @@
 //
 
 #include "peer/core/module_coordinator.h"
-#include "peer/core/bootstrap.h"
+#include "peer/core/module_factory.h"
 #include "peer/core/single_pbft_controller.h"
 #include "peer/consensus/block_order/global_ordering.h"
 #include "peer/concurrency_control/deterministic/coordinator_impl.h"

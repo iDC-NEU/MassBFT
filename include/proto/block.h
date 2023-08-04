@@ -13,15 +13,21 @@ namespace proto {
 
     using BlockNumber = uint64_t;
 
+    template<class T>
+    inline int CompareDigest(const proto::DigestString& lhs, const T &rhs) {
+        return std::memcmp(lhs.data(), rhs.data(), lhs.size());
+    }
 
     class Block : public DeserializeStorage {
     public:
         class Header {
         public:
+            // current block number
             BlockNumber number{};
-            // previous hash of ALL the user request
+            // previous block header hash
             HashString previousHash{};
-            // current user request hash
+            // current block body (user request) hash
+            // exclude the execution result
             HashString dataHash{};
 
         public:
@@ -63,6 +69,30 @@ namespace proto {
             constexpr static auto serialize(auto &archive, Body &b) {
                 return archive(b.userRequests);
             }
+
+            [[nodiscard]] bool serializeForProofGen(std::vector<int>& posList, std::string& ret, int startPos = 0) const {
+                posList.resize(userRequests.size());
+                zpp::bits::out out(ret);
+                out.reset(startPos);
+                for (int i=0; i<(int)userRequests.size(); i++) {
+                    // serialize std::unique_ptr<Envelop>
+                    if(failure(out(*userRequests[i]))) {
+                        return false;
+                    }
+                    posList[i] = (int)out.position();
+                }
+                return true;
+            }
+
+            [[nodiscard]] Envelop* findEnvelop(const auto& digest) const {
+                for (auto& it: userRequests) {
+                    if (proto::CompareDigest(it->getSignature().digest, digest) != 0) {
+                        continue;
+                    }
+                    return it.get();
+                }
+                return nullptr;
+            }
         };
 
         class ExecuteResult {
@@ -77,6 +107,30 @@ namespace proto {
             constexpr static auto serialize(auto &archive, ExecuteResult &e) {
                 return archive(e.txReadWriteSet, e.transactionFilter);
             }
+
+            [[nodiscard]] bool serializeForProofGen(std::vector<int>& posList, std::string& ret, int startPos = 0) const {
+                posList.resize(txReadWriteSet.size());
+                zpp::bits::out out(ret);
+                out.reset(startPos);
+                for (int i=0; i<(int)txReadWriteSet.size(); i++) {
+                    // serialize std::unique_ptr<Envelop>
+                    if(failure(out(*txReadWriteSet[i], transactionFilter[i]))) {
+                        return false;
+                    }
+                    posList[i] = (int)out.position();
+                }
+                return true;
+            }
+
+            [[nodiscard]] TxReadWriteSet* findRWSet(const auto& digest) const {
+                for (auto& it: txReadWriteSet) {
+                    if (proto::CompareDigest(it->getRequestDigest(), digest) != 0) {
+                        continue;
+                    }
+                    return it.get();
+                }
+                return nullptr;
+            }
         };
 
         // std::string: the metadata to be signed (may leave empty)
@@ -85,9 +139,9 @@ namespace proto {
 
         class Metadata {
         public:
-            // when a peer validated a block(before execution), it adds its signature of the HEADER+BODY to signatures.
+            // when a peer received a block after BFT consensus, it adds the results to signatures.
             std::vector<SignaturePair> consensusSignatures;
-            // when a peer validated a block(after execution), it adds its signature of the (HEADER+BODY+ExecuteResult) to signatures.
+            // when a peer executed a block, it adds its signature of the (HEADER+ExecuteResult) to signatures.
             std::vector<SignaturePair> validateSignatures;
         public:
             friend zpp::bits::access;

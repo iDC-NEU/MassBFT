@@ -13,6 +13,10 @@ namespace proto {
 
     using BlockNumber = uint64_t;
 
+    template<class T>
+    inline int CompareDigest(const proto::DigestString& lhs, const T &rhs) {
+        return std::memcmp(lhs.data(), rhs.data(), lhs.size());
+    }
 
     class Block : public DeserializeStorage {
     public:
@@ -72,12 +76,22 @@ namespace proto {
                 out.reset(startPos);
                 for (int i=0; i<(int)userRequests.size(); i++) {
                     // serialize std::unique_ptr<Envelop>
-                    if(failure(out(userRequests[i]))) {
+                    if(failure(out(*userRequests[i]))) {
                         return false;
                     }
                     posList[i] = (int)out.position();
                 }
                 return true;
+            }
+
+            [[nodiscard]] Envelop* findEnvelop(const auto& digest) const {
+                for (auto& it: userRequests) {
+                    if (proto::CompareDigest(it->getSignature().digest, digest) != 0) {
+                        continue;
+                    }
+                    return it.get();
+                }
+                return nullptr;
             }
         };
 
@@ -100,12 +114,22 @@ namespace proto {
                 out.reset(startPos);
                 for (int i=0; i<(int)txReadWriteSet.size(); i++) {
                     // serialize std::unique_ptr<Envelop>
-                    if(failure(out(txReadWriteSet[i], transactionFilter[i]))) {
+                    if(failure(out(*txReadWriteSet[i], transactionFilter[i]))) {
                         return false;
                     }
                     posList[i] = (int)out.position();
                 }
                 return true;
+            }
+
+            [[nodiscard]] TxReadWriteSet* findRWSet(const auto& digest) const {
+                for (auto& it: txReadWriteSet) {
+                    if (proto::CompareDigest(it->getRequestDigest(), digest) != 0) {
+                        continue;
+                    }
+                    return it.get();
+                }
+                return nullptr;
             }
         };
 

@@ -29,11 +29,9 @@ TEST_F(ClientSDKTest, BasicTest) {
     ycsb::sdk::ReceiveInterface* receiver = clientSDK.get();
     // wait until server ready
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    ASSERT_TRUE(receiver->getChainHeight(0, 100) == -1);
     auto ret = sender->invokeChaincode("ycsb", "w", "args");
     ASSERT_TRUE(ret);
     auto block = receiver->getBlock(0, 0, 1000);
     ASSERT_TRUE(block);
     ASSERT_TRUE(block->body.userRequests.size() == 1);
-    ASSERT_TRUE(receiver->getChainHeight(0, 100) == 0);
 }

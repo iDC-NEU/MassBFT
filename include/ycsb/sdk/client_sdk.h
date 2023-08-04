@@ -44,8 +44,7 @@ namespace ycsb::sdk {
     public:
         virtual ~ReceiveInterface() = default;
 
-        // block id start from 0
-        // if return -1, the entire chain is empty
+        // return -1 on error
         [[nodiscard]] virtual int getChainHeight(int chainId, int timeoutMs) const = 0;
 
         [[nodiscard]] virtual std::unique_ptr<BlockHeaderProof> getBlockHeader(int chainId, int blockId, int timeoutMs) const = 0;

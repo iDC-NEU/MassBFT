@@ -113,6 +113,16 @@ namespace ca {
             if (!_session->executeCommand(builder)) {
                 LOG(WARNING) << "Kill bft instance failed!";
             }
+            builder = {
+                    "cd",
+                    _runningPath / "config",
+                    "&&",
+                    "rm",
+                    "hosts_" + std::to_string(_processId) + ".config",
+            };
+            if (!_session->executeCommand(builder)) {
+                LOG(WARNING) << "Clear bft config failed!";
+            }
         }
 
         std::optional<bool> isInstanceReady(int timeoutMs) {

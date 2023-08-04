@@ -206,12 +206,12 @@ namespace peer::core {
         return _replicator->startSender(initialBlockHeight);
     }
 
-    std::shared_ptr<::peer::MRBlockStorage> ModuleFactory::initUserRPCController() {
+    std::shared_ptr<::peer::BlockLRUCache> ModuleFactory::initUserRPCController() {
         auto gc = _properties->getNodeProperties().getGroupCount();
         if (gc <= 0) {
             return nullptr;
         }
-        std::shared_ptr<::peer::MRBlockStorage> storage = std::make_shared<peer::MRBlockStorage>(gc);
+        auto storage = std::make_shared<peer::BlockLRUCache>(gc);
 
         auto portMap = getOrInitZMQPortUtilMap();
         auto np = _properties->getNodeProperties();

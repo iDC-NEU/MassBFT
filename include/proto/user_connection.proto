@@ -35,6 +35,23 @@ message GetTopResponse {
   required int32 blockId = 3;
 };
 
+message GetTxRequest {
+  required int32 chainIdHint = 1;
+  required int32 blockIdHint = 2;
+  required bytes txId = 3;
+  optional int32 timeoutMs = 4;
+};
+
+message GetTxResponse {
+  required bool success = 1;
+  required int32 chainId = 2;
+  required int32 blockId = 3;
+  required bytes envelop = 4;
+  required bytes envelopProof = 5;
+  optional bytes rwSet = 6;
+  optional bytes rwSetProof = 7;
+};
+
 service UserService {
   // Client test if the port is connectable
   rpc hello(HelloRequest) returns (HelloResponse);
@@ -42,4 +59,6 @@ service UserService {
   rpc pullBlock(PullBlockRequest) returns (PullBlockResponse);
   // Get the current block chain head
   rpc getTop(GetTopRequest) returns (GetTopResponse);
+
+  rpc getTxWithProof(GetTxRequest) returns (GetTxResponse);
 };

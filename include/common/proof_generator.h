@@ -54,6 +54,11 @@ namespace util {
             return pmt::MerkleTree::New(pmtConfig, blocks, wp.get());
         }
 
+        static std::optional<pmt::Proof> GenerateProof(const pmt::MerkleTree& mt, const std::string& dataBlock) {
+            UserRequestDataBlock mdb(dataBlock);
+            return mt.GenerateProof(mdb);
+        }
+
     private:
         std::vector<int> posList;
         std::string serializedBody;
@@ -72,4 +77,8 @@ namespace util {
             std::string_view _userRequest;
         };
     };
+
+    bool serializeToString(const pmt::Proof& proof, std::string& ret, int startPos = 0);
+
+    bool deserializeFromString(const std::string& raw, pmt::Proof& ret, std::vector<pmt::HashString>& container, int startPos = 0);
 }

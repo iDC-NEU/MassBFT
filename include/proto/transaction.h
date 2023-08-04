@@ -15,7 +15,8 @@ namespace proto {
     // <0: left<right
     // =0; left=right
     // >0; left>right
-    inline int CompareTID(const proto::tid_type &lhs, const proto::tid_type &rhs) {
+    template<class T>
+    inline int CompareTID(const auto& lhs, const T &rhs) {
         return std::memcmp(lhs.data(), rhs.data(), lhs.size());
     }
 

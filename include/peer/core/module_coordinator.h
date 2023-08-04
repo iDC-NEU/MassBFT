@@ -17,6 +17,7 @@ namespace util {
 
 namespace peer {
     class MRBlockStorage;
+    class BlockLRUCache;
     namespace consensus::v2 {
         class BlockOrder;
     }
@@ -74,6 +75,6 @@ namespace peer::core {
         std::unique_ptr<peer::cc::CoordinatorImpl> _cc;
         util::AsyncSerialExecutor _serialExecutor;
         // for user rpc
-        std::shared_ptr<::peer::MRBlockStorage> _userRPCNotifier;
+        std::shared_ptr<::peer::BlockLRUCache> _userRPCNotifier;
     };
 }

@@ -8,13 +8,17 @@
 #include <memory>
 
 namespace peer {
-    class MRBlockStorage;
+    class BlockLRUCache;
 }
 
 namespace peer::core {
+    namespace inner {
+        struct ControllerImpl;
+    }
+
     class UserRPCController  : public ::ycsb::client::proto::UserService {
     public:
-        static bool NewRPCController(std::shared_ptr<peer::MRBlockStorage> storage, int rpcPort);
+        static bool NewRPCController(std::shared_ptr<peer::BlockLRUCache> storage, int rpcPort);
 
         ~UserRPCController() override;
 
@@ -40,8 +44,13 @@ namespace peer::core {
                        ::ycsb::client::proto::GetTopResponse* response,
                        ::google::protobuf::Closure* done) override;
 
+
+        void getTxWithProof(::google::protobuf::RpcController* controller,
+                            const ::ycsb::client::proto::GetTxRequest* request,
+                            ::ycsb::client::proto::GetTxResponse* response,
+                            ::google::protobuf::Closure* done) override;
+
     private:
-        int _rpcServerPort = -1;
-        std::shared_ptr<peer::MRBlockStorage> _storage;
+        std::unique_ptr<inner::ControllerImpl> _impl;
     };
 }

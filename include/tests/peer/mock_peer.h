@@ -23,7 +23,7 @@ namespace tests::peer {
             bccsp = std::make_unique<util::BCCSP>(std::make_unique<util::YAMLKeyStorage>(node));
             CHECK(bccsp) << "Can not init bccsp";
             // create storage
-            _blockStorage = std::make_shared<::peer::MRBlockStorage>(p.getNodeProperties().getGroupCount());
+            _blockStorage = std::make_shared<::peer::BlockLRUCache>(p.getNodeProperties().getGroupCount());
             auto portConfig = util::ZMQPortUtil::InitLocalPortsConfig(p);
             server = p.getNodeProperties().getLocalNodeInfo();
             rpcPort = portConfig->getLocalServicePorts(util::PortType::BFT_RPC)[server->nodeId];
@@ -40,6 +40,7 @@ namespace tests::peer {
             }
         }
 
+    protected:
         bool initDatabase() {
             _execResults.reserve(1000 * 1000);
             _dbc = ::peer::db::DBConnection::NewConnection("YCSBChaincodeTestDB");
@@ -58,6 +59,7 @@ namespace tests::peer {
             });
         }
 
+    public:
         ~Peer() {
             if (_subscriber) {
                 _tearDownSignal = true;
@@ -130,7 +132,7 @@ namespace tests::peer {
         std::unique_ptr<util::BCCSP> bccsp;
         int _blockSize = 0;
         bool _skipValidate;
-        std::shared_ptr<::peer::MRBlockStorage> _blockStorage;
+        std::shared_ptr<::peer::BlockLRUCache> _blockStorage;
         std::shared_ptr<util::ZMQInstance> _subscriber;
         std::unique_ptr<std::thread> _collectorThread;
         std::unique_ptr<::peer::db::DBConnection> _dbc;

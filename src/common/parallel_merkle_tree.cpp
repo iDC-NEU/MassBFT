@@ -349,12 +349,11 @@ namespace pmt {
             LOG(WARNING) << "merkle Tree is not in built, could not generate proof by this method";
             return std::nullopt;
         }
-        auto ret2 = Config::HashFunc(dataBlock.Serialize());
-        if (!ret2) {
+        auto blockHash = Config::HashFunc(dataBlock.Serialize());
+        if (!blockHash) {
             return std::nullopt;
         }
-        auto blockHash = *ret2;
-        auto swBlockHash = std::string(blockHash.begin(), blockHash.end());
+        auto swBlockHash = std::string(blockHash->begin(), blockHash->end());
         if (!leafMap.contains(swBlockHash)) {
             LOG(WARNING) << "data block is not a member of the Merkle Tree";
             return std::nullopt;
@@ -371,7 +370,7 @@ namespace pmt {
             }
             idx >>= 1;
         }
-        return Proof{
+        return Proof {
                 .Siblings = std::move(siblings),
                 .Path = path,
         };

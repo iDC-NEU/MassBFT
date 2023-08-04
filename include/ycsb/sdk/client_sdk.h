@@ -21,13 +21,20 @@ namespace ycsb::sdk {
         proto::Block::Metadata metadata;
     };
 
+    struct ProofLikeStruct {
+        std::vector<util::OpenSSLSHA256::digestType> Siblings{};
+        uint32_t Path{};
+    };
+
+    bool deserializeFromString(const std::string& raw, ProofLikeStruct& ret, int startPos = 0);
+
     struct TxMerkleProof {
         std::unique_ptr<proto::Envelop> envelop;
         std::unique_ptr<proto::TxReadWriteSet> rwSet;
         // validate if the tx is in the block
-        std::string envelopProof;
+        ProofLikeStruct envelopProof;
         // validate if the execResult is in the block
-        std::string rwSetProof;
+        ProofLikeStruct rwSetProof;
     };
 
     class SendInterface {
@@ -53,7 +60,10 @@ namespace ycsb::sdk {
         [[nodiscard]] virtual std::unique_ptr<TxMerkleProof> getTxWithProof(const proto::DigestString& txId, int timeoutMs) const = 0;
 
         // envelopProof and rwSetProof leaves empty
-        [[nodiscard]] virtual std::unique_ptr<TxMerkleProof> getTransaction(const proto::DigestString& txId, int timeoutMs) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<TxMerkleProof> getTransaction(const proto::DigestString &txId,
+                                                                            int chainIdHint,
+                                                                            int blockIdHint,
+                                                                            int timeoutMs) const = 0;
 
         [[nodiscard]] virtual std::unique_ptr<proto::Block> getBlock(int chainId, int blockId, int timeoutMs) const = 0;
 
@@ -80,7 +90,10 @@ namespace ycsb::sdk {
 
         [[nodiscard]] std::unique_ptr<TxMerkleProof> getTxWithProof(const proto::DigestString& txId, int timeoutMs) const override;
 
-        [[nodiscard]] std::unique_ptr<TxMerkleProof> getTransaction(const proto::DigestString& txId, int timeoutMs) const override;
+        [[nodiscard]] std::unique_ptr<TxMerkleProof> getTransaction(const proto::DigestString &txId,
+                                                                    int chainIdHint,
+                                                                    int blockIdHint,
+                                                                    int timeoutMs) const override;
 
         [[nodiscard]] std::unique_ptr<proto::Block> getBlock(int chainId, int blockId, int timeoutMs) const override;
 

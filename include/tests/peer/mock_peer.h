@@ -121,6 +121,7 @@ namespace tests::peer {
                     CHECK(ret);
                 }
                 block->header.number = nextBlockId++;
+                block->header.dataHash = { "dataHash" };
                 _blockStorage->insertBlockAndNotify(server->groupId, std::move(block));
             }
         }

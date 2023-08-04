@@ -208,6 +208,8 @@ namespace peer::core {
         if (block == nullptr) {
             return;
         }
+        response->set_chainid(request->chainid());
+        response->set_blockid(block->header.number);
         zpp::bits::out hOut(*response->mutable_header());
         if (failure(hOut(block->header))) {
             return;

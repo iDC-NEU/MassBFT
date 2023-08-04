@@ -48,4 +48,6 @@ TEST_F(ClientSDKTest, BasicTest) {
     ASSERT_TRUE(receiver->ValidateMerkleProof(pg.generateMerkleTree()->getRoot(),
                                               ret4->envelopProof,
                                               *ret4->envelop->getSerializedMessage()));
+    auto header = receiver->getBlockHeader(0, 0, -1);
+    ASSERT_TRUE(header != nullptr && header->header.number == 0);
 }

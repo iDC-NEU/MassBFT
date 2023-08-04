@@ -58,15 +58,6 @@ CPMAddPackage(
         GIT_SHALLOW TRUE
 )
 
-CPMAddPackage(
-        NAME yaml-cpp
-        GITHUB_REPOSITORY jbeder/yaml-cpp
-        VERSION 0.7.0
-        GIT_TAG yaml-cpp-0.7.0
-        OPTIONS "YAML_CPP_FORMAT_SOURCE OFF"
-        GIT_SHALLOW TRUE
-)
-
 ### Gflags support
 find_package(gflags_install
         CONFIG
@@ -207,6 +198,13 @@ find_package(nljson_install
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
+### YAML support
+find_package(yaml-cpp_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/vendor/tools.cmake)
 ### compile protobuf
 file(GLOB PROTO_FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/proto/*.proto")
@@ -216,7 +214,7 @@ ADD_LIBRARY(${PROJECT_NAME}_proto ${PROTO_HDRS} ${PROTO_SRCS})
 
 find_library(gflags gflags PATHS ${PROJECT_BINARY_DIR}/lib)
 # NOTE: DO NOT LINK BRPC.SO AND BRAFT.SO TOGETHER
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ${PROJECT_NAME}_proto leveldb rocksdb ssh curve25519x64 nljson)
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ${PROJECT_NAME}_proto leveldb rocksdb ssh curve25519x64)
 
 include_directories(SYSTEM ${CMAKE_BINARY_DIR}/include)
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib)

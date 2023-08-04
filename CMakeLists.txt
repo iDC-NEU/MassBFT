@@ -58,15 +58,6 @@ CPMAddPackage(
         GIT_SHALLOW TRUE
 )
 
-CPMAddPackage(
-        NAME yaml-cpp
-        GITHUB_REPOSITORY jbeder/yaml-cpp
-        VERSION 0.7.0
-        GIT_TAG yaml-cpp-0.7.0
-        OPTIONS "YAML_CPP_FORMAT_SOURCE OFF"
-        GIT_SHALLOW TRUE
-)
-
 ### Gflags support
 find_package(gflags_install
         CONFIG
@@ -195,6 +186,20 @@ find_package(erasurecode_install
 
 ### Gtest support
 find_package(gtest_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+### Json support
+find_package(nljson_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
+### YAML support
+find_package(yaml-cpp_install
         CONFIG
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor

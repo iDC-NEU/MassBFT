@@ -8,13 +8,13 @@
 #include <memory>
 
 namespace peer {
-    class MRBlockStorage;
+    class BlockLRUCache;
 }
 
 namespace peer::core {
     class UserRPCController  : public ::ycsb::client::proto::UserService {
     public:
-        static bool NewRPCController(std::shared_ptr<peer::MRBlockStorage> storage, int rpcPort);
+        static bool NewRPCController(std::shared_ptr<peer::BlockLRUCache> storage, int rpcPort);
 
         ~UserRPCController() override;
 
@@ -42,6 +42,6 @@ namespace peer::core {
 
     private:
         int _rpcServerPort = -1;
-        std::shared_ptr<peer::MRBlockStorage> _storage;
+        std::shared_ptr<peer::BlockLRUCache> _storage;
     };
 }

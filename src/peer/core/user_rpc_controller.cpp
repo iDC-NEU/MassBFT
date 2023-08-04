@@ -7,7 +7,7 @@
 #include "common/meta_rpc_server.h"
 
 namespace peer::core {
-    bool peer::core::UserRPCController::NewRPCController(std::shared_ptr<peer::MRBlockStorage> storage, int rpcPort) {
+    bool peer::core::UserRPCController::NewRPCController(std::shared_ptr<peer::BlockLRUCache> storage, int rpcPort) {
         auto service = new UserRPCController();
         service->_storage = std::move(storage);
         service->_rpcServerPort = rpcPort;

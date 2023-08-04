@@ -40,4 +40,6 @@ TEST_F(ClientSDKTest, BasicTest) {
     ASSERT_TRUE(receiver->getChainHeight(0, 100) == 0);
     auto ret3 = receiver->getTransaction(block->body.userRequests[0]->getSignature().digest, 0, 0, 1000);
     ASSERT_TRUE(ret3);
+    auto ret4 = receiver->getTransaction(block->body.userRequests[0]->getSignature().digest, 0, 0, 1000);
+    ASSERT_TRUE(ret4);
 }

@@ -35,11 +35,6 @@ namespace peer::core {
                        ::ycsb::client::proto::PullBlockResponse* response,
                        ::google::protobuf::Closure* done) override;
 
-        void getTop(::google::protobuf::RpcController* controller,
-                       const ::ycsb::client::proto::GetTopRequest* request,
-                       ::ycsb::client::proto::GetTopResponse* response,
-                       ::google::protobuf::Closure* done) override;
-
     private:
         int _rpcServerPort = -1;
         std::shared_ptr<peer::MRBlockStorage> _storage;

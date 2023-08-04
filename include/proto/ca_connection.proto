@@ -1,0 +1,65 @@
+syntax = "proto2";
+
+package ca.proto;
+
+option java_package = "bftsmart.proto";
+
+option java_multiple_files = true;
+
+option cc_generic_services = true;
+
+message KeyECDSA {
+  required bytes public = 1;
+  optional bytes private = 2;
+}
+
+message NodeConfig {
+  required int32 localId = 1;
+  required int32 groupId = 2;
+  required bytes ski = 3;
+  required bytes privateIpAddr = 4;
+  optional bytes publicIpAddr = 5;
+  optional KeyECDSA key = 6;
+};
+
+message RegisterNodeRequest {
+  required int32 groupId = 1;
+  required bytes privateIpAddr = 2;
+  optional KeyECDSA key = 3;
+};
+
+message RegisterNodeResponse {
+  required NodeConfig localNodeConfig = 1;
+};
+
+message GetNodesRequest {
+  required bool withPublicKey = 1;
+  required bool withPrivateKey = 2;
+};
+
+message GetNodesResponse {
+  repeated NodeConfig nodes = 1;
+};
+
+message PBFTNodeConfig {
+  required int32 localId = 1;
+  required bytes privateIpAddr = 2;
+  required int32 serverToServerPort = 3;
+  required int32 serverToClientPort = 4;
+  optional KeyECDSA key = 5;
+};
+
+message PBFTGetNodesRequest {
+  required bool withPublicKey = 1;
+  required bool withPrivateKey = 2;
+};
+
+message PBFTGetNodesResponse {
+  repeated PBFTNodeConfig nodes = 1;
+};
+
+service CAService {
+  rpc registerNode(RegisterNodeRequest) returns (RegisterNodeResponse);
+  rpc getAllNodes(GetNodesRequest) returns (GetNodesResponse);
+  rpc getPBFTNodes(PBFTGetNodesRequest) returns (PBFTGetNodesResponse);
+};

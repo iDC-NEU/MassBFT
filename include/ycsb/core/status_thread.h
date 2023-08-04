@@ -39,7 +39,7 @@ namespace ycsb::core {
             size_t lastTimePending = 0;
             auto sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
             bool warmedUp = false;
-            auto warmedUpTime = std::chrono::system_clock::now() + std::chrono::seconds(5);
+            auto warmedUpTime = std::chrono::system_clock::now() + std::chrono::seconds(3);
 
             while(running.load(std::memory_order_relaxed)) {
                 if (!warmedUp && sleepUntil > warmedUpTime) {
@@ -75,13 +75,8 @@ namespace ycsb::core {
 
         void doMonitor() {
             pthread_setname_np(pthread_self(), "ycsb_monitor");
-            if (!dbStatus->getTop(blockHeight, 5, 1000)) {
-                LOG(WARNING) << "Failed to obtain block height, start from 0.";
-                blockHeight = 0;
-            }
-            blockHeight += 1;   // The next block.
             while(running.load(std::memory_order_relaxed)) {
-                std::unique_ptr<proto::Block> block = dbStatus->getBlock(blockHeight);
+                std::unique_ptr<proto::Block> block = dbStatus->getBlock((int)blockHeight);
                 if (block == nullptr) {
                     continue;
                 }
@@ -113,7 +108,7 @@ namespace ycsb::core {
         std::shared_ptr<Measurements> measurements;
         std::unique_ptr<DBStatus> dbStatus;
 
-        int blockHeight = 0;
+        uint64_t blockHeight = 0;
         uint64_t txCountCommit = 0;
         uint64_t txCountAbort = 0;
         uint64_t latencySum = 0;

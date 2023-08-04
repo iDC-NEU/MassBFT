@@ -76,11 +76,9 @@ namespace ycsb::client {
 
         ~NeuChainStatus() override;
 
+        bool connect();
+
         std::unique_ptr<::proto::Block> getBlock(int blockNumber) override;
-
-        bool connect(int retryCount, int retryTimeoutMs) override;
-
-        bool getTop(int& blockNumber, int retryCount, int retryTimeoutMs) override;
 
     private:
         std::unique_ptr<brpc::Channel> _channel;

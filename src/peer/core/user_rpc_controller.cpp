@@ -11,12 +11,49 @@
 
 namespace peer::core {
     namespace inner {
+        struct MTPair {
+            std::unique_ptr<util::ProofGenerator> pg;
+            std::shared_ptr<pmt::MerkleTree> mt;
+        };
+
         struct ControllerImpl {
-            int _rpcServerPort = -1;
             std::shared_ptr<peer::BlockLRUCache> _storage;
-            using MTPair = std::pair<std::unique_ptr<util::ProofGenerator>, std::shared_ptr<pmt::MerkleTree>>;
-            util::LRUCache<proto::HashString, MTPair, std::mutex> _blockBodyMerkleTree;
-            util::LRUCache<proto::HashString, MTPair, std::mutex> _executeResultMerkleTree;
+            util::LRUCache<proto::HashString, std::shared_ptr<MTPair>, std::mutex> _blockBodyMerkleTree;
+            util::LRUCache<proto::HashString, std::shared_ptr<MTPair>, std::mutex> _executeResultMerkleTree;
+
+            std::shared_ptr<MTPair> getOrGenerateBlockBodyMT(const proto::Block& block) {
+                std::shared_ptr<MTPair> ret = nullptr;
+                if (_blockBodyMerkleTree.tryGetCopy(block.header.dataHash, ret)) {
+                    return ret;
+                }
+                // build the merkle tree
+                ret = std::make_shared<MTPair>();
+                ret->pg = std::make_unique<util::ProofGenerator>(block.body);
+                ret->mt = ret->pg->generateMerkleTree();
+                if (ret->mt == nullptr) {
+                    LOG(ERROR) << "merkleTree generation failed!";
+                    return nullptr;
+                }
+                _blockBodyMerkleTree.insert(block.header.dataHash, ret);
+                return ret;
+            }
+
+            std::shared_ptr<MTPair> getOrGenerateExecResultMT(const proto::Block& block) {
+                std::shared_ptr<MTPair> ret = nullptr;
+                if (_executeResultMerkleTree.tryGetCopy(block.header.dataHash, ret)) {
+                    return ret;
+                }
+                // build the merkle tree
+                ret = std::make_shared<MTPair>();
+                ret->pg = std::make_unique<util::ProofGenerator>(block.executeResult);
+                ret->mt = ret->pg->generateMerkleTree();
+                if (ret->mt == nullptr) {
+                    LOG(ERROR) << "merkleTree generation failed!";
+                    return nullptr;
+                }
+                _executeResultMerkleTree.insert(block.header.dataHash, ret);
+                return ret;
+            }
         };
     }
 
@@ -24,7 +61,6 @@ namespace peer::core {
         auto service = new UserRPCController();
         service->_impl = std::make_unique<inner::ControllerImpl>();
         service->_impl->_storage = std::move(storage);
-        service->_impl->_rpcServerPort = rpcPort;
         if (util::DefaultRpcServer::AddService(service, rpcPort) != 0) {
             LOG(ERROR) << "Fail to add globalControlService!";
             return false;
@@ -119,19 +155,13 @@ namespace peer::core {
                     LOG(ERROR) << "Serialize envelop failed!";
                     return;
                 }
-                // build the merkle tree
-                auto pg = std::make_unique<util::ProofGenerator>(block->body);
-                auto mt = pg->generateMerkleTree();
-                if (mt == nullptr) {
-                    LOG(ERROR) << "merkleTree generation failed!";
-                    return;
-                }
-                auto ret = util::ProofGenerator::GenerateProof(*mt, *response->mutable_envelop());
-                if (ret == std::nullopt) {
+                auto ret = _impl->getOrGenerateBlockBodyMT(*block);
+                auto proof = util::ProofGenerator::GenerateProof(*ret->mt, *response->mutable_envelop());
+                if (proof == std::nullopt) {
                     LOG(ERROR) << "GenerateProof failed!";
                     return;
                 }
-                if (!util::serializeToString(*ret, *response->mutable_envelopproof())) {
+                if (!util::serializeToString(*proof, *response->mutable_envelopproof())) {
                     LOG(ERROR) << "SerializeProof failed!";
                     return;
                 }
@@ -148,19 +178,13 @@ namespace peer::core {
                 if (failure(out(*rwSet))) {
                     return;
                 }
-                // build the merkle tree
-                auto pg = std::make_unique<util::ProofGenerator>(block->executeResult);
-                auto mt = pg->generateMerkleTree();
-                if (mt == nullptr) {
-                    LOG(ERROR) << "merkleTree generation failed!";
-                    return;
-                }
-                auto ret = util::ProofGenerator::GenerateProof(*mt, *response->mutable_rwset());
-                if (ret == std::nullopt) {
+                auto ret = _impl->getOrGenerateExecResultMT(*block);
+                auto proof = util::ProofGenerator::GenerateProof(*ret->mt, *response->mutable_rwset());
+                if (proof == std::nullopt) {
                     LOG(ERROR) << "GenerateProof failed!";
                     return;
                 }
-                if (!util::serializeToString(*ret, *response->mutable_rwsetproof())) {
+                if (!util::serializeToString(*proof, *response->mutable_rwsetproof())) {
                     LOG(ERROR) << "SerializeProof failed!";
                     return;
                 }

@@ -6,6 +6,7 @@
 #include "tests/mock_property_generator.h"
 #include "tests/peer/mock_peer.h"
 #include "gtest/gtest.h"
+#include "common/proof_generator.h"
 
 class ClientSDKTest : public ::testing::Test {
 protected:
@@ -40,4 +41,11 @@ TEST_F(ClientSDKTest, BasicTest) {
     ASSERT_TRUE(receiver->getChainHeight(0, 100) == 0);
     auto ret3 = receiver->getTransaction(block->body.userRequests[0]->getSignature().digest, 0, 0, 1000);
     ASSERT_TRUE(ret3);
+    auto ret4 = receiver->getTransaction(block->body.userRequests[0]->getSignature().digest, 0, 0, 1000);
+    ASSERT_TRUE(ret4);
+
+    util::ProofGenerator pg(block->body);
+    ASSERT_TRUE(receiver->ValidateMerkleProof(pg.generateMerkleTree()->getRoot(),
+                                              ret4->envelopProof,
+                                              *ret4->envelop->getSerializedMessage()));
 }

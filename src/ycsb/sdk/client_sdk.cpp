@@ -251,5 +251,14 @@ namespace ycsb::sdk {
         return true;
     }
 
+    bool ReceiveInterface::ValidateMerkleProof(const proto::HashString &root, const ProofLikeStruct &proof,
+                                               const std::string &dataBlock) {
+        pmt::Proof proofView;
+        for (const auto& it: proof.Siblings) {
+            proofView.Siblings.push_back(&it);
+        }
+        proofView.Path = proof.Path;
+        return util::ProofGenerator::ValidateProof(root, proofView, dataBlock);
+    }
 }
 

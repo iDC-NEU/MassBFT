@@ -50,9 +50,10 @@ namespace tests::peer {
             if (_chaincode->InitDatabase() != 0) {
                 return false;
             }
-            auto [reads, writes] = _chaincode->reset();
+            proto::KVList reads, writes;
+            _chaincode->reset(reads, writes);
             return _dbc->syncWriteBatch([&](auto* batch) ->bool {
-                for (const auto& it: *writes) {
+                for (const auto& it: writes) {
                     batch->Put({it->getKeySV().data(), it->getKeySV().size()}, {it->getValueSV().data(), it->getValueSV().size()});
                 }
                 return true;
@@ -107,7 +108,9 @@ namespace tests::peer {
                             return;
                         }
                         _chaincode->InvokeChaincode(user->getFuncNameSV(), user->getArgs());
-                        auto [reads, writes] = _chaincode->reset(); // analysis rw sets
+                        auto reads = std::make_unique<proto::KVList>();
+                        auto writes = std::make_unique<proto::KVList>();
+                        _chaincode->reset(*reads, *writes); // analysis rw sets
                         _execResults.emplace_back(std::move(user), std::move(reads), std::move(writes));
                     }
                 } while((int)block->body.userRequests.size() < _blockSize);

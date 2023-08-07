@@ -19,6 +19,14 @@ namespace peer::chaincode {
 
         ORM(ORM&&) = delete;
 
+        static std::unique_ptr<ORM> NewORMFromDBInterface(const db::DBConnection* dbInstance) {
+            std::unique_ptr<ORM> orm(new ORM());
+            orm->getFromDB = [dbInstance](auto && PH1, auto && PH2) {
+                return dbInstance->get(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2));
+            };
+            return orm;
+        }
+
         [[nodiscard]] inline bool get(const std::string& key, std::string_view* valueSV) {
             return get(std::string(key), valueSV);
         }
@@ -34,7 +42,7 @@ namespace peer::chaincode {
             readKV->setKey(std::move(key));
             readKV->setValue(std::move(value));
             *valueSV = readKV->getValueSV();
-            reads->push_back(std::move(readKV));
+            reads.push_back(std::move(readKV));
             return true;
         }
 
@@ -54,7 +62,7 @@ namespace peer::chaincode {
             std::unique_ptr<proto::KV> writeKV(new proto::KV());
             writeKV->setKey(std::move(key));
             writeKV->setValue(std::move(value));
-            writes->push_back(std::move(writeKV));
+            writes.push_back(std::move(writeKV));
         }
 
         void del(const std::string& key) {
@@ -64,34 +72,32 @@ namespace peer::chaincode {
         void del(std::string&& key) {
             std::unique_ptr<proto::KV> writeKV(new proto::KV());
             writeKV->setKey(std::move(key));
-            writes->push_back(std::move(writeKV));
+            writes.push_back(std::move(writeKV));
         }
 
-        static std::unique_ptr<ORM> NewORMFromDBInterface(const db::DBConnection* dbInstance) {
-            std::unique_ptr<ORM> orm(new ORM());
-            orm->getFromDB = [dbInstance](auto && PH1, auto && PH2) {
-                return dbInstance->get(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2));
-            };
-            return orm;
+        // set the return string
+        void setResult(auto&& result_) { result = std::forward<decltype(result_)>(result_); }
+
+        // return the rwSets along with the return string
+        std::string reset(proto::KVList& reads_, proto::KVList& writes_) {
+            reads_ = std::move(reads);
+            writes_ = std::move(writes);
+            return std::move(result);
         }
 
-        // return read write sets
-        auto reset() {
-            auto ret = std::make_pair(std::move(reads), std::move(writes));
-            reads = std::make_unique<proto::KVList>();
-            writes = std::make_unique<proto::KVList>();
-            return ret;
+        void reset() {
+            reads.clear();
+            writes.clear();
+            result.clear();
         }
 
     protected:
-        ORM() {
-            reads = std::make_unique<proto::KVList>();
-            writes = std::make_unique<proto::KVList>();
-        }
+        ORM() = default;
 
     private:
-        std::unique_ptr<proto::KVList> reads;
-        std::unique_ptr<proto::KVList> writes;
+        proto::KVList reads;
+        proto::KVList writes;
+        std::string result;
         // ORM should not modify db state
         std::function<bool(std::string_view key, std::string* value)> getFromDB;
     };

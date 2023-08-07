@@ -82,9 +82,9 @@ namespace proto {
             return static_cast<ExecutionResult>(_executionResult->getRetCode());
         }
 
-        void setCCNamespace(std::string &&ccNamespace) { _executionResult->setCCNamespace(std::move(ccNamespace)); }
+        void setRetValue(std::string &&retValue) { _executionResult->setRetValue(std::move(retValue)); }
 
-        [[nodiscard]] const std::string_view &getCCNamespaceSV() const { return _executionResult->getCCNamespaceSV(); }
+        [[nodiscard]] const std::string_view &getRetValueSV() const { return _executionResult->getRetValueSV(); }
 
     protected:
         Transaction() = default;

@@ -79,57 +79,41 @@ namespace proto {
 
         virtual ~TxReadWriteSet() = default;
 
-        [[nodiscard]] const DigestString& getRequestDigest() const {
-            return _requestDigest;
+        [[nodiscard]] const DigestString& getRequestDigest() const { return _requestDigest; }
+
+        void setRetValue(std::string &&retValue) {
+            _retValue = std::move(retValue);
+            _retValueSV = _retValue;
         }
 
-        void setCCNamespace(std::string &&ccNamespace) {
-            _ccNamespace = std::move(ccNamespace);
-            _ccNamespaceSV = _ccNamespace;
-        }
+        [[nodiscard]] const std::string_view &getRetValueSV() const { return _retValueSV; }
 
-        [[nodiscard]] const std::string_view &getCCNamespaceSV() const {
-            return _ccNamespaceSV;
-        }
+        [[nodiscard]] const KVList &getReads() const { return _reads; }
 
-        [[nodiscard]] const KVList &getReads() const {
-            return _reads;
-        }
+        [[nodiscard]] const KVList &getWrites() const { return _writes; }
 
-        [[nodiscard]] const KVList &getWrites() const {
-            return _writes;
-        }
+        [[nodiscard]] KVList &getReads() { return _reads; }
 
-        [[nodiscard]] KVList &getReads() {
-            return _reads;
-        }
+        [[nodiscard]] KVList &getWrites() { return _writes; }
 
-        [[nodiscard]] KVList &getWrites() {
-            return _writes;
-        }
-        void setRetCode(int32_t retCode) {
-            _retCode = retCode;
-        }
+        void setRetCode(int32_t retCode) { _retCode = retCode; }
 
-        [[nodiscard]] int32_t getRetCode() const {
-            return _retCode;
-        }
+        [[nodiscard]] int32_t getRetCode() const { return _retCode; }
 
     public:
         friend zpp::bits::access;
 
         constexpr static auto serialize(auto &archive, TxReadWriteSet &t) {
-            return archive(t._requestDigest, t._ccNamespaceSV, t._retCode, t._reads, t._writes);
+            return archive(t._requestDigest, t._retValueSV, t._retCode, t._reads, t._writes);
         }
 
     private:
         // requestDigest(tid) represents the corresponding user request
         DigestString _requestDigest;
-        std::string _ccNamespace;
-        std::string_view _ccNamespaceSV;
+        std::string _retValue;
+        std::string_view _retValueSV;
         int32_t _retCode;
         KVList _reads;
         KVList _writes;
     };
-
 }

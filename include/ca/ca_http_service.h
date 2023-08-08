@@ -20,26 +20,38 @@ namespace ca {
         void addNodeAsClient(int groupId, int nodeId, const std::string &pub);
 
     public:
-        bool transmitFiles() { return processParallel(&ca::Dispatcher::transmitFileToRemote); }
-
         bool transmitFiles(const std::vector<std::string>& ipList) {
+            if (ipList.empty()) {
+                return processParallel(&ca::Dispatcher::transmitFileToRemote);
+            }
             return processParallel(&ca::Dispatcher::transmitFileToRemote, ipList);
         }
 
-        bool updateSourcecode() { return processParallel(&ca::Dispatcher::updateRemoteSourcecode); }
-
         bool updateSourcecode(const std::vector<std::string>& ipList) {
+            if (ipList.empty()) {
+                return processParallel(&ca::Dispatcher::updateRemoteSourcecode);
+            }
             return processParallel(&ca::Dispatcher::updateRemoteSourcecode, ipList);
         }
 
-        bool compileSourcecode() { return processParallel(&ca::Dispatcher::compileRemoteSourcecode); }
-
         bool compileSourcecode(const std::vector<std::string>& ipList) {
+            if (ipList.empty()) {
+                return processParallel(&ca::Dispatcher::compileRemoteSourcecode);
+            }
             return processParallel(&ca::Dispatcher::compileRemoteSourcecode, ipList);
         }
 
+        bool updatePBFTPack(const std::vector<std::string>& ipList) {
+            if (ipList.empty()) {
+                return processParallel(&ca::Dispatcher::updateRemoteBFTPack);
+            }
+            return processParallel(&ca::Dispatcher::updateRemoteBFTPack, ipList);
+        }
+
+    protected:
         bool updateProperties();
 
+    public:
         bool updateProperties(const std::vector<std::string>& ipList);
 
         bool generateDatabase(const std::string& dbName) {

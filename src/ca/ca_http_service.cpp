@@ -48,11 +48,13 @@ namespace ca {
             if (!success) {
                 LOG(ERROR) << "Failed to connect to specific ip: " << it.first;
             }
-
         }
     }
 
     bool ServiceBackend::updateProperties(const std::vector<std::string> &ipList) {
+        if (ipList.empty()) {
+            return updateProperties();
+        }
         for (const auto& it: ipList) {
             if (!_nodesList.contains(it)) {
                 LOG(ERROR) << "Does not exist specific ip: " << it;

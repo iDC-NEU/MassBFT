@@ -20,21 +20,21 @@ namespace ca {
         void addNodeAsClient(int groupId, int nodeId, const std::string &pub);
 
     public:
-        bool transmitFileToRemote() { return processParallel(&ca::Dispatcher::transmitFileToRemote); }
+        bool transmitFiles() { return processParallel(&ca::Dispatcher::transmitFileToRemote); }
 
-        bool transmitFileToRemote(const std::vector<std::string>& ipList) {
+        bool transmitFiles(const std::vector<std::string>& ipList) {
             return processParallel(&ca::Dispatcher::transmitFileToRemote, ipList);
         }
 
-        bool updateRemoteSourcecode() { return processParallel(&ca::Dispatcher::updateRemoteSourcecode); }
+        bool updateSourcecode() { return processParallel(&ca::Dispatcher::updateRemoteSourcecode); }
 
-        bool updateRemoteSourcecode(const std::vector<std::string>& ipList) {
+        bool updateSourcecode(const std::vector<std::string>& ipList) {
             return processParallel(&ca::Dispatcher::updateRemoteSourcecode, ipList);
         }
 
-        bool compileRemoteSourcecode() { return processParallel(&ca::Dispatcher::compileRemoteSourcecode); }
+        bool compileSourcecode() { return processParallel(&ca::Dispatcher::compileRemoteSourcecode); }
 
-        bool compileRemoteSourcecode(const std::vector<std::string>& ipList) {
+        bool compileSourcecode(const std::vector<std::string>& ipList) {
             return processParallel(&ca::Dispatcher::compileRemoteSourcecode, ipList);
         }
 

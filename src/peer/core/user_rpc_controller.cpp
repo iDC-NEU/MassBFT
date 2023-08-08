@@ -169,13 +169,14 @@ namespace peer::core {
             response->set_success(true);
             // generate response proof
             {
-                auto rwSet = block->executeResult.findRWSet(request->txid());
-                if (rwSet == nullptr) {
+                proto::TxReadWriteSet* rwSet;
+                std::byte valid;
+                if (!block->executeResult.findRWSet(request->txid(), rwSet, valid)) {
                     LOG(ERROR) << "Corresponding RWSets not found!";
                     return;
                 }
                 zpp::bits::out out(*response->mutable_rwset());
-                if (failure(out(*rwSet))) {
+                if (failure(out(*rwSet, valid))) {
                     return;
                 }
                 auto ret = _impl->getOrGenerateExecResultMT(*block);
@@ -209,7 +210,7 @@ namespace peer::core {
             return;
         }
         response->set_chainid(request->chainid());
-        response->set_blockid(block->header.number);
+        response->set_blockid((int32_t)block->header.number);
         zpp::bits::out hOut(*response->mutable_header());
         if (failure(hOut(block->header))) {
             return;

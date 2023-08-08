@@ -240,7 +240,7 @@ namespace ycsb::sdk {
         if (response.has_rwset()) {
             auto rwSet = std::make_unique<proto::TxReadWriteSet>();
             zpp::bits::in in(response.rwset());
-            if (failure(in(*rwSet))) {
+            if (failure(in(*rwSet, respWithProof->valid))) {
                 return nullptr;
             }
             respWithProof->rwSet = std::move(rwSet);

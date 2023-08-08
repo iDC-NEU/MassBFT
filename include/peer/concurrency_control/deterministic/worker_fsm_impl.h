@@ -48,7 +48,6 @@ namespace peer::cc {
                         it = ccList.find(ccNameSV);
                     }
                     auto chaincode = it->second.get();
-                    chaincode->setTxnRawPointer(txn.get());
                     auto& userRequest = txn->getUserRequest();
                     auto ret = chaincode->InvokeChaincode(userRequest.getFuncNameSV(), userRequest.getArgs());
                     // get the rwSets out of the orm

@@ -204,7 +204,7 @@ namespace ycsb::utils {
         }
 
         inline auto getRequestDistrib() const {
-            return n[REQUEST_DISTRIBUTION_PROPERTY].as<std::string>("uniform");
+            return n[REQUEST_DISTRIBUTION_PROPERTY].as<std::string>("zipfian");
         }
 
         inline auto getScanLengthDistrib() const {

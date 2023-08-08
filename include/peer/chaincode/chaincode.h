@@ -5,7 +5,6 @@
 #pragma once
 
 #include "peer/chaincode/orm.h"
-#include "proto/transaction.h"
 
 namespace peer::chaincode {
     class Chaincode {
@@ -26,13 +25,9 @@ namespace peer::chaincode {
             return orm->reset(reads_, writes_);
         }
 
-        void setTxnRawPointer(const proto::Transaction *txn_) { txn = txn_; }
-
     protected:
         // use orm to write to db
         std::unique_ptr<ORM> orm;
-        // get additional information from txn
-        const proto::Transaction *txn = nullptr;
     };
 
     std::unique_ptr<Chaincode> NewChaincodeByName(const std::string &ccName, std::unique_ptr<ORM> orm);

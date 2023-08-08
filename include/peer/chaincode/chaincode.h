@@ -22,9 +22,8 @@ namespace peer::chaincode {
 
         virtual int InitDatabase() { return 0; }
 
-        // reset, return the read write sets
-        auto reset() -> std::pair<std::unique_ptr<proto::KVList>, std::unique_ptr<proto::KVList>> {
-            return orm->reset();
+        std::string reset(proto::KVList& reads_, proto::KVList& writes_) {
+            return orm->reset(reads_, writes_);
         }
 
         void setTxnRawPointer(const proto::Transaction *txn_) { txn = txn_; }

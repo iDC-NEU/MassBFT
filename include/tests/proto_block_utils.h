@@ -23,8 +23,8 @@ namespace tests {
                 rwSet->getReads().push_back(std::move(read));
                 std::unique_ptr<proto::KV> write(new proto::KV("key2", "value2"));
                 rwSet->getWrites().push_back(std::move(write));
+                rwSet->setRetValue("return value of the tx");
                 rwSet->setRetCode(1);
-                rwSet->setCCNamespace("spec");
                 rwSets.push_back(std::move(rwSet));
             }
             b.executeResult.txReadWriteSet = std::move(rwSets);

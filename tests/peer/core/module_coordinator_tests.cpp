@@ -49,29 +49,14 @@ protected:
         util::MetaRpcServer::Stop();
     };
 
-    static bool FillCCData(::peer::db::DBConnection& db, const auto& dbName) {
-        auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(&db);
-        auto cc = ::peer::chaincode::NewChaincodeByName(dbName, std::move(orm));
-        if (cc->InitDatabase() != 0) {
-            return false;
-        }
-        auto [reads, writes] = cc->reset();
-        return db.syncWriteBatch([&](auto* batch) ->bool {
-            for (const auto& it: *writes) {
-                batch->Put({it->getKeySV().data(), it->getKeySV().size()}, {it->getValueSV().data(), it->getValueSV().size()});
-            }
-            return true;
-        });
-    }
-
 protected:
     static void InitNodeConfig(int groupId, int nodeId) {
         tests::MockPropertyGenerator::SetLocalId(groupId, nodeId);
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, false);
     }
 
-    const int nodeCountPerGroup = 3;
-    const int groupCount = 1;
+    const int nodeCountPerGroup = 4;
+    const int groupCount = 2;
 };
 
 TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
@@ -81,7 +66,7 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
             InitNodeConfig(i, j);
             auto mc = peer::core::ModuleCoordinator::NewModuleCoordinator(util::Properties::GetSharedProperties());
             CHECK(mc != nullptr);
-            CHECK(FillCCData(*mc->getDBHandle(), "ycsb"));
+            CHECK(mc->initChaincodeData("ycsb"));
             mcList.push_back(std::move(mc));
         }
     }

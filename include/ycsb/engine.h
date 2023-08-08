@@ -66,11 +66,11 @@ namespace ycsb {
                 threadOpCount += 1;
             }
             auto tpsPerThread = ycsbProperties->getTargetTPSPerThread();
-            // use static seed
-            auto seed = 0;
+            // use static seed, seed MUST start from 1 (seed=0 and seed=1 may generate the same sequence)
+            unsigned long seed = 1;
             if (ycsbProperties->getUseRandomSeed()) {
                 // Generate a random seed
-                seed = (int) util::Timer::time_now_ns();
+                seed = util::Timer::time_now_ns();
             }
             // Randomize seed of this thread
             ::ycsb::core::GetThreadLocalRandomGenerator()->seed(seed++);

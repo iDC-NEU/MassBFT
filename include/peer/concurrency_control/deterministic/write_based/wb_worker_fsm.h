@@ -52,9 +52,7 @@ namespace peer::cc {
                     auto& userRequest = txn->getUserRequest();
                     auto ret = chaincode->InvokeChaincode(userRequest.getFuncNameSV(), userRequest.getArgs());
                     // get the rwSets out of the orm
-                    auto [reads, writes] = chaincode->reset();
-                    txn->getReads() = std::move(*reads);
-                    txn->getWrites() = std::move(*writes);
+                    txn->setRetValue(chaincode->reset(txn->getReads(), txn->getWrites()));
                     // 1. transaction internal error, abort it without adding reserve table
                     if (ret != 0) {
                         txn->setExecutionResult(ResultType::ABORT_NO_RETRY);

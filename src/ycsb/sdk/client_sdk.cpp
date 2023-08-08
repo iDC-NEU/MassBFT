@@ -180,13 +180,26 @@ namespace ycsb::sdk {
     }
 
     std::unique_ptr<BlockHeaderProof> ClientSDK::getBlockHeader(int chainId, int blockId, int timeoutMs) const {
-        CHECK(false);
-        return nullptr;
-    }
-
-    std::unique_ptr<TxMerkleProof> ClientSDK::getTxWithProof(const proto::DigestString &txId, int timeoutMs) const {
-        CHECK(false);
-        return nullptr;
+        client::proto::GetBlockHeaderRequest request;
+        request.set_chainid(chainId);
+        request.set_blockid(blockId);
+        client::proto::GetBlockHeaderResponse response;
+        brpc::Controller ctl;
+        ctl.set_timeout_ms(timeoutMs);
+        _impl->_receiveStub->getBlockHeader(&ctl, &request, &response, nullptr);
+        if (ctl.Failed() || !response.success()) {
+            return nullptr;
+        }
+        auto headerWithProof = std::make_unique<BlockHeaderProof>();
+        zpp::bits::in hIn(response.header());
+        if (failure(hIn(headerWithProof->header))) {
+            return nullptr;
+        }
+        zpp::bits::in mIn(response.metadata());
+        if (failure(mIn(headerWithProof->metadata))) {
+            return nullptr;
+        }
+        return headerWithProof;
     }
 
     std::unique_ptr<TxMerkleProof> ClientSDK::getTransaction(const proto::DigestString &txId,

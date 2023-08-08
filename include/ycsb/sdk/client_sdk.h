@@ -57,8 +57,6 @@ namespace ycsb::sdk {
 
         [[nodiscard]] virtual std::unique_ptr<BlockHeaderProof> getBlockHeader(int chainId, int blockId, int timeoutMs) const = 0;
 
-        [[nodiscard]] virtual std::unique_ptr<TxMerkleProof> getTxWithProof(const proto::DigestString& txId, int timeoutMs) const = 0;
-
         // envelopProof and rwSetProof leaves empty
         [[nodiscard]] virtual std::unique_ptr<TxMerkleProof> getTransaction(const proto::DigestString &txId,
                                                                             int chainIdHint,
@@ -89,8 +87,6 @@ namespace ycsb::sdk {
         [[nodiscard]] int getChainHeight(int chainId, int timeoutMs) const override;
 
         [[nodiscard]] std::unique_ptr<BlockHeaderProof> getBlockHeader(int chainId, int blockId, int timeoutMs) const override;
-
-        [[nodiscard]] std::unique_ptr<TxMerkleProof> getTxWithProof(const proto::DigestString& txId, int timeoutMs) const override;
 
         [[nodiscard]] std::unique_ptr<TxMerkleProof> getTransaction(const proto::DigestString &txId,
                                                                     int chainIdHint,

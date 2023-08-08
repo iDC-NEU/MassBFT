@@ -49,10 +49,10 @@ namespace ca {
         }
 
     protected:
-        bool updateProperties();
+        void updateProperties();
 
     public:
-        bool updateProperties(const std::vector<std::string>& ipList);
+        void updateProperties(const std::vector<std::string>& ipList);
 
         bool generateDatabase(const std::string& dbName) {
             return processParallelPeerOnly(&ca::Dispatcher::generateDatabase, dbName);

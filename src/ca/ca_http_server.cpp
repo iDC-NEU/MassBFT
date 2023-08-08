@@ -116,10 +116,7 @@ namespace ca {
                 util::setErrorWithMessage(res, "param contains error!");
                 return;
             }
-            if (!_service->updateProperties(nodes)) {
-                util::setErrorWithMessage(res, "execute error!");
-                return;
-            }
+            _service->updateProperties(nodes);
         });
 
         _server->Post("/compile", [&](const httplib::Request &req, httplib::Response &res) {

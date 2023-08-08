@@ -8,6 +8,7 @@ namespace ca {
     std::unique_ptr<ServiceBackend> ServiceBackend::NewServiceBackend(std::unique_ptr<ca::Dispatcher> dispatcher) {
         auto service = std::unique_ptr<ServiceBackend>(new ServiceBackend);
         service->_dispatcher = std::move(dispatcher);
+        return service;
     }
 
     void ServiceBackend::initNodes(const std::vector<int> &nodes) {
@@ -33,7 +34,7 @@ namespace ca {
         _nodesList[pub] = cfg;
     }
 
-    bool ServiceBackend::updateProperties() {
+    void ServiceBackend::updateProperties() {
         for (const auto& it: _nodesList) {
             const auto& cfg = it.second;
             ca::Initializer::SetLocalId(cfg.groupId, cfg.nodeId);
@@ -51,9 +52,10 @@ namespace ca {
         }
     }
 
-    bool ServiceBackend::updateProperties(const std::vector<std::string> &ipList) {
+    void ServiceBackend::updateProperties(const std::vector<std::string> &ipList) {
         if (ipList.empty()) {
-            return updateProperties();
+            updateProperties();
+            return;
         }
         for (const auto& it: ipList) {
             if (!_nodesList.contains(it)) {
@@ -73,9 +75,9 @@ namespace ca {
             if (!success) {
                 LOG(ERROR) << "Failed to connect to specific ip: " << it;
             }
-
         }
     }
+
     ServiceBackend::~ServiceBackend() = default;
 }
 

@@ -221,10 +221,13 @@ namespace peer {
         blocks.reserve(ecEncodeResult.size());
         // serialize perform an additional copy
         for (const auto& blockView: ecEncodeResult) {
-            blocks.push_back(std::make_unique<ContextDataBlock>(blockView));
+            blocks.emplace_back(new ContextDataBlock(blockView));
         }
         // ---- parallel merkle generation may not be useful ----
         mt = pmt::MerkleTree::New(pmtConfig, blocks, nullptr);
+        if (mt == nullptr) {
+            return false;
+        }
         // we no longer need the block view after tree generation.
         return true;
     }

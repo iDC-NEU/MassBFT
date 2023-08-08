@@ -51,6 +51,9 @@ namespace util {
                 }
                 blocks.emplace_back(new UserRequestDataBlock(bodySV.substr(posList[i-1], posList[i])));
             }
+            if (blocks.size() == 1) {   // special case: block has only 1 user request
+                blocks.emplace_back(new UserRequestDataBlock(bodySV.substr(0, posList[0])));
+            }
             return pmt::MerkleTree::New(pmtConfig, blocks, wp.get());
         }
 

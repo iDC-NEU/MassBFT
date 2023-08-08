@@ -122,14 +122,16 @@ namespace proto {
                 return true;
             }
 
-            [[nodiscard]] TxReadWriteSet* findRWSet(const auto& digest) const {
-                for (auto& it: txReadWriteSet) {
-                    if (proto::CompareDigest(it->getRequestDigest(), digest) != 0) {
+            [[nodiscard]] bool findRWSet(const auto& digest, TxReadWriteSet*& rwSet, std::byte& valid) const {
+                for (int i=0; i<(int)txReadWriteSet.size(); i++) {
+                    if (proto::CompareDigest(txReadWriteSet[i]->getRequestDigest(), digest) != 0) {
                         continue;
                     }
-                    return it.get();
+                    rwSet = txReadWriteSet[i].get();
+                    valid = transactionFilter[i];
+                    return true;
                 }
-                return nullptr;
+                return false;
             }
         };
 

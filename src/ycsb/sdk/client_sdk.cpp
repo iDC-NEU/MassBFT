@@ -64,7 +64,7 @@ namespace ycsb::sdk {
 
     bool ClientSDK::connect() {
         const auto& server = _impl->_targetLocalNode;
-        LOG(INFO) << "Connecting to peer:" << server->priIp;
+        LOG(INFO) << "Connecting to peer: " << server->priIp << ":" << _impl->_receivePort;
         brpc::ChannelOptions options;
         options.protocol = "h2:grpc";
         options.timeout_ms = 200 /*milliseconds*/;
@@ -240,7 +240,7 @@ namespace ycsb::sdk {
         if (response.has_rwset()) {
             auto rwSet = std::make_unique<proto::TxReadWriteSet>();
             zpp::bits::in in(response.rwset());
-            if (failure(in(*rwSet))) {
+            if (failure(in(*rwSet, respWithProof->valid))) {
                 return nullptr;
             }
             respWithProof->rwSet = std::move(rwSet);

@@ -31,6 +31,7 @@ namespace ycsb::sdk {
     struct TxMerkleProof {
         std::unique_ptr<proto::Envelop> envelop;
         std::unique_ptr<proto::TxReadWriteSet> rwSet;
+        std::byte valid;
         // validate if the tx is in the block
         ProofLikeStruct envelopProof;
         // validate if the execResult is in the block

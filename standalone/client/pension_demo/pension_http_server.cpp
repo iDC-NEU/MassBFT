@@ -152,12 +152,12 @@ namespace demo::pension {
     std::unique_ptr<proto::Envelop> ServiceBackend::putDigest(const std::string &key, const util::OpenSSLSHA256::digestType &digest) {
         std::string raw;
         zpp::bits::out out(raw);
-        if (failure(out(key, digest))) {
+        if (failure(out(key, std::string(std::begin(digest), std::end(digest))))) {
             LOG(ERROR) << "serialize data failed!";
             return nullptr;
         }
         ycsb::sdk::SendInterface* sender = _sdk.get();
-        auto ret = sender->invokeChaincode("session_store", "Set", raw);
+        auto ret = sender->invokeChaincode("hash_chaincode", "Set", raw);
         if (!ret) {
             LOG(ERROR) << "Failed to put data!";
             return nullptr;
@@ -176,7 +176,7 @@ namespace demo::pension {
             return nullptr;
         }
         ycsb::sdk::SendInterface* sender = _sdk.get();
-        auto ret = sender->invokeChaincode("session_store", "Get", raw);
+        auto ret = sender->invokeChaincode("hash_chaincode", "Get", raw);
         if (!ret) {
             LOG(ERROR) << "Failed to put data!";
             return nullptr;

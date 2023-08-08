@@ -6,6 +6,7 @@ CPMAddPackage(
         VERSION 1.2.4
         GIT_TAG fb644cb44539925a7f444b1b0314f402a456c5f4
         DOWNLOAD_ONLY True
+        GIT_SHALLOW TRUE
 )
 
 set(LEVELDB_LIB "${PROJECT_BINARY_DIR}/include/leveldb/db.h")

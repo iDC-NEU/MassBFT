@@ -10,7 +10,7 @@ CPMAddPackage(
 
 # ---- Create ycsb standalone executable ----
 
-file(GLOB ycsb_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ycsb/*.cpp)
+file(GLOB ycsb_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/client/ycsb/*.cpp)
 
 add_executable(${PROJECT_NAME}_ycsb ${ycsb_sources})
 
@@ -37,3 +37,7 @@ add_executable(${PROJECT_NAME}_ca ${ca_sources})
 set_target_properties(${PROJECT_NAME}_ca PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "ca")
 
 target_link_libraries(${PROJECT_NAME}_ca NBP cxxopts ${COMMON_DEPENDENCIES})
+
+# ---- Create pension standalone executable ----
+
+add_subdirectory(client/pension_demo)

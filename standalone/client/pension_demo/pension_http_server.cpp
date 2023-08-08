@@ -5,9 +5,7 @@
 #include "pension_http_server.h"
 #include "ycsb/sdk/client_sdk.h"
 #include "common/property.h"
-
-#include "nlohmann/json.hpp"
-#include "httplib.h"
+#include "common/http_util.h"
 
 namespace demo::pension {
     class ServerController {
@@ -19,7 +17,7 @@ namespace demo::pension {
         void putData(const httplib::Request &req, httplib::Response &res) {
             processDataInner(req, res, [&](const nlohmann::json& requestBody) -> std::unique_ptr<proto::Envelop> {
                 if (!requestBody.contains("key") || !requestBody.contains("value")) {
-                    SetErrorWithMessage(res, "Invalid request. Missing key or value.");
+                    util::setErrorWithMessage(res, "Invalid request. Missing key or value.");
                     return nullptr;
                 }
                 const auto& key = requestBody["key"];
@@ -37,7 +35,7 @@ namespace demo::pension {
         void putDigest(const httplib::Request &req, httplib::Response &res) {
             processDataInner(req, res, [&](const nlohmann::json& requestBody) -> std::unique_ptr<proto::Envelop> {
                 if (!requestBody.contains("key") || !requestBody.contains("value")) {
-                    SetErrorWithMessage(res, "Invalid request. Missing key or value.");
+                    util::setErrorWithMessage(res, "Invalid request. Missing key or value.");
                     return nullptr;
                 }
                 const auto& key = requestBody["key"];
@@ -55,7 +53,7 @@ namespace demo::pension {
         void getDigest(const httplib::Request &req, httplib::Response &res) {
             processDataInner(req, res, [&](const nlohmann::json& requestBody) -> std::unique_ptr<proto::Envelop> {
                 if (!requestBody.contains("key")) {
-                    SetErrorWithMessage(res, "Invalid request. Missing key.");
+                    util::setErrorWithMessage(res, "Invalid request. Missing key.");
                     return nullptr;
                 }
                 const auto& key = requestBody["key"];
@@ -74,11 +72,9 @@ namespace demo::pension {
                                      const std::function<std::unique_ptr<proto::Envelop>(const nlohmann::json& requestBody)>& fStart,
                                      const std::function<std::string(const proto::Envelop& requestBody,
                                                                      const ycsb::sdk::TxMerkleProof& responseBody)>& fFinish) {
-            nlohmann::json body;
-            try {
-                body = nlohmann::json::parse(req.body);
-            } catch (const nlohmann::json::parse_error &e) {
-                SetErrorWithMessage(res, "Invalid JSON data");
+            auto [success, body] = util::parseJson(req.body);
+            if (!success) {
+                util::setErrorWithMessage(res, "Invalid JSON data");
                 return;
             }
             // get local chain id
@@ -87,7 +83,7 @@ namespace demo::pension {
             auto startHeight = _service->getReceiver()->getChainHeight(localNodeInfo->groupId, 1000);
             auto request = fStart(body);
             if (request == nullptr) {
-                SetErrorWithMessage(res, "Failed to invoke chaincode.");
+                util::setErrorWithMessage(res, "Failed to invoke chaincode.");
                 return;
             }
             for (int i=0; i<5; i++) {   // retry 5 times
@@ -97,26 +93,10 @@ namespace demo::pension {
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     continue;
                 }
-                SetSuccessWithMessage(res, fFinish(*request, *result));
+                util::setSuccessWithMessage(res, fFinish(*request, *result));
                 return;
             }
-            SetErrorWithMessage(res, "Failed to get response in time.");
-        }
-
-    protected:
-        static void SetErrorWithMessage(httplib::Response &res, auto&& message) {
-            nlohmann::json ret;
-            ret["success"] = false;
-            ret["message"] = message;
-            res.status = 400;
-            res.set_content(ret.dump(), "application/json");
-        }
-
-        static void SetSuccessWithMessage(httplib::Response &res, auto&& message) {
-            nlohmann::json ret;
-            ret["success"] = true;
-            ret["message"] = message;
-            res.set_content(ret.dump(), "application/json");
+            util::setErrorWithMessage(res, "Failed to get response in time.");
         }
 
     private:
@@ -192,10 +172,11 @@ namespace demo::pension {
 
     ServiceBackend::~ServiceBackend() = default;
 
-    std::unique_ptr<ServerBackend> ServerBackend::NewServerBackend(std::unique_ptr<ServiceBackend> service) {
+    std::unique_ptr<ServerBackend> ServerBackend::NewServerBackend(std::unique_ptr<ServiceBackend> service,
+                                                                   std::shared_ptr<httplib::Server> httpServer) {
         auto server = std::unique_ptr<ServerBackend>(new ServerBackend);
         server->_controller = std::make_unique<ServerController>(std::move(service));
-        server->_server = std::make_unique<httplib::Server>();
+        server->_server = std::move(httpServer);
         server->_server->Post("/block/put_data", [&](const httplib::Request &req, httplib::Response &res) {
             server->_controller->putData(req, res);
         });
@@ -214,12 +195,4 @@ namespace demo::pension {
     }
 
     ServerBackend::~ServerBackend() = default;
-
-    bool ServerBackend::start(int port) {
-        if (_server->listen("0.0.0.0", port)) {
-            LOG(ERROR) << "Failed to start the server at port " << port;
-            return false;
-        }
-        return true;
-    }
 }

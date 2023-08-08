@@ -9,7 +9,7 @@ CPMAddPackage(
         GIT_SHALLOW TRUE
 )
 
-set(CPP-HTTPLIB_LIB "${CMAKE_BINARY_DIR}/include/httplib.h")
+set(CPP-HTTPLIB_LIB "${PROJECT_BINARY_DIR}/include/httplib.h")
 
 if(NOT EXISTS "${CPP-HTTPLIB_LIB}")
     message("Start configure cpp-httplib")

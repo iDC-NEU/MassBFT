@@ -15,15 +15,14 @@ namespace ca {
     public:
         ~ServerBackend();
 
-        static std::unique_ptr<ServerBackend> NewServerBackend(std::unique_ptr<ServiceBackend> service);
-
-        bool start(int port);
+        static std::unique_ptr<ServerBackend> NewServerBackend(std::unique_ptr<ServiceBackend> service,
+                                                               std::shared_ptr<httplib::Server> httpServer);
 
     protected:
         ServerBackend() = default;
 
     private:
-        std::unique_ptr<httplib::Server> _server;
+        std::shared_ptr<httplib::Server> _server;
         std::unique_ptr<ServiceBackend> _service;
     };
 }

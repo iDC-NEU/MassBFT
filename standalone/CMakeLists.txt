@@ -30,10 +30,9 @@ target_link_libraries(${PROJECT_NAME}_peer NBP cxxopts ${COMMON_DEPENDENCIES})
 
 # ---- Create ca standalone executable ----
 
-file(GLOB ca_headers CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ca/*.h)
 file(GLOB ca_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ca/*.cpp)
 
-add_executable(${PROJECT_NAME}_ca ${ca_headers} ${ca_sources})
+add_executable(${PROJECT_NAME}_ca ${ca_sources})
 
 set_target_properties(${PROJECT_NAME}_ca PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "ca")
 

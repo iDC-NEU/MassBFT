@@ -52,6 +52,20 @@ message GetTxResponse {
   optional bytes rwSetProof = 7;
 };
 
+message GetBlockHeaderRequest {
+  required int32 chainId = 1;
+  required int32 blockId = 2;
+  optional int32 timeoutMs = 3;
+};
+
+message GetBlockHeaderResponse {
+  required bool success = 1;
+  required int32 chainId = 2;
+  required int32 blockId = 3;
+  required bytes header = 4;
+  required bytes metadata = 5;
+};
+
 service UserService {
   // Client test if the port is connectable
   rpc hello(HelloRequest) returns (HelloResponse);
@@ -61,4 +75,6 @@ service UserService {
   rpc getTop(GetTopRequest) returns (GetTopResponse);
 
   rpc getTxWithProof(GetTxRequest) returns (GetTxResponse);
+
+  rpc getBlockHeader(GetBlockHeaderRequest) returns (GetBlockHeaderResponse);
 };

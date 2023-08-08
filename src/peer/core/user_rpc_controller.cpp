@@ -192,4 +192,32 @@ namespace peer::core {
             return;
         }
     }
+
+    void UserRPCController::getBlockHeader(::google::protobuf::RpcController *,
+                                           const ::ycsb::client::proto::GetBlockHeaderRequest *request,
+                                           ::ycsb::client::proto::GetBlockHeaderResponse *response,
+                                           ::google::protobuf::Closure *done) {
+        brpc::ClosureGuard guard(done);
+        response->set_success(false);
+        DLOG(INFO) << "get block header, chainId: " << request->chainid()  << ", blockId: " << request->blockid();
+        auto timeout = -1;
+        if (request->has_timeoutms()) {
+            timeout = request->timeoutms();
+        }
+        auto block = _impl->_storage->waitForBlock(request->chainid(), request->blockid(), timeout);
+        if (block == nullptr) {
+            return;
+        }
+        response->set_chainid(request->chainid());
+        response->set_blockid(block->header.number);
+        zpp::bits::out hOut(*response->mutable_header());
+        if (failure(hOut(block->header))) {
+            return;
+        }
+        zpp::bits::out mOut(*response->mutable_metadata());
+        if (failure(mOut(block->metadata))) {
+            return;
+        }
+        response->set_success(true);
+    }
 }

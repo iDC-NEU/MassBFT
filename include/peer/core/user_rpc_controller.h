@@ -44,10 +44,14 @@ namespace peer::core {
                        ::ycsb::client::proto::GetTopResponse* response,
                        ::google::protobuf::Closure* done) override;
 
-
         void getTxWithProof(::google::protobuf::RpcController* controller,
                             const ::ycsb::client::proto::GetTxRequest* request,
                             ::ycsb::client::proto::GetTxResponse* response,
+                            ::google::protobuf::Closure* done) override;
+
+        void getBlockHeader(::google::protobuf::RpcController* controller,
+                            const ::ycsb::client::proto::GetBlockHeaderRequest* request,
+                            ::ycsb::client::proto::GetBlockHeaderResponse* response,
                             ::google::protobuf::Closure* done) override;
 
     private:

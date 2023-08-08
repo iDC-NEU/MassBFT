@@ -152,9 +152,10 @@ namespace peer::core {
         if (cc->InitDatabase() != 0) {
             return false;
         }
-        auto [reads, writes] = cc->reset();
+        proto::KVList reads, writes;
+        cc->reset(reads, writes);
         return _db->syncWriteBatch([&](auto* batch) ->bool {
-            for (const auto& it: *writes) {
+            for (const auto& it: writes) {
                 // Never go wrong
                 batch->Put({it->getKeySV().data(), it->getKeySV().size()}, {it->getValueSV().data(), it->getValueSV().size()});
             }

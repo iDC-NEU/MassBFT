@@ -21,6 +21,8 @@ namespace ca {
     protected:
         ServerBackend() = default;
 
+        void initRoutes();
+
     private:
         std::shared_ptr<httplib::Server> _server;
         std::unique_ptr<ServiceBackend> _service;

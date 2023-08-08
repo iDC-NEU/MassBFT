@@ -4,6 +4,7 @@
 
 #include "pension_http_server.h"
 #include "common/property.h"
+#include "httplib.h"
 
 int main(int argc, char *argv[]) {
     if (!util::Properties::LoadProperties("../../peer.yaml")) {
@@ -14,11 +15,12 @@ int main(int argc, char *argv[]) {
     if (service == nullptr) {
         return -1;
     }
-    auto server = demo::pension::ServerBackend::NewServerBackend(std::move(service));
+    auto httpServer = std::make_shared<httplib::Server>();
+    auto server = demo::pension::ServerBackend::NewServerBackend(std::move(service), httpServer);
     if (server == nullptr) {
         return -1;
     }
-    if (!server->start(8081)) {
+    if (!httpServer->listen("0.0.0.0", 8081)) {
         return -1;
     }
     return 0;

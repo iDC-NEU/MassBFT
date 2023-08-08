@@ -1,59 +1,16 @@
 //
 // Created by user on 23-7-13.
 //
-#include "ycsb/sdk/client_sdk.h"
+#include "ycsb/sdk/httplib.h"
 #include "common/property.h"
 #include "gtest/gtest.h"
 #include "proto/client.pb.h"
 #include "common/meta_rpc_server.h"
-
+#include "ycsb/sdk/client_sdk.h"
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 std::unique_ptr<proto::Envelop> addDataToBlockchain(ycsb::sdk::SendInterface* sender, std::string key, const std::string& value);
 std::string verifyDATA(ycsb::sdk::ReceiveInterface* receiver, const std::string& key, const std::string& value);
-
-
-class CLIENTServiceImpl : public client::proto::CLIENTService {
-
-private:
-    ycsb::sdk::SendInterface* sender_;
-    ycsb::sdk::ReceiveInterface* receiver_;
-
-public:
-    CLIENTServiceImpl(ycsb::sdk::SendInterface* sender, ycsb::sdk::ReceiveInterface* receiver)
-            : sender_(sender), receiver_(receiver) {}
-    // 实现插入数据的RPC方法
-    void InsertData(::google::protobuf::RpcController *,
-                    const ::client::proto::InsertRequest* request,
-                    ::client::proto::InsertResponse* response,
-                    ::google::protobuf::Closure* done) override {
-        brpc::ClosureGuard guard(done);
-        std::cout << "Received InsertData request with key: " << request->key() << std::endl;
-
-        // 在这里处理插入数据的逻辑，你可以将数据存储到数据库或其他存储介质中
-        // 调用 addDataToBlockchain 方法
-        auto ret = addDataToBlockchain(sender_, request->key(), request->value());
-        if (!ret) {
-            std::cout << "Failed to add data to the blockchain!" << std::endl;
-            response->set_success(false);
-            return;
-        }
-        response->set_success(true);
-    }
-
-    // 实现查询数据的RPC方法
-    void QueryData(::google::protobuf::RpcController *,
-                   const ::client::proto::QueryRequest* request,
-                   ::client::proto::QueryResponse* response,
-                   ::google::protobuf::Closure* done) override {
-        brpc::ClosureGuard guard(done);
-        std::cout << "Received QueryData request with key: " << request->key() << std::endl;
-
-        // 在这里处理查询数据的逻辑，根据请求的key找到对应的数据
-        std::string verified = verifyDATA(receiver_, request->key(), request->value());
-
-        response->set_hash("hash");
-        response->set_message(verified);
-    }
-};
 
 
 class ClientSDKTest : public ::testing::Test {
@@ -68,6 +25,75 @@ protected:
     void TearDown() override { };
 };
 
+void handle_post(const httplib::Request &req, httplib::Response &res, ycsb::sdk::SendInterface* sender) {
+    json body;
+    try {
+        body = json::parse(req.body);
+    } catch (const json::parse_error &e) {
+        res.status = 400;
+        res.set_content("Invalid JSON data", "text/plain");
+        return;
+    }
+
+    if (body.contains("key") && body.contains("value")) {
+        std::string key = body["key"];
+        std::string value = body["value"];
+
+        // 调用 addDataToBlockchain 函数来向区块链中添加数据
+        auto ret = addDataToBlockchain(sender, key, value);
+        if (!ret) {
+            json response;
+            response["success"] = false;
+            response["message"] = "Failed to add data to blockchain";
+            res.status = 500;
+            res.set_content(response.dump(), "application/json");
+            return;
+        }
+
+        std::string message = "You entered into block Key: " + key + " and Value: " + value;
+        json response;
+        response["success"] = true;
+        response["message"] = message;
+        res.set_content(response.dump(), "application/json");
+    } else {
+        json response;
+        response["success"] = false;
+        response["message"] = "Invalid request. Missing key or value.";
+        res.status = 400;
+        res.set_content(response.dump(), "application/json");
+    }
+}
+
+void handle_verify_post(const httplib::Request &req, httplib::Response &res, ycsb::sdk::ReceiveInterface* receiver) {
+    json body;
+    try {
+        body = json::parse(req.body);
+    } catch (const json::parse_error &e) {
+        res.status = 400;
+        res.set_content("Invalid JSON data", "text/plain");
+        return;
+    }
+
+    if (body.contains("key") && body.contains("value")) {
+        std::string key = body["key"];
+        std::string value = body["value"];
+
+        // 调用 verifyDATA 函数来验证区块链中的数据
+        std::string verificationResult = verifyDATA(receiver, key, value);
+
+        json response;
+        response["success"] = true;
+        response["message"] = verificationResult;
+
+        res.set_content(response.dump(), "application/json");
+    } else {
+        json response;
+        response["success"] = false;
+        response["message"] = "Invalid request. Missing key or value.";
+        res.status = 400;
+        res.set_content(response.dump(), "application/json");
+    }
+}
 
 
 std::string hashToString(size_t hashValue) {
@@ -164,23 +190,24 @@ TEST_F(ClientSDKTest, BasicTest1) {
      */
     // 初始化brpc服务器
     auto ret = addDataToBlockchain(sender, "key1", "value1");
-    brpc::Server server;
+    auto ret3 = addDataToBlockchain(sender, "key17", "value17");
 
-    // 创建服务实例
-    CLIENTServiceImpl client_service_impl(sender, receiver);
+    httplib::Server server;
+    auto ret1 = sender->invokeChaincode("ycsb", "w", "args1");
+    ASSERT_TRUE(ret1);
+    auto ret2 = sender->invokeChaincode("ycsb", "w", "args2");
+    ASSERT_TRUE(ret2);
+    server.Post("/block/submit-data", [&](const httplib::Request &req, httplib::Response &res) {
+        handle_post(req, res, sender);
+    });
+    server.Post("/block/verify-data", [&](const httplib::Request &req, httplib::Response &res) {
+        handle_verify_post(req, res, receiver); // 将 receiver 传递给 handle_verify_post
+    });
 
-    // 添加服务到服务器
-    if (server.AddService(&client_service_impl, brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
-        LOG(INFO) << "添加服务失败" ;
+
+    if (server.listen("0.0.0.0", 8091)) {
+        std::cout << "Server started at http://localhost:8091/" << std::endl;
+    } else {
+        std::cerr << "Failed to start the server" << std::endl;
     }
-
-    // 设置服务器监听的IP地址和端口
-    brpc::ServerOptions options;
-    options.idle_timeout_sec = 60; // 设置空闲超时时间，60秒
-    if (server.Start(9000, &options) != 0) {
-        LOG(INFO) << "启动服务器失败" ;
-    }
-    LOG(INFO) << "启动服务器" ;
-    // 运行服务器，直到接收到SIGINT或SIGTERM信号
-    server.RunUntilAskedToQuit();
 }

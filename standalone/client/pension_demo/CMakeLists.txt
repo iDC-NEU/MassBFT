@@ -1,12 +1,5 @@
 cmake_minimum_required(VERSION 3.14...3.22)
 
-### HTTP support
-find_package(cpp-httplib_install
-        CONFIG
-        REQUIRED
-        PATHS ${CMAKE_SOURCE_DIR}/vendor
-        )
-
 file(GLOB_RECURSE pension_headers CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
 file(GLOB_RECURSE pension_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 

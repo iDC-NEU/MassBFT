@@ -205,6 +205,13 @@ find_package(yaml-cpp_install
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
+### HTTP support
+find_package(cpp-httplib_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+        )
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/vendor/tools.cmake)
 ### compile protobuf
 file(GLOB PROTO_FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/proto/*.proto")

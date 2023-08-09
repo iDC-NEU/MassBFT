@@ -83,16 +83,16 @@ namespace peer::core {
     }
 
     void UserRPCController::hello(::google::protobuf::RpcController *,
-                                  const ::ycsb::client::proto::HelloRequest *request,
-                                  ::ycsb::client::proto::HelloResponse *response, ::google::protobuf::Closure *done) {
+                                  const ::client::proto::HelloRequest *request,
+                                  ::client::proto::HelloResponse *response, ::google::protobuf::Closure *done) {
         brpc::ClosureGuard guard(done);
         response->set_success(true);
         LOG(INFO) << "Receive hello from " << request->ski();
     }
 
     void UserRPCController::pullBlock(::google::protobuf::RpcController *,
-                                      const ::ycsb::client::proto::PullBlockRequest *request,
-                                      ::ycsb::client::proto::PullBlockResponse *response,
+                                      const ::client::proto::PullBlockRequest *request,
+                                      ::client::proto::PullBlockResponse *response,
                                       ::google::protobuf::Closure *done) {
         brpc::ClosureGuard guard(done);
         response->set_success(false);
@@ -117,8 +117,8 @@ namespace peer::core {
     }
 
     void UserRPCController::getTop(::google::protobuf::RpcController *,
-                                   const ::ycsb::client::proto::GetTopRequest *request,
-                                   ::ycsb::client::proto::GetTopResponse *response, ::google::protobuf::Closure *done) {
+                                   const ::client::proto::GetTopRequest *request,
+                                   ::client::proto::GetTopResponse *response, ::google::protobuf::Closure *done) {
         brpc::ClosureGuard guard(done);
         response->set_success(false);
         DLOG(INFO) << "pullBlock, chainId: " << request->chainid()  << ".";
@@ -129,8 +129,8 @@ namespace peer::core {
     }
 
     void UserRPCController::getTxWithProof(::google::protobuf::RpcController *,
-                                           const ::ycsb::client::proto::GetTxRequest *request,
-                                           ::ycsb::client::proto::GetTxResponse *response,
+                                           const ::client::proto::GetTxRequest *request,
+                                           ::client::proto::GetTxResponse *response,
                                            ::google::protobuf::Closure *done) {
         brpc::ClosureGuard guard(done);
         response->set_success(false);
@@ -195,8 +195,8 @@ namespace peer::core {
     }
 
     void UserRPCController::getBlockHeader(::google::protobuf::RpcController *,
-                                           const ::ycsb::client::proto::GetBlockHeaderRequest *request,
-                                           ::ycsb::client::proto::GetBlockHeaderResponse *response,
+                                           const ::client::proto::GetBlockHeaderRequest *request,
+                                           ::client::proto::GetBlockHeaderResponse *response,
                                            ::google::protobuf::Closure *done) {
         brpc::ClosureGuard guard(done);
         response->set_success(false);

@@ -4,21 +4,15 @@
 
 #include "peer/core/module_coordinator.h"
 #include "peer/core/module_factory.h"
-
 #include "common/bccsp.h"
 #include "common/crypto.h"
 #include "common/timer.h"
 #include "common/reliable_zeromq.h"
 #include "common/property.h"
-
+#include "client/ycsb/engine.h"
 #include "tests/mock_property_generator.h"
-
-#include "ycsb/engine.h"
-
 #include "gtest/gtest.h"
 #include "glog/logging.h"
-#include "peer/chaincode/orm.h"
-#include "peer/chaincode/chaincode.h"
 
 class ModuleCoordinatorTest : public ::testing::Test {
 protected:
@@ -34,12 +28,12 @@ protected:
         // avoid database overload
         util::Properties::SetProperties(util::Properties::ARIA_WORKER_COUNT, 1);
         // init ycsb config
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 10000);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 30000);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::UPDATE_PROPORTION_PROPERTY, 0.50);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::RECORD_COUNT_PROPERTY, 10000);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::OPERATION_COUNT_PROPERTY, 30000);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::UPDATE_PROPORTION_PROPERTY, 0.50);
         util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 100);
         util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 1000);
         // load ycsb database
@@ -77,11 +71,11 @@ TEST_F(ModuleCoordinatorTest, BasicTest2_4) {
         it->waitInstanceReady();
     }
     // for the leaders
-    std::vector<std::unique_ptr<ycsb::YCSBEngine>> clientList;
+    std::vector<std::unique_ptr<client::ycsb::YCSBEngine>> clientList;
     for (int i=0; i<groupCount; i++) {
         tests::MockPropertyGenerator::SetLocalId(i, 0);
         auto* p = util::Properties::GetProperties();
-        auto engine = std::make_unique<ycsb::YCSBEngine>(*p);
+        auto engine = std::make_unique<client::ycsb::YCSBEngine>(*p);
         clientList.push_back(std::move(engine));
     }
     util::Timer::sleep_sec(3);

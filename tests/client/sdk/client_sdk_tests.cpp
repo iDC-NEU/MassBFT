@@ -2,11 +2,11 @@
 // Created by peng on 11/6/22.
 //
 
-#include "ycsb/sdk/client_sdk.h"
+#include "client/sdk/client_sdk.h"
+#include "common/proof_generator.h"
 #include "tests/mock_property_generator.h"
 #include "tests/peer/mock_peer.h"
 #include "gtest/gtest.h"
-#include "common/proof_generator.h"
 
 class ClientSDKTest : public ::testing::Test {
 protected:
@@ -14,7 +14,7 @@ protected:
         tests::MockPropertyGenerator::GenerateDefaultProperties(1, 3);
         tests::MockPropertyGenerator::SetLocalId(0, 0);
         util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 2);
-        ycsb::sdk::ClientSDK::InitSDKDependencies();
+        client::sdk::ClientSDK::InitSDKDependencies();
     };
 
     void TearDown() override { };
@@ -23,11 +23,11 @@ protected:
 TEST_F(ClientSDKTest, BasicTest) {
     auto* p = util::Properties::GetProperties();
     tests::peer::Peer peer(*p, false, false);
-    auto clientSDK = ycsb::sdk::ClientSDK::NewSDK(*p);
+    auto clientSDK = client::sdk::ClientSDK::NewSDK(*p);
     ASSERT_TRUE(clientSDK);
     ASSERT_TRUE(clientSDK->connect());
-    ycsb::sdk::SendInterface* sender = clientSDK.get();
-    ycsb::sdk::ReceiveInterface* receiver = clientSDK.get();
+    client::sdk::SendInterface* sender = clientSDK.get();
+    client::sdk::ReceiveInterface* receiver = clientSDK.get();
     // wait until server ready
     std::this_thread::sleep_for(std::chrono::seconds(1));
     ASSERT_TRUE(receiver->getChainHeight(0, 100) == -1);

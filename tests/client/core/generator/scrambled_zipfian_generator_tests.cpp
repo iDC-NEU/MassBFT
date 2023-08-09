@@ -2,8 +2,8 @@
 // Created by peng on 11/7/22.
 //
 
+#include "client/core/generator/scrambled_zipfian_generator.h"
 #include "gtest/gtest.h"
-#include "ycsb/core/generator/scrambled_zipfian_generator.h"
 
 class ScrambledZipfianGeneratorTest : public ::testing::Test {
 protected:
@@ -28,7 +28,7 @@ protected:
 TEST_F(ScrambledZipfianGeneratorTest, ScrambledZipfianCorrectness) {
     auto target = {848536, 1166912, 793859, 859141, 993748, 949876, 864642, 876079, 932109, 792692, 922406};
     int min=0, max=10, count=10000000;
-    auto sz = ycsb::core::ScrambledZipfianGenerator::NewScrambledZipfianGenerator(min, max);
+    auto sz = client::core::ScrambledZipfianGenerator::NewScrambledZipfianGenerator(min, max);
     auto mapping = TestCount(*sz, count);
     EXPECT_TRUE(mapping.size() == 11);
     for (uint64_t i = 0; i <= 10; i++) {

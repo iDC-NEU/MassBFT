@@ -1,9 +1,10 @@
 //
 // Created by peng on 11/6/22.
 //
-#include <thread>
+
+#include "client/core/generator/zipfian_generator.h"
 #include "gtest/gtest.h"
-#include "ycsb/core/generator/zipfian_generator.h"
+#include <thread>
 
 class ZipfianGeneratorTest : public ::testing::Test {
 protected:
@@ -13,7 +14,7 @@ protected:
     void TearDown() override {
     };
 
-    static void TestOutOfRange(ycsb::core::ZipfianGenerator& z, uint64_t min, uint64_t max, uint64_t count) {
+    static void TestOutOfRange(client::core::ZipfianGenerator& z, uint64_t min, uint64_t max, uint64_t count) {
         for (uint64_t i = 0; i < count; i++) {
             auto rnd = z.nextValue();
             EXPECT_TRUE(min <= rnd);
@@ -21,7 +22,7 @@ protected:
         }
     }
 
-    static auto TestCount(ycsb::core::ZipfianGenerator& z, uint64_t min, uint64_t max, uint64_t count) {
+    static auto TestCount(client::core::ZipfianGenerator& z, uint64_t min, uint64_t max, uint64_t count) {
         std::vector<int> countVec(max-min+1);
         for (uint64_t i = 0; i < count; i++) {
             auto rnd = z.nextValue();
@@ -31,7 +32,7 @@ protected:
     }
     static void TestUniformDistribution() {
         int min=0, max=10, count=10000000;
-        ycsb::core::ZipfianGenerator z(min, max, 0);
+        client::core::ZipfianGenerator z(min, max, 0);
         auto vec = TestCount(z, min, max, count);
         for (uint64_t i = 0; i < vec.size(); i++) {
             EXPECT_TRUE(vec[i] < (double)count/vec.size()*1.05) << "distribution test failed!";
@@ -46,13 +47,13 @@ protected:
 TEST_F(ZipfianGeneratorTest, OutOfRange) {
     int min=0, max=10, count=1000;
 
-    auto z = ycsb::core::ZipfianGenerator::NewZipfianGenerator(min, max);
+    auto z = client::core::ZipfianGenerator::NewZipfianGenerator(min, max);
     TestOutOfRange(*z, min, max, count);
 }
 
 TEST_F(ZipfianGeneratorTest, ZipfianCorrectness) {
     int min=0, max=10, count=10000000;
-    auto z = ycsb::core::ZipfianGenerator::NewZipfianGenerator(min, max);
+    auto z = client::core::ZipfianGenerator::NewZipfianGenerator(min, max);
     auto vec = TestCount(*z, min, max, count);
     EXPECT_TRUE(vec.size() == 11);
     for (uint64_t i = 0; i < 11; i++) {
@@ -63,7 +64,7 @@ TEST_F(ZipfianGeneratorTest, ZipfianCorrectness) {
 
 TEST_F(ZipfianGeneratorTest, ZipfianCorrectness2) {
     int min=0, max=1000000, count=10000000;
-    auto z = ycsb::core::ZipfianGenerator::NewZipfianGenerator(min, max);
+    auto z = client::core::ZipfianGenerator::NewZipfianGenerator(min, max);
     auto vec = TestCount(*z, min, max, count);
     EXPECT_TRUE(vec.size() > 11);
     for (uint64_t i = 0; i < 11; i++) {
@@ -86,7 +87,7 @@ TEST_F(ZipfianGeneratorTest, ConcurrentAccess) {
 }
 
 TEST_F(ZipfianGeneratorTest, TestZetaStaticCalculation) {
-    auto newZetan = ycsb::core::ZipfianGenerator::ZetaStatic(0, 100000000, ycsb::core::ZipfianGenerator::ZIPFIAN_CONSTANT, 0);
+    auto newZetan = client::core::ZipfianGenerator::ZetaStatic(0, 100000000, client::core::ZipfianGenerator::ZIPFIAN_CONSTANT, 0);
     EXPECT_TRUE(std::abs(20.80293049002014 - newZetan) < 0.0000000001);
 }
 

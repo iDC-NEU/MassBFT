@@ -2,8 +2,8 @@
 // Created by peng on 11/7/22.
 //
 
+#include "client/core/generator/uniform_long_generator.h"
 #include "gtest/gtest.h"
-#include "ycsb/core/generator/uniform_long_generator.h"
 
 class UniformLongGeneratorTest : public ::testing::Test {
 protected:
@@ -27,7 +27,7 @@ protected:
 
 TEST_F(UniformLongGeneratorTest, UniformLongCorrectness) {
     int min=10, max=100, count=10000000;
-    auto sz = ycsb::core::UniformLongGenerator::NewUniformLongGenerator(min, max);
+    auto sz = client::core::UniformLongGenerator::NewUniformLongGenerator(min, max);
     auto mapping = TestCount(*sz, count);
     const int size = (int)mapping.size();
     EXPECT_TRUE(size == max-min+1);

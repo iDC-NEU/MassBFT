@@ -2,15 +2,15 @@
 // Created by peng on 11/7/22.
 //
 
+#include "client/ycsb/core_workload.h"
 #include "gtest/gtest.h"
-#include "ycsb/core/workload/core_workload.h"
 #include "yaml-cpp/yaml.h"
 
 class CoreWorkloadTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        using namespace ycsb::core::workload;
-        ycsb::utils::YCSBProperties::Proportion p{};
+        using namespace client::ycsb;
+        YCSBProperties::Proportion p{};
         p.readProportion = 0.20;
         p.updateProportion = 0.20;
         p.insertProportion = 0.20;
@@ -26,16 +26,16 @@ protected:
         std::vector<int> counts(5);
         for (int i = 0; i < 10000; ++i) {
             switch (generator->nextValue()) {
-                case ycsb::core::Operation::READ:
+                case client::core::Operation::READ:
                     ++counts[0];
                     break;
-                case ycsb::core::Operation::UPDATE:
+                case client::core::Operation::UPDATE:
                     ++counts[1];
                     break;
-                case ycsb::core::Operation::INSERT:
+                case client::core::Operation::INSERT:
                     ++counts[2];
                     break;
-                case ycsb::core::Operation::SCAN:
+                case client::core::Operation::SCAN:
                     ++counts[3];
                     break;
                 default:
@@ -46,8 +46,8 @@ protected:
     }
 
 protected:
-    ycsb::core::workload::CoreWorkload coreWorkload;
-    std::unique_ptr<ycsb::core::DiscreteGenerator> generator;
+    client::ycsb::CoreWorkload coreWorkload;
+    std::unique_ptr<client::core::DiscreteGenerator> generator;
 };
 
 TEST_F(CoreWorkloadTest, TestOperationGenerator) {
@@ -59,10 +59,10 @@ TEST_F(CoreWorkloadTest, TestOperationGenerator) {
 }
 
 TEST_F(CoreWorkloadTest, TestDefaultOperationGenerator) {
-    ycsb::utils::YCSBProperties::Proportion p{};
+    client::ycsb::YCSBProperties::Proportion p{};
     p.readProportion = 0.95;
     p.updateProportion = 0.05;
-    this->generator = ycsb::core::workload::CoreWorkload::createOperationGenerator(p);
+    this->generator = client::ycsb::CoreWorkload::createOperationGenerator(p);
     auto counts = TestOperationGenerator();
     EXPECT_TRUE(counts[0] < (double)10000*0.95*1.1) << "distribution test failed!";
     EXPECT_TRUE(counts[0] > (double)10000*0.95*0.9) << "distribution test failed!";
@@ -71,19 +71,19 @@ TEST_F(CoreWorkloadTest, TestDefaultOperationGenerator) {
 }
 
 TEST_F(CoreWorkloadTest, TestBuildKey) {
-    EXPECT_TRUE(ycsb::core::workload::CoreWorkload::buildKeyName(1000, 1, true) == "user1000");
-    EXPECT_TRUE(ycsb::core::workload::CoreWorkload::buildKeyName(1000, 1, false) == "user5952875239596136740");
-    EXPECT_TRUE(ycsb::core::workload::CoreWorkload::buildKeyName(1000, 25, true) == "user0000000000000000000001000");
-    EXPECT_TRUE(ycsb::core::workload::CoreWorkload::buildKeyName(1000, 25, false) == "user0000005952875239596136740");
+    EXPECT_TRUE(client::ycsb::CoreWorkload::buildKeyName(1000, 1, true) == "user1000");
+    EXPECT_TRUE(client::ycsb::CoreWorkload::buildKeyName(1000, 1, false) == "user5952875239596136740");
+    EXPECT_TRUE(client::ycsb::CoreWorkload::buildKeyName(1000, 25, true) == "user0000000000000000000001000");
+    EXPECT_TRUE(client::ycsb::CoreWorkload::buildKeyName(1000, 25, false) == "user0000005952875239596136740");
 }
 
 TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator1) {
-    using namespace ycsb::core::workload;
+    using namespace client::ycsb;
     CHECK(util::Properties::LoadProperties());
     auto* property = util::Properties::GetProperties();
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "constant");
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_PROPERTY, 35);
-    auto p = ycsb::utils::YCSBProperties::NewFromProperty(*property);
+    YCSBProperties::SetYCSBProperties(YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "constant");
+    YCSBProperties::SetYCSBProperties(YCSBProperties::FIELD_LENGTH_PROPERTY, 35);
+    auto p = YCSBProperties::NewFromProperty(*property);
     auto gen = CoreWorkload::getFieldLengthGenerator(*p);
     const auto val = gen->nextValue();
     EXPECT_TRUE(val == 35);
@@ -93,13 +93,13 @@ TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator1) {
 }
 
 TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator2) {
-    using namespace ycsb::core::workload;
+    using namespace client::ycsb;
     CHECK(util::Properties::LoadProperties());
     auto* property = util::Properties::GetProperties();
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "uniform");
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::FIELD_LENGTH_PROPERTY, 50);
-    ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::MIN_FIELD_LENGTH_PROPERTY, 41);
-    auto p = ycsb::utils::YCSBProperties::NewFromProperty(*property);
+    YCSBProperties::SetYCSBProperties(YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "uniform");
+    YCSBProperties::SetYCSBProperties(YCSBProperties::FIELD_LENGTH_PROPERTY, 50);
+    YCSBProperties::SetYCSBProperties(YCSBProperties::MIN_FIELD_LENGTH_PROPERTY, 41);
+    auto p = YCSBProperties::NewFromProperty(*property);
     auto gen = CoreWorkload::getFieldLengthGenerator(*p);
     std::unordered_map<uint64_t, int> counts;
     for (int i=0; i<100000; i++) {

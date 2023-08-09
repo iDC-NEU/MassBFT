@@ -2,9 +2,9 @@
 // Created by peng on 11/7/22.
 //
 
-#include "gtest/gtest.h"
-#include "ycsb/core/generator/acknowledge_counter_generator.h"
+#include "client/core/generator/acknowledge_counter_generator.h"
 #include "common/timer.h"
+#include "gtest/gtest.h"
 #include <queue>
 
 class AcknowledgeCounterGeneratorTest : public ::testing::Test {
@@ -34,7 +34,7 @@ TEST_F(AcknowledgeCounterGeneratorTest, AcknowledgeCounterGeneratorCorrectness) 
 
     const auto toTry = WINDOW_SIZE * 3;
 
-    ycsb::core::AcknowledgedCounterGenerator generator(INT64_MAX - 1000);
+    client::core::AcknowledgedCounterGenerator generator(INT64_MAX - 1000);
 
     std::queue<uint64_t> q;
 

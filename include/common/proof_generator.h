@@ -10,21 +10,16 @@
 namespace util {
     class ProofGenerator {
     public:
-        explicit ProofGenerator(const proto::Block::Body& body, int wpSize = 0) {
-            if (wpSize >= 2) {
-                wp = std::make_unique<util::thread_pool_light>(
-                        std::min((int)std::thread::hardware_concurrency(), wpSize), "pr_gn_wk");
-            }
+        // std::make_unique<util::thread_pool_light>(std::min((int)std::thread::hardware_concurrency(), wpSize), "pr_gn_wk");
+        explicit ProofGenerator(const proto::Block::Body& body, util::thread_pool_light* tp=nullptr) {
+            wp = tp;
             if (!body.serializeForProofGen(posList, serializedBody)) {
                 CHECK(false) << "Serialize proof failed!";
             }
         }
 
-        explicit ProofGenerator(const proto::Block::ExecuteResult& executeResult, int wpSize = 0) {
-            if (wpSize >= 2) {
-                wp = std::make_unique<util::thread_pool_light>(
-                        std::min((int)std::thread::hardware_concurrency(), wpSize), "pr_gn_wk");
-            }
+        explicit ProofGenerator(const proto::Block::ExecuteResult& executeResult, util::thread_pool_light* tp=nullptr) {
+            wp = tp;
             if (!executeResult.serializeForProofGen(posList, serializedBody)) {
                 CHECK(false) << "Serialize proof failed!";
             }
@@ -54,7 +49,7 @@ namespace util {
             if (blocks.size() == 1) {   // special case: block has only 1 user request
                 blocks.emplace_back(new UserRequestDataBlock(bodySV.substr(0, posList[0])));
             }
-            return pmt::MerkleTree::New(pmtConfig, blocks, wp.get());
+            return pmt::MerkleTree::New(pmtConfig, blocks, wp);
         }
 
         static std::optional<pmt::Proof> GenerateProof(const pmt::MerkleTree& mt, const std::string& dataBlock) {
@@ -74,7 +69,7 @@ namespace util {
     private:
         std::vector<int> posList;
         std::string serializedBody;
-        std::unique_ptr<util::thread_pool_light> wp;
+        util::thread_pool_light* wp;
 
     private:
         class UserRequestDataBlock: public pmt::DataBlock {

@@ -2,11 +2,9 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 CPMAddPackage(
         NAME brpc
-        GITHUB_REPOSITORY apache/brpc
-        VERSION v1.4.0
-        GIT_TAG 1.4.0
+        URL https://github.com/apache/brpc/archive/refs/tags/1.6.0.tar.gz
+        VERSION v1.6.0
         DOWNLOAD_ONLY True
-        GIT_SHALLOW TRUE
 )
 
 set(BRPC_LIB "${PROJECT_BINARY_DIR}/lib/libbrpc.a")

@@ -2,11 +2,9 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 CPMAddPackage(
         NAME protobuf
-        GITHUB_REPOSITORY protocolbuffers/protobuf
-        GIT_TAG v3.16.2
-        VERSION v3.16.2
+        URL https://github.com/protocolbuffers/protobuf/releases/download/v3.16.3/protobuf-all-3.16.3.tar.gz
+        VERSION v3.16.3
         DOWNLOAD_ONLY True
-        GIT_SHALLOW TRUE
 )
 
 set(PROTOBUF_PROTOC_EXECUTABLE "${PROJECT_BINARY_DIR}/bin/protoc")

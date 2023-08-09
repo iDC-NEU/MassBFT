@@ -7,7 +7,7 @@ CPMAddPackage(
         DOWNLOAD_ONLY True
 )
 
-set(LIBSSH_LIB "${PROJECT_BINARY_DIR}/lib/libssh.a")
+set(LIBSSH_LIB "${PROJECT_BINARY_DIR}/lib/libssh.so")
 
 if(NOT EXISTS "${LIBSSH_LIB}")
     message("Start configure libssh")

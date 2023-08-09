@@ -2,11 +2,9 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 CPMAddPackage(
         NAME nljson
-        GITHUB_REPOSITORY nlohmann/json
+        URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz
         VERSION 3.11.2
-        GIT_TAG v3.11.2
         DOWNLOAD_ONLY True
-        GIT_SHALLOW TRUE
 )
 
 set(NLJSON_LIB "${PROJECT_BINARY_DIR}/include/nlohmann/json.hpp")

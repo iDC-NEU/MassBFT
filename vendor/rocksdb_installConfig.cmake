@@ -2,10 +2,8 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 CPMAddPackage(
         NAME rocksdb
-        GITHUB_REPOSITORY facebook/rocksdb
-        VERSION 7.9.2
-        GIT_TAG v7.9.2
-        GIT_SHALLOW TRUE
+        URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.3.2.tar.gz
+        GIT_TAG v8.3.2
         DOWNLOAD_ONLY True
 )
 

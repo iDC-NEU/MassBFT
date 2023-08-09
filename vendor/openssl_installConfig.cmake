@@ -2,11 +2,9 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 CPMAddPackage(
         NAME openssl
-        GITHUB_REPOSITORY openssl/openssl
-        VERSION v3.0.7
-        GIT_TAG openssl-3.0.7
+        URL https://github.com/openssl/openssl/releases/download/openssl-3.1.2/openssl-3.1.2.tar.gz
+        VERSION v3.1.2
         DOWNLOAD_ONLY True
-        GIT_SHALLOW TRUE
 )
 
 if(NOT EXISTS "${PROJECT_BINARY_DIR}/bin/openssl")

@@ -10,6 +10,7 @@
 #include "peer/chaincode/ycsb_chaincode.h"
 #include "peer/chaincode/ycsb_row_level.h"
 #include "peer/chaincode/hash_chaincode.h"
+#include "peer/chaincode/small_bank_chaincode.h"
 
 namespace peer::chaincode {
     std::unique_ptr<Chaincode> NewChaincodeByName(const std::string &ccName, std::unique_ptr<ORM> orm) {
@@ -25,6 +26,9 @@ namespace peer::chaincode {
         }
         if (ccName == "hash_chaincode") {
             return std::make_unique<peer::chaincode::HashChaincode>(std::move(orm));
+        }
+        if (ccName == "small_bank") {
+            return std::make_unique<peer::chaincode::SmallBankChaincode>(std::move(orm));
         }
         LOG(ERROR) << "No matched chaincode found!";
         return nullptr;

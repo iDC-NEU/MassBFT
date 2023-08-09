@@ -2,7 +2,7 @@
 // Created by user on 23-7-7.
 //
 #include "ca/config_initializer.h"
-#include "ycsb/core/common/ycsb_property.h"
+#include "client/ycsb/ycsb_property.h"
 #include "common/property.h"
 #include "common/crypto.h"
 #include "common/ssh.h"
@@ -55,16 +55,16 @@ namespace ca {
         util::Properties::SetProperties(util::Properties::SSH_PASSWORD, "neu1234.");
 
         // init ycsb property
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::OPERATION_COUNT_PROPERTY, 1000 * 25 * 30);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 25);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::THREAD_COUNT_PROPERTY, 10);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::OPERATION_COUNT_PROPERTY, 1000 * 25 * 30);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 25);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 10);
         // ycsb-a example
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::UPDATE_PROPORTION_PROPERTY, 0.50);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::INSERT_PROPORTION_PROPERTY, 0.00);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::SCAN_PROPORTION_PROPERTY, 0.00);
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::READMODIFYWRITE_PROPORTION_PROPERTY, 0.00);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::UPDATE_PROPORTION_PROPERTY, 0.50);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::INSERT_PROPORTION_PROPERTY, 0.00);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::SCAN_PROPORTION_PROPERTY, 0.00);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::READMODIFYWRITE_PROPORTION_PROPERTY, 0.00);
         return true;
     }
 

@@ -1,6 +1,6 @@
 syntax = "proto2";
 
-package ycsb.client.proto;
+package client.proto;
 option cc_generic_services = true;
 
 message HelloRequest {

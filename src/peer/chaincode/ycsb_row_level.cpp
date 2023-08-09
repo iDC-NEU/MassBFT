@@ -2,8 +2,8 @@
 // Created by user on 23-7-3.
 //
 #include "peer/chaincode/ycsb_row_level.h"
-#include "ycsb/core/common/ycsb_property.h"
-#include "ycsb/core/workload/core_workload.h"
+#include "client/ycsb/ycsb_property.h"
+#include "client/ycsb/core_workload.h"
 
 namespace peer::chaincode {
     int chaincode::YCSBRowLevel::InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) {
@@ -26,29 +26,29 @@ namespace peer::chaincode {
         }
     }
 
-    class WriteThroughDB: public ycsb::core::DB {
+    class WriteThroughDB: public client::core::DB {
     public:
         explicit WriteThroughDB(ORM* orm) :_orm(orm) { }
 
         void stop() override { }
 
-        ycsb::core::Status read(const std::string&, const std::string&, const std::vector<std::string>&) override {
-            return ycsb::core::ERROR;
+        client::core::Status read(const std::string&, const std::string&, const std::vector<std::string>&) override {
+            return client::core::ERROR;
         }
 
-        ycsb::core::Status scan(const std::string&, const std::string&, uint64_t, const std::vector<std::string>&) override {
-            return ycsb::core::ERROR;
+        client::core::Status scan(const std::string&, const std::string&, uint64_t, const std::vector<std::string>&) override {
+            return client::core::ERROR;
         }
 
-        ycsb::core::Status update(const std::string&, const std::string&, const ycsb::utils::ByteIteratorMap&) override {
-            return ycsb::core::ERROR;
+        client::core::Status update(const std::string&, const std::string&, const client::utils::ByteIteratorMap&) override {
+            return client::core::ERROR;
         }
 
-        ycsb::core::Status readModifyWrite(const std::string&, const std::string&, const std::vector<std::string>&, const ycsb::utils::ByteIteratorMap&) override {
-            return ycsb::core::ERROR;
+        client::core::Status readModifyWrite(const std::string&, const std::string&, const std::vector<std::string>&, const client::utils::ByteIteratorMap&) override {
+            return client::core::ERROR;
         }
 
-        ycsb::core::Status insert(const std::string&, const std::string& key, const ycsb::utils::ByteIteratorMap& rhs) override {
+        client::core::Status insert(const std::string&, const std::string& key, const client::utils::ByteIteratorMap& rhs) override {
             std::unordered_map<std::string_view, std::string_view> lhs;
             for (const auto& it: rhs) {
                 lhs[it.first] = it.second;
@@ -57,35 +57,35 @@ namespace peer::chaincode {
             std::string rawWriteValue;
             zpp::bits::out out(rawWriteValue);
             if(failure(out(lhs))) {
-                return ycsb::core::ERROR;
+                return client::core::ERROR;
             }
             _orm->put(std::string(key), std::move(rawWriteValue));
-            return ycsb::core::STATUS_OK;
+            return client::core::STATUS_OK;
         }
 
-        ycsb::core::Status remove(const std::string&, const std::string&) override { return ycsb::core::ERROR; }
+        client::core::Status remove(const std::string&, const std::string&) override { return client::core::ERROR; }
 
     private:
         ORM* _orm;
     };
 
     int peer::chaincode::YCSBRowLevel::InitDatabase() {
-        ::ycsb::core::GetThreadLocalRandomGenerator()->seed(0); // use deterministic value
+        ::client::core::GetThreadLocalRandomGenerator()->seed(0); // use deterministic value
         auto* property = util::Properties::GetProperties();
-        auto ycsbProperties = ycsb::utils::YCSBProperties::NewFromProperty(*property);
+        auto ycsbProperties = client::ycsb::YCSBProperties::NewFromProperty(*property);
 
         // set insert start = 0
         auto oldInsertStart = ycsbProperties->getInsertStart();
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::INSERT_START_PROPERTY, 0);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::INSERT_START_PROPERTY, 0);
 
         // create new workload
-        auto workload = std::make_shared<ycsb::core::workload::CoreWorkload>();
-        workload->init(*ycsbProperties);
-        auto measurements = std::make_shared<ycsb::core::Measurements>();
+        auto workload = std::make_shared<client::ycsb::CoreWorkload>();
+        workload->init(*property);
+        auto measurements = std::make_shared<client::core::Measurements>();
         workload->setMeasurements(measurements);
 
         // restore the original value
-        ycsb::utils::YCSBProperties::SetYCSBProperties(ycsb::utils::YCSBProperties::INSERT_START_PROPERTY, oldInsertStart);
+        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::INSERT_START_PROPERTY, oldInsertStart);
 
         // start load data
         auto opCount = ycsbProperties->getRecordCount();
@@ -223,7 +223,7 @@ namespace peer::chaincode {
         }
         // merge (if not exist)
         for (const auto& it: rhs) {
-            if (lhs.insert({it.first, it.second}).second == false) {
+            if (!lhs.insert({it.first, it.second}).second) {
                 return -1;
             }
         }

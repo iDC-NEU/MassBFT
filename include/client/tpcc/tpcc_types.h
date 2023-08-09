@@ -10,6 +10,14 @@ namespace client::tpcc {
 
     inline constexpr static Integer minInteger = std::numeric_limits<int>::min();
 
+    enum class WorkloadType {
+        NEW_ORDER = 0,
+        DELIVERY = 1,
+        STOCK_LEVEL = 2,
+        ORDER_STATUS = 3,
+        PAYMENT = 4,
+        MAX = 5,
+    };
 
     template <size_t maxLength>
     class Varchar {
@@ -20,24 +28,24 @@ namespace client::tpcc {
         requires requires(const Container& str) { str.begin(); str.end(); str.size(); }
         explicit Varchar(const Container& str)
                 : length(str.size()){
-            DCHECK(length < maxLength);
+            DCHECK(this->size() < maxLength);
             std::copy(str.begin(), str.end(), data.begin());
         }
 
-        auto begin() const noexcept {
+        [[nodiscard]] auto begin() const noexcept {
             return data.begin();
         }
 
-        auto end() const noexcept {
+        [[nodiscard]] auto end() const noexcept {
             return data.begin() + length;
         }
 
-        auto size() const noexcept {
+        [[nodiscard]] size_t size() const noexcept {
             return length;
         }
 
         void append(char x) {
-            DCHECK(length < maxLength-1);
+            DCHECK(this->size() < maxLength-1);
             data[length++] = x;
         };
 
@@ -49,7 +57,7 @@ namespace client::tpcc {
         Varchar<maxLength> operator||(const Container& rhs) const {
             Varchar<maxLength> ret;
             ret.length = length + rhs.size();
-            CHECK(ret.length <= maxLength);
+            DCHECK(ret.size() <= maxLength);
             std::copy(this->begin(), this->end(), ret.data.begin());
             std::copy(rhs.begin(), rhs.end(), ret.data.begin()+length);
             return ret;
@@ -73,8 +81,23 @@ namespace client::tpcc {
             return this->size() < rhs.size();
         }
 
+        char& operator[](size_t idx) noexcept {
+            DCHECK(idx < length);
+            return this->data[idx];
+        }
+
+        char& operator[](size_t idx) const noexcept {
+            DCHECK(idx < length);
+            return this->data[idx];
+        }
+
+        void resize(size_t size) {
+            DCHECK(size <= maxLength);
+            length = size;
+        }
+
     private:
-        int16_t length;
+        uint32_t length;
         std::array<char, maxLength> data;
     };
 }

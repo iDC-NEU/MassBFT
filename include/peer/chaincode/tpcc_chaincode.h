@@ -6,6 +6,7 @@
 
 #include "peer/chaincode/chaincode.h"
 #include "client/tpcc/tpcc_schema.h"
+#include "client/tpcc/tpcc_random_helper.h"
 
 namespace peer::chaincode {
     class TPCCChaincode : public Chaincode {
@@ -21,89 +22,70 @@ namespace peer::chaincode {
 
         bool initItem(int partitionID);
 
-        bool initOrderLine(int nDistrict, int partitionID);
-
         bool initOrder(int nDistrict, int partitionID);
-
-        bool initNewOrder(int nDistrict, int partitionID);
-
-        bool initHistory(int nDistrict, int partitionID);
-
-        bool initCustomerNameIdx(int nDistrict, int partitionID);
 
         bool initCustomer(int nDistrict, int partitionID);
 
         bool initDistrict(int nDistrict, int partitionID);
 
-        bool initWarehouse(int partitionID);
+        // warehouse id is the partition id
+        bool initWarehouse(int fromWhId, int toWhId);
 
     protected:
         bool executeNewOrder(std::string_view argSV);
 
     protected:
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::StockKey& key,
-                             const client::tpcc::schema::StockValue& value);
+                             const client::tpcc::schema::stock_t::key_t& key,
+                             const client::tpcc::schema::stock_t& value);
 
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::ItemKey& key,
-                             const client::tpcc::schema::ItemValue& value);
+                             const client::tpcc::schema::item_t::key_t& key,
+                             const client::tpcc::schema::item_t& value);
 
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::OrderLineKey& key,
-                             const client::tpcc::schema::OrderLineValue& value);
+                             const client::tpcc::schema::order_line_t::key_t& key,
+                             const client::tpcc::schema::order_line_t& value);
 
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::OrderKey& key,
-                             const client::tpcc::schema::OrderValue& value);
+                             const client::tpcc::schema::order_wdc_t::key_t& key,
+                             const client::tpcc::schema::order_wdc_t& value);
 
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::NewOrderKey& key,
-                             const client::tpcc::schema::NewOrderValue& value);
+                             const client::tpcc::schema::order_t::key_t& key,
+                             const client::tpcc::schema::order_t& value);
 
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::HistoryKey& key,
-                             const client::tpcc::schema::HistoryValue& value);
+                             const client::tpcc::schema::new_order_t::key_t& key,
+                             const client::tpcc::schema::new_order_t& value);
 
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::CustomerNameIdxKey& key,
-                             const client::tpcc::schema::CustomerNameIdxValue& value);
+                             const client::tpcc::schema::history_t::key_t& key,
+                             const client::tpcc::schema::history_t& value);
 
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::CustomerKey& key,
-                             const client::tpcc::schema::CustomerValue& value);
+                             const client::tpcc::schema::customer_wdl_t::key_t& key,
+                             const client::tpcc::schema::customer_wdl_t& value);
 
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::DistrictKey& key,
-                             const client::tpcc::schema::DistrictValues& value);
+                             const client::tpcc::schema::customer_t::key_t& key,
+                             const client::tpcc::schema::customer_t& value);
+
+        void insertIntoTable(int partitionID,
+                             const client::tpcc::schema::district_t::key_t& key,
+                             const client::tpcc::schema::district_t& value);
 
         bool Get(int partitionID,
-                 const client::tpcc::schema::DistrictKey& key,
-                 client::tpcc::schema::DistrictValues& value);
+                 const client::tpcc::schema::district_t::key_t& key,
+                 client::tpcc::schema::district_t& value);
 
         void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::WarehouseKey& key,
-                             const client::tpcc::schema::WarehouseValue& value);
+                             const client::tpcc::schema::warehouse_t::key_t& key,
+                             const client::tpcc::schema::warehouse_t& value);
 
         std::string buildTablePrefix(const std::string& tableName, int partitionID);
 
-        static void GenerateLastName(auto& buf, int n) {
-            const auto &s1 = lastNames[n / 100];
-            const auto &s2 = lastNames[n / 10 % 10];
-            const auto &s3 = lastNames[n % 10];
-            auto name = s1 + s2 + s3;
-            if (name.size() > buf.size()) {
-                name.resize(buf.size());
-            }
-            std::copy(name.begin(), name.end(), buf.begin());
-        }
-
     private:
-        inline static const std::string ORIGINAL_STR = "ORIGINAL";
-
-        inline static const std::vector<std::string> lastNames = {
-                "BAR", "OUGHT", "ABLE",  "PRI",   "PRES",
-                "ESE", "ANTI",  "CALLY", "ATION", "EING"
-        };
+        client::tpcc::RandomGenerator randomGenerator;
     };
 }

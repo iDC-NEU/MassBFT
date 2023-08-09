@@ -88,16 +88,14 @@ namespace client::tpcc::schema {
     struct history_t {
         static constexpr int id = 4;
         struct key_t {
-            Integer thread_id;
-            Integer h_pk;
+            Integer h_c_id{};
+            Integer h_c_d_id{};
+            Integer h_c_w_id{};
+            Integer h_d_id{};
+            Integer h_w_id{};
+            Timestamp h_date{};
         };
 
-        Integer h_c_id{};
-        Integer h_c_d_id{};
-        Integer h_c_w_id{};
-        Integer h_d_id{};
-        Integer h_w_id{};
-        Timestamp h_date{};
         Numeric h_amount{};
         Varchar<24> h_data;
     };
@@ -131,6 +129,7 @@ namespace client::tpcc::schema {
         Numeric o_all_local;
     };
 
+    // Order-Status (WDC) With Delivery Confirmation
     struct order_wdc_t {
         static constexpr int id = 7;
         struct key_t {
@@ -172,7 +171,7 @@ namespace client::tpcc::schema {
 
     struct stock_t {
         static constexpr int id = 10;
-        struct Key {
+        struct key_t {
             Integer s_w_id;
             Integer s_i_id;
         };

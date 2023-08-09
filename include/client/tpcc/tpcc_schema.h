@@ -4,216 +4,193 @@
 
 #pragma once
 
+#include "client/tpcc/tpcc_types.h"
 #include "zpp_bits.h"
-#include <array>
 
 namespace client::tpcc::schema {
-    struct StockKey {
-        // Stock Warehouse Identifier, The warehouse identifier to which the item belongs
-        uint32_t S_W_ID;
-        // Stock Item Identifier, Unique identifier for the item in stock
-        uint32_t S_I_ID;
+    struct warehouse_t {
+        static constexpr int id = 0;
+        struct key_t {
+            Integer w_id;
+        };
+
+        Varchar<10> w_name;
+        Varchar<20> w_street_1;
+        Varchar<20> w_street_2;
+        Varchar<20> w_city;
+        Varchar<2> w_state;
+        Varchar<9> w_zip;
+        Numeric w_tax{};
+        Numeric w_ytd{};
+        // fix for contention; could be solved with contention split from
+        // http://cidrdb.org/cidr2021/papers/cidr2021_paper21.pdf
+        uint8_t padding[1024]{};
     };
 
-    struct StockValue {
-        // S_QUANTITY stores the inventory quantity of each item in the warehouse
-        uint16_t S_QUANTITY;
-        // S_DIST_01 to S_DIST_10 represent the distribution information of ten different districts of the warehouse
-        std::array<char, 25> S_DIST[10];
-        // S_YTD means "Stock Year-To-Date", which is the cumulative annual sales of inventory items
-        double S_YTD;
-        // S_ORDER_CNT is the abbreviation of "Stock Order Count", which means the order count of stock items
-        uint32_t S_ORDER_CNT;
-        // S_REMOTE_CNT indicates the "Remote Count" of the inventory item,
-        // that is, the quantity of the inventory item distributed in other warehouses.
-        // In a distributed database environment, a warehouse may be distributed
-        // in multiple geographical locations or servers,
-        // and each warehouse may maintain a part of the commodity inventory.
-        uint32_t S_REMOTE_CNT;
-        // S_DATA refers to a data field in the stock table (STOCK table),
-        // which stores additional information about stock items
-        std::array<char, 50> S_DATA;
+    struct district_t {
+        static constexpr int id = 1;
+        struct key_t {
+            Integer d_w_id;
+            Integer d_id;
+        };
+
+        Varchar<10> d_name;
+        Varchar<20> d_street_1;
+        Varchar<20> d_street_2;
+        Varchar<20> d_city;
+        Varchar<2> d_state;
+        Varchar<9> d_zip;
+        Numeric d_tax{};
+        Numeric d_ytd{};
+        Integer d_next_o_id{};
     };
 
-    struct ItemKey {
-        // Item Identification Number
-        uint32_t I_ID;
+    struct customer_t {
+        static constexpr int id = 2;
+        struct key_t {
+            Integer c_w_id;
+            Integer c_d_id;
+            Integer c_id;
+        };
+
+        Varchar<16> c_first;
+        Varchar<2> c_middle;
+        Varchar<16> c_last;
+        Varchar<20> c_street_1;
+        Varchar<20> c_street_2;
+        Varchar<20> c_city;
+        Varchar<2> c_state;
+        Varchar<9> c_zip;
+        Varchar<16> c_phone;
+        Timestamp c_since{};
+        Varchar<2> c_credit;
+        Numeric c_credit_lim{};
+        Numeric c_discount{};
+        Numeric c_balance{};
+        Numeric c_ytd_payment{};
+        Numeric c_payment_cnt{};
+        Numeric c_delivery_cnt{};
+        Varchar<500> c_data;
     };
 
-    struct ItemValue {
-        // Item Image Identifier, indicating the identification number of the product image.
-        // Each product can be associated with an image,
-        // and this identification number is used to identify the relevant information of the product image.
-        uint32_t I_IM_ID;
-        // Item name
-        std::array<char, 25> I_NAME;
-        // item price
-        double I_PRICE;
-        std::array<char, 50> I_DATA;
+    struct customer_wdl_t {
+        static constexpr int id = 3;
+        struct key_t {
+            Integer c_w_id{};
+            Integer c_d_id{};
+            Varchar<16> c_last;
+            Varchar<16> c_first;
+        };
+
+        Integer c_id;
     };
 
-    struct OrderKey {
-        uint32_t O_W_ID;
-        uint32_t O_D_ID;
-        uint32_t O_ID;
+    struct history_t {
+        static constexpr int id = 4;
+        struct key_t {
+            Integer thread_id;
+            Integer h_pk;
+        };
 
-        std::string buildTableKey(const std::string& prefix) {
-            std::stringstream ss;
-            ss << prefix << "_" << O_W_ID << "_" << O_D_ID << "_" << O_ID;
-            return ss.str();
-        }
+        Integer h_c_id{};
+        Integer h_c_d_id{};
+        Integer h_c_w_id{};
+        Integer h_d_id{};
+        Integer h_w_id{};
+        Timestamp h_date{};
+        Numeric h_amount{};
+        Varchar<24> h_data;
     };
 
-    struct OrderValue {
-        // "Order-Line Count". It refers to the number of order lines in an order,
-        // and is used to indicate how many order line items are included in an order.
-        uint8_t O_OL_CNT;
-        uint64_t O_ENTRY_D;
-        // Order Customer Identification Number
-        uint32_t O_C_ID;
-        bool O_ALL_LOCAL;
-        uint32_t O_CARRIER_ID;
-
-        bool deserializeFromString(std::string_view raw) {
-            auto in = zpp::bits::in(raw);
-            if(failure(in(*this))) {
-                return false;
-            }
-            return true;
-        }
-    };
-
-    struct OrderLineKey {
-        // Order Line Warehouse ID, which indicates the warehouse identification number to which the order line belongs
-        uint32_t OL_W_ID;
-        // Order Line District ID, indicating the identification number of the district to which the order line belongs
-        uint32_t OL_D_ID;
-        // Order Line Order ID, indicating the order identification number of the order line item.
-        uint32_t OL_O_ID;
-        // Order Line Number, indicating the order line number
-        uint8_t OL_NUMBER;
-    };
-
-    struct OrderLineValue {
-        uint32_t OL_I_ID;
-        uint32_t OL_SUPPLY_W_ID;
-        uint8_t OL_QUANTITY;
-        std::array<char, 25> OL_DIST_INFO;
-        uint64_t OL_DELIVERY_D;
-        double OL_AMOUNT;
-    };
-
-    struct NewOrderKey {
-        uint32_t NO_W_ID;
-        uint32_t NO_D_ID;
-        uint32_t NO_O_ID;
-    };
-
-    struct NewOrderValue {
+    struct new_order_t {
+        static constexpr int id = 5;
+        struct key_t {
+            Integer no_w_id;
+            Integer no_d_id;
+            Integer no_o_id;
+        };
         // New Order DUMMY means that in the New-Order test transaction,
         // the actual order generation operation is not performed,
         // but only the execution of the simulated transaction,
         // thereby reducing the load and overhead of the database.
-        uint32_t NO_DUMMY;
+        Integer no_dummy;
     };
 
-    struct HistoryKey {
-        uint32_t H_W_ID;
-        uint32_t H_D_ID;
-        uint32_t H_C_W_ID;
-        uint32_t H_C_D_ID;
-        uint32_t H_C_ID;
-        uint64_t H_DATE;
+    struct order_t {
+        static constexpr int id = 6;
+        struct key_t {
+            Integer o_w_id;
+            Integer o_d_id;
+            Integer o_id;
+        };
+
+        Integer o_c_id;
+        Timestamp o_entry_d;
+        Integer o_carrier_id;
+        Numeric o_ol_cnt;
+        Numeric o_all_local;
     };
 
-    struct HistoryValue {
-        // History Amount, indicating the money spent in the history
-        double H_AMOUNT;
-        std::array<char, 25> H_DATA;
-
+    struct order_wdc_t {
+        static constexpr int id = 7;
+        struct key_t {
+            Integer o_w_id;
+            Integer o_d_id;
+            Integer o_c_id;
+            Integer o_id;
+        };
     };
 
-    struct CustomerKey {
-        uint32_t C_W_ID;
-        uint32_t C_D_ID;
-        uint32_t C_ID;
+    struct order_line_t {
+        static constexpr int id = 8;
+        struct key_t {
+            Integer ol_w_id;
+            Integer ol_d_id;
+            Integer ol_o_id;
+            Integer ol_number;
+        };
 
-        std::string buildTableKey(const std::string& prefix) {
-            std::stringstream ss;
-            ss << prefix << "_" << C_W_ID << "_" << C_D_ID << "_" << C_ID;
-            return ss.str();
-        }
+        Integer ol_i_id{};
+        Integer ol_supply_w_id{};
+        Timestamp ol_delivery_d{};
+        Numeric ol_quantity{};
+        Numeric ol_amount{};
+        Varchar<24> ol_dist_info;
     };
 
-    struct CustomerValue {
-        std::array<char, 16> C_FIRST;
-        std::array<char, 2> C_MIDDLE;
-        std::array<char, 16> C_LAST;
-        std::array<char, 20> C_STREET_1;
-        std::array<char, 20> C_STREET_2;
-        std::array<char, 20> C_CITY;
-        std::array<char, 2> C_STATE;
-        std::array<char, 9> C_ZIP;
-        std::array<char, 16> C_PHONE;
-        std::array<char, 2> C_CREDIT;
-        uint64_t C_SINCE;
-        double C_CREDIT_LIM;
-        double C_DISCOUNT;
-        double C_BALANCE;
-        double C_YTD_PAYMENT;
-        uint32_t C_PAYMENT_CNT;
-        uint32_t C_DELIVERY_CNT;
-        std::string C_DATA; // max size 500;
+    struct item_t {
+        static constexpr int id = 9;
+        struct key_t {
+            Integer i_id;
+        };
 
-        bool deserializeFromString(std::string_view raw) {
-            auto in = zpp::bits::in(raw);
-            if(failure(in(*this))) {
-                return false;
-            }
-            return true;
-        }
+        Integer i_im_id{};
+        Varchar<24> i_name;
+        Numeric i_price{};
+        Varchar<50> i_data;
     };
 
-    struct CustomerNameIdxKey {
-        uint32_t C_W_ID;
-        uint32_t C_D_ID;
-        std::array<char, 16> C_LAST;
-    };
+    struct stock_t {
+        static constexpr int id = 10;
+        struct Key {
+            Integer s_w_id;
+            Integer s_i_id;
+        };
 
-    struct CustomerNameIdxValue {
-        uint32_t C_ID;
+        Numeric s_quantity{};
+        Varchar<24> s_dist_01;
+        Varchar<24> s_dist_02;
+        Varchar<24> s_dist_03;
+        Varchar<24> s_dist_04;
+        Varchar<24> s_dist_05;
+        Varchar<24> s_dist_06;
+        Varchar<24> s_dist_07;
+        Varchar<24> s_dist_08;
+        Varchar<24> s_dist_09;
+        Varchar<24> s_dist_10;
+        Numeric s_ytd{};
+        Numeric s_order_cnt{};
+        Numeric s_remote_cnt{};
+        Varchar<50> s_data;
     };
-
-    struct DistrictKey {
-        uint32_t D_W_ID;
-        uint32_t D_ID;
-    };
-
-    struct DistrictValue {
-        std::array<char, 10> D_NAME;
-        std::array<char, 20> D_STREET_1;
-        std::array<char, 20> D_STREET_2;
-        std::array<char, 20> D_CITY;
-        std::array<char, 2> D_STATE;
-        std::array<char, 9> D_ZIP;
-        double D_TAX;
-        double D_YTD;
-        uint32_t D_NEXT_O_ID;
-    };
-
-    struct WarehouseKey {
-        uint32_t W_ID;
-    };
-
-    struct WarehouseValue {
-        std::array<char, 10> W_NAME;
-        std::array<char, 20> W_STREET_1;
-        std::array<char, 20> W_STREET_2;
-        std::array<char, 20> W_CITY;
-        std::array<char, 2> W_STATE;
-        std::array<char, 9> W_ZIP;
-        double W_TAX;
-        double W_YTD;
-    };
-
 }

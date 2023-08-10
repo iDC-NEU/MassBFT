@@ -27,6 +27,11 @@ namespace client::tpcc {
 
         constexpr static const auto WAREHOUSE_COUNT_PROPERTY = "warehouse_count";
 
+        // The target number of operations to perform.
+        constexpr static const auto OPERATION_COUNT_PROPERTY = "operation_count";
+
+        constexpr static const auto RANDOM_SEED = "random_seed";
+
         static std::unique_ptr<TPCCProperties> NewFromProperty(const util::Properties &n) {
             auto ret = std::unique_ptr<TPCCProperties>(new TPCCProperties(n.getCustomPropertiesOrPanic(TPCC_PROPERTIES)));
             return ret;
@@ -62,7 +67,15 @@ namespace client::tpcc {
             return n[WAREHOUSE_COUNT_PROPERTY].as<int>(1);
         }
 
+        inline auto getOperationCount() const {
+            return n[OPERATION_COUNT_PROPERTY].as<uint64_t>(10000); // 10k for default
+        }
 
+        inline bool getUseRandomSeed() const {
+            return n[RANDOM_SEED].as<bool>(true);
+        }
+
+    public:
         struct Proportion {
             double newOrderProportion;
             double paymentProportion;

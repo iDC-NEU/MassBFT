@@ -14,10 +14,13 @@ namespace client::tpcc {
         NEW_ORDER,
         PAYMENT,
     };
+
     using TPCCDiscreteGenerator = core::DiscreteGenerator<Operation>;
 
     class TPCCWorkload: public core::Workload {
     public:
+        TPCCWorkload() = default;
+
         struct InvokeRequestType {
             constexpr static const auto TPCC = "tpcc";
             constexpr static const auto NEW_ORDER = "n";
@@ -28,6 +31,8 @@ namespace client::tpcc {
 
         bool doTransaction(core::DB* db) const override;
 
+        bool doInsert(core::DB*) const override { return false; }
+
     protected:
         void initOperationGenerator(const TPCCProperties::Proportion& p);
 
@@ -36,7 +41,7 @@ namespace client::tpcc {
         bool doPaymentRand(core::DB* db, int warehouseId) const;
 
     private:
-        int warehouseCount;
+        int warehouseCount{};
         std::unique_ptr<core::NumberGenerator> warehouseChooser;
         std::unique_ptr<core::NumberGenerator> districtIdChooser;
         std::unique_ptr<core::NumberGenerator> orderLineCountChooser;

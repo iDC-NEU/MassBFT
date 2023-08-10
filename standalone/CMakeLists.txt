@@ -38,6 +38,16 @@ set_target_properties(${PROJECT_NAME}_ycsb PROPERTIES CXX_STANDARD 20 OUTPUT_NAM
 
 target_link_libraries(${PROJECT_NAME}_ycsb NBP cxxopts ${COMMON_DEPENDENCIES})
 
+# ---- Create tpcc standalone executable ----
+
+file(GLOB tpcc_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/client/tpcc/*.cpp)
+
+add_executable(${PROJECT_NAME}_tpcc ${tpcc_sources})
+
+set_target_properties(${PROJECT_NAME}_tpcc PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "tpcc")
+
+target_link_libraries(${PROJECT_NAME}_tpcc NBP cxxopts ${COMMON_DEPENDENCIES})
+
 # ---- Create pension standalone executable ----
 
 file(GLOB pension_headers CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/client/pension_demo/*.h")

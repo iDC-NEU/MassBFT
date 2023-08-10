@@ -92,7 +92,7 @@ namespace peer::chaincode {
             if (xUL.nextValue() == 1) {
                 auto posUL = client::core::UniformLongGenerator(0, sDataLen - TPCCHelper::ORIGINAL_STR.size());
                 value.s_data.resize(posUL.nextValue());
-                value.s_data = value.s_data || TPCCHelper::ORIGINAL_STR;
+                value.s_data = value.s_data + TPCCHelper::ORIGINAL_STR;
             }
             insertIntoTable(partitionID, key, value);
         }
@@ -128,7 +128,7 @@ namespace peer::chaincode {
             if (xUL.nextValue() == 1) {
                 auto posUL = client::core::UniformLongGenerator(0, sDataLen - TPCCHelper::ORIGINAL_STR.size());
                 value.i_data.resize(posUL.nextValue());
-                value.i_data = value.i_data || TPCCHelper::ORIGINAL_STR;
+                value.i_data = value.i_data + TPCCHelper::ORIGINAL_STR;
             }
             insertIntoTable(key, value);
         }

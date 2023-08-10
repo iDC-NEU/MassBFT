@@ -43,7 +43,7 @@ namespace client::tpcc {
         // concatenates two strings
         template<class Container>
         requires requires(const Container& str) { str.begin(); str.end(); str.size(); }
-        Varchar<maxLength> operator||(const Container& rhs) const {
+        Varchar<maxLength> operator+(const Container& rhs) const {
             Varchar<maxLength> ret;
             ret.length = length + rhs.size();
             DCHECK(ret.size() <= maxLength);

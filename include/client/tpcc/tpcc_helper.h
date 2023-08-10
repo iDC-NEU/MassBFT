@@ -23,7 +23,7 @@ namespace client::tpcc {
             result.append(static_cast<char>('0' + (id / 100) % 10));
             result.append(static_cast<char>('0' + (id / 10) % 10));
             result.append(static_cast<char>('0' + (id % 10)));
-            return result || std::string_view("11111");
+            return result + std::string_view("11111");
         }
 
         Integer getItemID() { return (Integer)itemIDNU.nextValue(); }

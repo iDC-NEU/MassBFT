@@ -87,6 +87,7 @@ namespace client {
 
     core::Status SmallBankDB::sendInvokeRequest(const std::string &funcName,
                                                 const std::string &args) {
+        // TODO: copy from neuchain_db
         // archive manually
         std::string data;
         zpp::bits::out out(data);

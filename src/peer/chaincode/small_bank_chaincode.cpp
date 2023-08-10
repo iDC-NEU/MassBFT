@@ -54,6 +54,20 @@ int peer::chaincode::SmallBankChaincode::InvokeChaincode(std::string_view funcNa
 
 int peer::chaincode::SmallBankChaincode::InitDatabase() {
     // TODO:Random simulation inserting user account amount
+    // randomly insert into database smallBank: checking and saving respectively
+//    Random random;
+//    for(int i = 0; i < 10000; i++) {
+//        AriaORM::ORMInsert* insert = helper->newInsert("small_bank");
+//        insert->set("key", checkingTab + "_" + std::to_string(i));
+//        insert->set("value", std::to_string(random.next()%100));
+//    }
+//
+//    for(int i = 0; i < 10000; i++) {
+//        AriaORM::ORMInsert* insert = helper->newInsert("small_bank");
+//        insert->set("key", savingTab + "_" + std::to_string(i));
+//        insert->set("value", std::to_string(random.next()%100));
+//    }
+//    return true;
 }
 
 int peer::chaincode::SmallBankChaincode::query(const std::string_view &acc) {

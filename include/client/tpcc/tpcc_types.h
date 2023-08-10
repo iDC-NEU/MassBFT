@@ -33,8 +33,12 @@ namespace client::tpcc {
             return length;
         }
 
+        [[nodiscard]] size_t capacity() const noexcept {
+            return data.size();
+        }
+
         void append(char x) {
-            DCHECK(this->size() < maxLength-1);
+            DCHECK(this->size() < maxLength);
             data[length++] = x;
         };
 

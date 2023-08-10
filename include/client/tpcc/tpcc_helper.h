@@ -7,6 +7,20 @@
 #include "client/core/generator/non_uniform_generator.h"
 
 namespace client::tpcc {
+    struct TableNamesPrefix {
+        inline static constexpr std::string_view WAREHOUSE = "w_";
+        inline static const std::string DISTRICT = "d_";
+        inline static const std::string CUSTOMER = "c_";
+        inline static const std::string CUSTOMER_WDL = "c-wdl_";
+        inline static const std::string HISTORY = "h_";
+        inline static const std::string NEW_ORDER = "n_";
+        inline static const std::string ORDER = "o_";
+        inline static const std::string ORDER_WDC = "o-wdc_";
+        inline static const std::string ORDER_LINE = "ol_";
+        inline static const std::string ITEM = "i_";
+        inline static const std::string STOCK = "s_";
+    };
+
     class TPCCHelper {
     public:
         TPCCHelper()
@@ -62,7 +76,7 @@ namespace client::tpcc {
         static constexpr Integer C_LAST_LOAD_C = 157;  // in range [0, 255]
         static constexpr Integer C_LAST_RUN_C = 223;   // in range [0, 255]
 
-        inline static const std::string ORIGINAL_STR = "ORIGINAL";
+        inline static constexpr std::string_view ORIGINAL_STR = "ORIGINAL";
 
         // nodeId start from 0, return warehouseId-1 = partitionId [begin, end)
         static std::pair<int, int> CalculatePartition(int myId, int nodesCount, int warehouseCount) {

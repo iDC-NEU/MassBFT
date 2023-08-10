@@ -94,7 +94,9 @@ namespace peer::chaincode {
                 value.s_data.resize(posUL.nextValue());
                 value.s_data = value.s_data + TPCCHelper::ORIGINAL_STR;
             }
-            insertIntoTable(partitionID, key, value);
+            if (!insertIntoTable(client::tpcc::TableNamesPrefix::STOCK, key, value)) {
+                return false;
+            }
         }
         return true;
     }
@@ -130,7 +132,9 @@ namespace peer::chaincode {
                 value.i_data.resize(posUL.nextValue());
                 value.i_data = value.i_data + TPCCHelper::ORIGINAL_STR;
             }
-            insertIntoTable(key, value);
+            if (!insertIntoTable(client::tpcc::TableNamesPrefix::ITEM, key, value)) {
+                return false;
+            }
         }
         return true;
     }
@@ -173,7 +177,9 @@ namespace peer::chaincode {
 
                 value.o_ol_cnt = (Numeric)oOlCntUL.nextValue();
                 value.o_all_local = true;
-                insertIntoTable(partitionID, key, value);
+                if (!insertIntoTable(client::tpcc::TableNamesPrefix::ORDER, key, value)) {
+                    return false;
+                }
 
                 // delivery confirm
                 client::tpcc::schema::order_wdc_t::key_t wdcKey{};
@@ -181,7 +187,9 @@ namespace peer::chaincode {
                 wdcKey.o_d_id = key.o_d_id;
                 wdcKey.o_c_id = value.o_c_id;
                 wdcKey.o_id = key.o_id;
-                insertIntoTable(partitionID, wdcKey, {});
+                if (!insertIntoTable(client::tpcc::TableNamesPrefix::ORDER_WDC, wdcKey, client::tpcc::schema::order_wdc_t{})) {
+                    return false;
+                }
             }
 
             for (Integer j = 2100; j <= 3000; j++) {
@@ -189,7 +197,9 @@ namespace peer::chaincode {
                 key.no_w_id = partitionID + 1;
                 key.no_d_id = i;
                 key.no_o_id = j;
-                insertIntoTable(partitionID, key, {});
+                if (!insertIntoTable(client::tpcc::TableNamesPrefix::NEW_ORDER, key, client::tpcc::schema::new_order_t{})) {
+                    return false;
+                }
             }
         }
 
@@ -247,7 +257,9 @@ namespace peer::chaincode {
                     value.c_credit.append('G');
                     value.c_credit.append('C');
                 }
-                insertIntoTable(partitionID, key, value);
+                if (!insertIntoTable(client::tpcc::TableNamesPrefix::CUSTOMER, key, value)) {
+                    return false;
+                }
                 // init history
 
                 client::tpcc::schema::history_t::key_t historyKey{};
@@ -261,7 +273,9 @@ namespace peer::chaincode {
                 client::tpcc::schema::history_t historyValue{};
                 historyValue.h_amount = 10;
                 client::utils::RandomString(historyValue.h_data, (int)ul4.nextValue());
-                insertIntoTable(partitionID, historyKey, historyValue);
+                if (!insertIntoTable(client::tpcc::TableNamesPrefix::HISTORY, historyKey, historyValue)) {
+                    return false;
+                }
             }
         }
         return true;
@@ -292,7 +306,9 @@ namespace peer::chaincode {
             value.d_tax = rd.nextValue();
             value.d_ytd = 3000000;
             value.d_next_o_id = 3001;
-            insertIntoTable(partitionID, key, value);
+            if (!insertIntoTable(client::tpcc::TableNamesPrefix::DISTRICT, key, value)) {
+                return false;
+            }
         }
         return true;
     }
@@ -314,8 +330,28 @@ namespace peer::chaincode {
             value.w_zip = helper.randomZipCode();
             value.w_tax = rd.nextValue();
             value.w_ytd = 3000000;
-            insertIntoTable(i, key, value);
+            if (!insertIntoTable(client::tpcc::TableNamesPrefix::WAREHOUSE, key, value)) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    template<class Key, class Value>
+    bool TPCCChaincode::insertIntoTable(std::string_view tablePrefix, const Key &key, const Value &value) {
+        std::string keyRaw(tablePrefix);
+        zpp::bits::out outKey(keyRaw);
+        outKey.reset(keyRaw.size());
+        if(failure(outKey(key))) {
+            return false;
+        }
+        std::string valueRaw;
+        valueRaw.reserve(256);
+        zpp::bits::out outValue(valueRaw);
+        if(failure(outValue(value))) {
+            return false;
+        }
+        orm->put(std::move(keyRaw), std::move(valueRaw));
         return true;
     }
 }

@@ -13,10 +13,11 @@ namespace client::utils {
     using ByteIteratorMap = util::MyFlatHashMap<std::string, ByteIterator>;
 
     inline void RandomString(auto& container, int length) {
-        if ((int)container.size() < length) {
+        if ((int)container.capacity() < length) {
             LOG(ERROR) << "RandomString container is too small!";
-            length = container.size();
+            length = container.capacity();
         }
+        container.resize(length);
         static const auto alpha = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
         static const auto len = 63;
         auto ul = client::core::UniformLongGenerator(0, len - 1);

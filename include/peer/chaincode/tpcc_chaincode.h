@@ -33,57 +33,8 @@ namespace peer::chaincode {
         bool initWarehouse(int fromWhId, int toWhId);
 
     protected:
-        bool executeNewOrder(std::string_view argSV);
-
-    protected:
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::stock_t::key_t& key,
-                             const client::tpcc::schema::stock_t& value);
-
-        void insertIntoTable(const client::tpcc::schema::item_t::key_t& key,
-                             const client::tpcc::schema::item_t& value);
-
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::order_line_t::key_t& key,
-                             const client::tpcc::schema::order_line_t& value);
-
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::order_wdc_t::key_t& key,
-                             const client::tpcc::schema::order_wdc_t& value);
-
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::order_t::key_t& key,
-                             const client::tpcc::schema::order_t& value);
-
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::new_order_t::key_t& key,
-                             const client::tpcc::schema::new_order_t& value);
-
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::history_t::key_t& key,
-                             const client::tpcc::schema::history_t& value);
-
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::customer_wdl_t::key_t& key,
-                             const client::tpcc::schema::customer_wdl_t& value);
-
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::customer_t::key_t& key,
-                             const client::tpcc::schema::customer_t& value);
-
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::district_t::key_t& key,
-                             const client::tpcc::schema::district_t& value);
-
-        bool Get(int partitionID,
-                 const client::tpcc::schema::district_t::key_t& key,
-                 client::tpcc::schema::district_t& value);
-
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::warehouse_t::key_t& key,
-                             const client::tpcc::schema::warehouse_t& value);
-
-        std::string buildTablePrefix(const std::string& tableName, int partitionID);
+        template<class Key, class Value>
+        inline bool insertIntoTable(std::string_view tablePrefix, const Key& key, const Value& value);
 
     private:
         client::tpcc::TPCCHelper helper;

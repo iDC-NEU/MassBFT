@@ -24,7 +24,7 @@ namespace client::tpcc::schema {
         Numeric w_ytd{};
         // fix for contention; could be solved with contention split from
         // http://cidrdb.org/cidr2021/papers/cidr2021_paper21.pdf
-        uint8_t padding[1024]{};
+        // uint8_t padding[1024]{};
     };
 
     struct district_t {

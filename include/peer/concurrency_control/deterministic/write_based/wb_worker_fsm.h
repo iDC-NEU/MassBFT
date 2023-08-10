@@ -4,49 +4,28 @@
 
 #pragma once
 
-#include "peer/concurrency_control/deterministic/worker_fsm.h"
+#include "peer/concurrency_control/deterministic/chiancode_worker_fsm.h"
 #include "peer/concurrency_control/deterministic/write_based/wb_reserve_table.h"
 
-#include "peer/chaincode/orm.h"
-#include "peer/chaincode/chaincode.h"
-
-#include "proto/transaction.h"
-
 namespace peer::cc {
-
-    class WBWorkerFSM : public WorkerFSM {
+    class WBWorkerFSM : public CCWorkerFSM {
     public:
-        using TxnListType=std::vector<std::unique_ptr<proto::Transaction>>;
-        using ResultType = proto::Transaction::ExecutionResult;
         ReceiverState OnCreate() override {
             pthread_setname_np(pthread_self(), "wb_worker");
             return peer::cc::ReceiverState::READY;
         }
 
-        ReceiverState OnDestroy() override {
-            return peer::cc::ReceiverState::EXITED;
-        }
-
         ReceiverState OnExecuteTransaction() override {
-            CHECK(db != nullptr) << "failed to init db!";
-            util::MyFlatHashMap<std::string, std::unique_ptr<peer::chaincode::Chaincode>> ccList;
+            DCHECK(getDB() != nullptr && reserveTable != nullptr);
             do {    // defer func
-                if (txnList.empty() || reserveTable == nullptr) {
+                if (txnList.empty()) {
                     LOG(WARNING) << "OnExecuteTransaction input error";
                     break;
                 }
                 for (auto& txn: txnList) {
                     // find the chaincode using ccList
                     auto ccNameSV = txn->getUserRequest().getCCNameSV();
-                    auto it = ccList.find(ccNameSV);
-                    if (it == ccList.end()) {   // chaincode not found
-                        auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db.get());
-                        auto ret = peer::chaincode::NewChaincodeByName(ccNameSV, std::move(orm));
-                        CHECK(ret != nullptr) << "chaincode name not exist!";
-                        ccList[ccNameSV] = std::move(ret);
-                        it = ccList.find(ccNameSV);
-                    }
-                    auto chaincode = it->second.get();
+                    auto* chaincode = createOrGetChaincode(ccNameSV);
                     auto& userRequest = txn->getUserRequest();
                     auto ret = chaincode->InvokeChaincode(userRequest.getFuncNameSV(), userRequest.getArgs());
                     // get the rwSets out of the orm
@@ -81,8 +60,6 @@ namespace peer::cc {
         [[nodiscard]] TxnListType& getMutableTxnList() { return txnList; }
 
         void setReserveTable(std::shared_ptr<WBReserveTable> reserveTable_) { reserveTable = std::move(reserveTable_); }
-
-        void setDB(std::shared_ptr<db::DBConnection> db_) { db = std::move(db_); }
 
     protected:
         ReceiverState onFirstCommit() {
@@ -130,7 +107,7 @@ namespace peer::cc {
                 }
                 return true;
             };
-            if (!db->syncWriteBatch(saveToDBFunc)) {
+            if (!getDB()->syncWriteBatch(saveToDBFunc)) {
                 LOG(ERROR) << "WorkerFSMImpl can not write to db!";
             }
             // DLOG(INFO) << "Finished commit, id: " << id;
@@ -140,10 +117,7 @@ namespace peer::cc {
     private:
         bool firstCommit = true;
         TxnListType txnList;
-        // Do not use a shared pointer
         std::shared_ptr<WBReserveTable> reserveTable;
-        // TODO: use hash map for multiple tables
-        std::shared_ptr<db::DBConnection> db;
     };
 
 }

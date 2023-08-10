@@ -17,12 +17,13 @@ namespace client::tpcc::proto {
         Integer warehouseId{};
         Integer districtId{};
         Integer customerId{};
+        // O_OL_CNT
         Integer orderLineCount;
-        std::vector<Integer> orderLineNumbers;
-        std::vector<Integer> supplierWarehouse;
-        std::vector<Integer> itemIds;
+        std::vector<Integer> orderLineNumbers;  // OL_I_ID
+        std::vector<Integer> supplierWarehouse; // OL_SUPPLY_W_ID
+        std::vector<Integer> itemIds;           // I_ID
         // Quantities, indicating the quantity of each item in the order
-        std::vector<Integer> quantities;
+        std::vector<Integer> quantities;    // OL_QUANTITY
         Timestamp timestamp{};
 
         friend zpp::bits::access;

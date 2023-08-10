@@ -8,21 +8,28 @@
 #include "client/core/generator/generator.h"
 #include "client/tpcc/tpcc_schema.h"
 #include "client/tpcc/tpcc_property.h"
+#include "client/tpcc/tpcc_proto.h"
 #include "common/timer.h"
-#include "common/phmap.h"
 #include "common/property.h"
 
 namespace peer::chaincode {
     using namespace client::tpcc;
 
     int chaincode::TPCCChaincode::InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) {
-        return 0;
+        if (funcNameSV == InvokeRequestType::NEW_ORDER) {
+            if (executeNewOrder(argSV)) {
+                return 0;
+            }
+            return -1;
+        }
+        DLOG(INFO) << "Invalid function call.";
+        return -1;
     }
 
     int TPCCChaincode::InitDatabase() {
         ::client::core::GetThreadLocalRandomGenerator()->seed(0); // use deterministic value
         auto* property = util::Properties::GetProperties();
-        auto tpccProperties = client::tpcc::TPCCProperties::NewFromProperty(*property);
+        auto tpccProperties = TPCCProperties::NewFromProperty(*property);
         if (!initItem()) {
             return -1;
         }
@@ -60,11 +67,11 @@ namespace peer::chaincode {
 
         // For each row in the WAREHOUSE table, 100,000 rows in the STOCK table
         for (int i = 0; i < TPCCHelper::ITEMS_COUNT; i++) {
-            client::tpcc::schema::stock_t::key_t key{};
+            schema::stock_t::key_t key{};
             key.s_w_id = partitionID + 1; // W_ID start from 1
             key.s_i_id = i + 1; // S_I_ID also start from 1
 
-            client::tpcc::schema::stock_t value{};
+            schema::stock_t value{};
             value.s_quantity = (Integer)ul.nextValue();
 
             client::utils::RandomString(value.s_dist_01, 24);
@@ -94,7 +101,7 @@ namespace peer::chaincode {
                 value.s_data.resize(posUL.nextValue());
                 value.s_data = value.s_data + TPCCHelper::ORIGINAL_STR;
             }
-            if (!insertIntoTable(client::tpcc::TableNamesPrefix::STOCK, key, value)) {
+            if (!insertIntoTable(TableNamesPrefix::STOCK, key, value)) {
                 return false;
             }
         }
@@ -132,7 +139,7 @@ namespace peer::chaincode {
                 value.i_data.resize(posUL.nextValue());
                 value.i_data = value.i_data + TPCCHelper::ORIGINAL_STR;
             }
-            if (!insertIntoTable(client::tpcc::TableNamesPrefix::ITEM, key, value)) {
+            if (!insertIntoTable(TableNamesPrefix::ITEM, key, value)) {
                 return false;
             }
         }
@@ -160,12 +167,12 @@ namespace peer::chaincode {
             std::shuffle(c_ids.begin(), c_ids.end(), *::client::core::GetThreadLocalRandomGenerator());
 
             for (int j = 1; j <= 3000; j++) {
-                client::tpcc::schema::order_t::key_t key{};
+                schema::order_t::key_t key{};
                 key.o_w_id = partitionID + 1;
                 key.o_d_id = i;
                 key.o_id = j;
 
-                client::tpcc::schema::order_t value{};
+                schema::order_t value{};
                 value.o_c_id = c_ids[j - 1];
                 value.o_entry_d = util::Timer::time_now_ns();
 
@@ -177,27 +184,27 @@ namespace peer::chaincode {
 
                 value.o_ol_cnt = (Numeric)oOlCntUL.nextValue();
                 value.o_all_local = true;
-                if (!insertIntoTable(client::tpcc::TableNamesPrefix::ORDER, key, value)) {
+                if (!insertIntoTable(TableNamesPrefix::ORDER, key, value)) {
                     return false;
                 }
 
                 // delivery confirm
-                client::tpcc::schema::order_wdc_t::key_t wdcKey{};
+                schema::order_wdc_t::key_t wdcKey{};
                 wdcKey.o_w_id = key.o_w_id;
                 wdcKey.o_d_id = key.o_d_id;
                 wdcKey.o_c_id = value.o_c_id;
                 wdcKey.o_id = key.o_id;
-                if (!insertIntoTable(client::tpcc::TableNamesPrefix::ORDER_WDC, wdcKey, client::tpcc::schema::order_wdc_t{})) {
+                if (!insertIntoTable(TableNamesPrefix::ORDER_WDC, wdcKey, schema::order_wdc_t{})) {
                     return false;
                 }
             }
 
             for (Integer j = 2100; j <= 3000; j++) {
-                client::tpcc::schema::new_order_t::key_t key{};
+                schema::new_order_t::key_t key{};
                 key.no_w_id = partitionID + 1;
                 key.no_d_id = i;
                 key.no_o_id = j;
-                if (!insertIntoTable(client::tpcc::TableNamesPrefix::NEW_ORDER, key, client::tpcc::schema::new_order_t{})) {
+                if (!insertIntoTable(TableNamesPrefix::NEW_ORDER, key, schema::new_order_t{})) {
                     return false;
                 }
             }
@@ -219,12 +226,12 @@ namespace peer::chaincode {
         auto rd = client::utils::RandomDouble(0, 0.5);
         for (int i = 1; i <= nDistrict; i++) {
             for (int j = 1; j <= 3000; j++) {
-                client::tpcc::schema::customer_t::key_t key{};
+                schema::customer_t::key_t key{};
                 key.c_w_id = partitionID + 1;
                 key.c_d_id = i;
                 key.c_id = j;
 
-                client::tpcc::schema::customer_t value{};
+                schema::customer_t value{};
                 value.c_middle.append('O');
                 value.c_middle.append('E');
                 client::utils::RandomString(value.c_first, (int)ul1.nextValue());
@@ -257,12 +264,12 @@ namespace peer::chaincode {
                     value.c_credit.append('G');
                     value.c_credit.append('C');
                 }
-                if (!insertIntoTable(client::tpcc::TableNamesPrefix::CUSTOMER, key, value)) {
+                if (!insertIntoTable(TableNamesPrefix::CUSTOMER, key, value)) {
                     return false;
                 }
                 // init history
 
-                client::tpcc::schema::history_t::key_t historyKey{};
+                schema::history_t::key_t historyKey{};
                 historyKey.h_c_id = j;
                 historyKey.h_c_d_id = i;
                 historyKey.h_c_w_id = partitionID + 1;
@@ -270,10 +277,10 @@ namespace peer::chaincode {
                 historyKey.h_w_id = partitionID + 1;
                 historyKey.h_date = util::Timer::time_now_ns();
 
-                client::tpcc::schema::history_t historyValue{};
+                schema::history_t historyValue{};
                 historyValue.h_amount = 10;
                 client::utils::RandomString(historyValue.h_data, (int)ul4.nextValue());
-                if (!insertIntoTable(client::tpcc::TableNamesPrefix::HISTORY, historyKey, historyValue)) {
+                if (!insertIntoTable(TableNamesPrefix::HISTORY, historyKey, historyValue)) {
                     return false;
                 }
             }
@@ -292,11 +299,11 @@ namespace peer::chaincode {
         auto rd = client::utils::RandomDouble(0, 0.2);
         // For each row in the WAREHOUSE table, context.n_district rows in the DISTRICT table
         for (int i = 1; i <= nDistrict; i++) {
-            client::tpcc::schema::district_t::key_t key{};
+            schema::district_t::key_t key{};
             key.d_w_id = partitionID + 1;
             key.d_id = i;
 
-            client::tpcc::schema::district_t value{};
+            schema::district_t value{};
             client::utils::RandomString(value.d_name, (Integer)ul1.nextValue());
             client::utils::RandomString(value.d_street_1, (Integer)ul2.nextValue());
             client::utils::RandomString(value.d_street_2, (Integer)ul2.nextValue());
@@ -306,7 +313,7 @@ namespace peer::chaincode {
             value.d_tax = rd.nextValue();
             value.d_ytd = 3000000;
             value.d_next_o_id = 3001;
-            if (!insertIntoTable(client::tpcc::TableNamesPrefix::DISTRICT, key, value)) {
+            if (!insertIntoTable(TableNamesPrefix::DISTRICT, key, value)) {
                 return false;
             }
         }
@@ -319,9 +326,9 @@ namespace peer::chaincode {
         auto ul2 = client::core::UniformLongGenerator(10, 20);
         auto rd = client::utils::RandomDouble(0.1, 0.2);
         for (auto i = fromWhId; i < toWhId; i++) {
-            client::tpcc::schema::warehouse_t::key_t key{};
+            schema::warehouse_t::key_t key{};
             key.w_id = i + 1; // partitionID is from 0, W_ID is from 1
-            client::tpcc::schema::warehouse_t value{};
+            schema::warehouse_t value{};
             client::utils::RandomString(value.w_name, (int) ul1.nextValue());
             client::utils::RandomString(value.w_street_1, (int) ul2.nextValue());
             client::utils::RandomString(value.w_street_2, (int) ul2.nextValue());
@@ -330,9 +337,245 @@ namespace peer::chaincode {
             value.w_zip = helper.randomZipCode();
             value.w_tax = rd.nextValue();
             value.w_ytd = 3000000;
-            if (!insertIntoTable(client::tpcc::TableNamesPrefix::WAREHOUSE, key, value)) {
+            if (!insertIntoTable(TableNamesPrefix::WAREHOUSE, key, value)) {
                 return false;
             }
+        }
+        return true;
+    }
+
+    bool TPCCChaincode::executeNewOrder(std::string_view argSV) {
+        ::client::tpcc::proto::NewOrder newOrder(0);
+        auto in = zpp::bits::in(argSV);
+        if(failure(in(newOrder))) {
+            return false;
+        }
+
+        Numeric w_tax;
+        {
+            // The row in the WAREHOUSE table with matching W_ID is selected and W_TAX,
+            // the warehouse tax rate, is retrieved.
+            schema::warehouse_t::key_t wKey { .w_id = newOrder.warehouseId };
+            schema::warehouse_t wValue;
+            if (!getValue(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
+                return false;
+            }
+            w_tax = wValue.w_tax;
+        }
+
+        Numeric d_tax;
+        Integer o_id;
+        {
+            // The row in the DISTRICT table with matching D_W_ID and D_ID is selected,
+            // D_TAX, the district tax rate, is retrieved, and D_NEXT_O_ID, the next
+            // available order number for the district, is retrieved and incremented by one.
+            schema::district_t::key_t dKey {
+                    .d_w_id = newOrder.warehouseId,
+                    .d_id = newOrder.districtId,
+            };
+            schema::district_t dValue;
+            if (!getValue(TableNamesPrefix::DISTRICT, dKey, dValue)) {
+                return false;
+            }
+            d_tax = dValue.d_tax;
+            o_id = dValue.d_next_o_id++;
+            if (!insertIntoTable(TableNamesPrefix::DISTRICT, dKey, dValue)) {
+                return false;
+            }
+        }
+
+        Numeric c_discount;
+        {
+            // The row in the CUSTOMER table with matching C_W_ID, C_D_ID, and C_ID is
+            // selected and C_DISCOUNT, the customer's discount rate, C_LAST, the
+            // customer's last name, and C_CREDIT, the customer's credit status, are retrieved.
+            schema::customer_t::key_t cKey {
+                    .c_w_id = newOrder.warehouseId,
+                    .c_d_id = newOrder.districtId,
+                    .c_id = newOrder.customerId,
+            };
+            schema::customer_t cValue;
+            if (!getValue(TableNamesPrefix::CUSTOMER, cKey, cValue)) {
+                return false;
+            }
+            c_discount = cValue.c_discount;
+        }
+
+        Numeric all_local = 1;
+        for (const auto& sw : newOrder.supplierWarehouse) {
+            if (sw != newOrder.warehouseId) {
+                all_local = 0;
+            }
+        }
+        // order insert
+        {
+            schema::order_t::key_t key {
+                    .o_w_id = newOrder.warehouseId,
+                    .o_d_id = newOrder.districtId,
+                    .o_id = o_id,
+            };
+            schema::order_t value {
+                    .o_c_id = newOrder.customerId,
+                    .o_entry_d = newOrder.timestamp,
+                    .o_carrier_id = 0,
+                    .o_ol_cnt = (Numeric)newOrder.orderLineCount,
+                    .o_all_local = all_local,
+            };
+            if (!insertIntoTable(TableNamesPrefix::ORDER, key, value)) {
+                return false;
+            }
+        }
+        // order wdc insert
+        {
+            schema::order_wdc_t::key_t key {
+                    .o_w_id = newOrder.warehouseId,
+                    .o_d_id = newOrder.districtId,
+                    .o_c_id = newOrder.customerId,
+                    .o_id = o_id,
+            };
+            if (!insertIntoTable(TableNamesPrefix::ORDER_WDC, key, schema::order_wdc_t{})) {
+                return false;
+            }
+        }
+        // new order insert
+        {
+            schema::new_order_t::key_t key {
+                .no_w_id = newOrder.warehouseId,
+                .no_d_id = newOrder.districtId,
+                .no_o_id = o_id,
+            };
+            if (!insertIntoTable(TableNamesPrefix::NEW_ORDER, key, schema::new_order_t{})) {
+                return false;
+            }
+        }
+
+        for (auto i = 0; i < newOrder.orderLineCount; i++) {
+            const auto& ol_i_id = newOrder.itemIds[i];
+            const auto& ol_quantity = newOrder.quantities[i];
+            const auto& ol_supply_w_id = newOrder.supplierWarehouse[i];
+            {
+                // The row in the STOCK table with matching S_I_ID (equals OL_I_ID) and
+                // S_W_ID (equals OL_SUPPLY_W_ID) is selected.
+                schema::stock_t::key_t stockKey {
+                        .s_w_id = ol_supply_w_id,
+                        .s_i_id = ol_i_id,
+                };
+                schema::stock_t stockValue;
+                if (!getValue(TableNamesPrefix::STOCK, stockKey, stockValue)) {
+                    return false;
+                }
+                if (stockValue.s_quantity >= ol_quantity + 10) {
+                    stockValue.s_quantity -= ol_quantity;
+                } else {
+                    stockValue.s_quantity += 91 - ol_quantity;
+                }
+                if (ol_supply_w_id != newOrder.warehouseId) {
+                    stockValue.s_remote_cnt += 1;
+                }
+                stockValue.s_order_cnt += 1;
+                stockValue.s_ytd += ol_quantity;
+                if (!insertIntoTable(TableNamesPrefix::STOCK, stockKey, stockValue)) {
+                    return false;
+                }
+            }
+            const auto& line_number = newOrder.orderLineNumbers[i];
+            Numeric i_price;
+            {
+                // find the item
+                schema::item_t::key_t itemKey{.i_id = ol_i_id};
+                schema::item_t itemValue;
+                if (!getValue(TableNamesPrefix::ITEM, itemKey, itemValue)) {
+                    DLOG(INFO) << "Item search miss, rollback.";
+                    return false;
+                }
+                i_price = itemValue.i_price;
+            }
+            Varchar<24> s_dist;
+            {
+                schema::stock_t::key_t stockKey {
+                        .s_w_id = newOrder.warehouseId,
+                        .s_i_id = ol_i_id,
+                };
+                schema::stock_t stockValue;
+                if (!getValue(TableNamesPrefix::STOCK, stockKey, stockValue)) {
+                    return false;
+                }
+                switch (newOrder.districtId) {
+                    case 1:
+                        s_dist = stockValue.s_dist_01;
+                        break;
+                    case 2:
+                        s_dist = stockValue.s_dist_02;
+                        break;
+                    case 3:
+                        s_dist = stockValue.s_dist_03;
+                        break;
+                    case 4:
+                        s_dist = stockValue.s_dist_04;
+                        break;
+                    case 5:
+                        s_dist = stockValue.s_dist_05;
+                        break;
+                    case 6:
+                        s_dist = stockValue.s_dist_06;
+                        break;
+                    case 7:
+                        s_dist = stockValue.s_dist_07;
+                        break;
+                    case 8:
+                        s_dist = stockValue.s_dist_08;
+                        break;
+                    case 9:
+                        s_dist = stockValue.s_dist_09;
+                        break;
+                    case 10:
+                        s_dist = stockValue.s_dist_10;
+                        break;
+                    default:
+                        CHECK(false) << "District id mismatch!";
+                }
+            }
+            Numeric ol_amount = ol_quantity * i_price * (1.0 + w_tax + d_tax) * (1.0 - c_discount);
+            // Timestamp ol_delivery_d = util::Timer::time_now_ns();
+            Timestamp ol_delivery_d = 0;
+            {
+                schema::order_line_t::key_t key {
+                        .ol_w_id = newOrder.warehouseId,
+                        .ol_d_id = newOrder.districtId,
+                        .ol_o_id = newOrder.districtId,
+                        .ol_number = line_number,
+                };
+                schema::order_line_t value {
+                        .ol_i_id = ol_i_id,
+                        .ol_supply_w_id = ol_supply_w_id,
+                        .ol_delivery_d = ol_delivery_d,
+                        .ol_quantity = static_cast<Numeric>(ol_quantity),
+                        .ol_amount = ol_amount,
+                        .ol_dist_info = s_dist,
+                };
+                if (!insertIntoTable(TableNamesPrefix::ORDER_LINE, key, value)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    template<class Key, class Value>
+    bool TPCCChaincode::getValue(std::string_view tablePrefix, const Key &key, Value &value) {
+        std::string keyRaw(tablePrefix);
+        zpp::bits::out outKey(keyRaw);
+        outKey.reset(keyRaw.size());
+        if(failure(outKey(key))) {
+            return false;
+        }
+        std::string_view valueSV;
+        if (!orm->get(std::move(keyRaw), &valueSV)) {
+            return false;
+        }
+        zpp::bits::in inValue(valueSV);
+        if(failure(inValue(value))) {
+            return false;
         }
         return true;
     }

@@ -21,6 +21,12 @@ namespace client::tpcc {
         inline static const std::string STOCK = "s_";
     };
 
+    struct InvokeRequestType {
+        constexpr static const auto TPCC = "tpcc";
+        constexpr static const auto NEW_ORDER = "n";
+        constexpr static const auto PAYMENT = "p";
+    };
+
     class TPCCHelper {
     public:
         TPCCHelper()

@@ -21,12 +21,6 @@ namespace client::tpcc {
     public:
         TPCCWorkload() = default;
 
-        struct InvokeRequestType {
-            constexpr static const auto TPCC = "tpcc";
-            constexpr static const auto NEW_ORDER = "n";
-            constexpr static const auto PAYMENT = "p";
-        };
-
         void init(const ::util::Properties& prop) override;
 
         bool doTransaction(core::DB* db) const override;

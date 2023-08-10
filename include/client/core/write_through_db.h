@@ -6,7 +6,7 @@
 #include "client/core/db.h"
 #include "client/core/status.h"
 
-namespace client::ycsb {
+namespace client::core {
     class WriteThroughDB: public client::core::DB {
     public:
         explicit WriteThroughDB(peer::chaincode::Chaincode* cc) :cc(cc) { }

@@ -5,7 +5,7 @@
 #include "peer/chaincode/ycsb_chaincode.h"
 #include "client/ycsb/ycsb_property.h"
 #include "client/ycsb/core_workload.h"
-#include "client/ycsb/write_through_db.h"
+#include "client/core/write_through_db.h"
 
 namespace peer::chaincode {
     int YCSBChaincode::InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) {
@@ -125,7 +125,7 @@ namespace peer::chaincode {
 
         // start load data
         auto opCount = ycsbProperties->getRecordCount();
-        auto db = std::make_unique<client::ycsb::WriteThroughDB>(this);
+        auto db = std::make_unique<client::core::WriteThroughDB>(this);
         for (auto i=0; i<opCount; i++) {
             if (!workload->doInsert(db.get())) {
                 LOG(ERROR) << "Load data failed!";

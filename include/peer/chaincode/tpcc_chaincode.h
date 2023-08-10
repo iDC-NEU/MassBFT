@@ -33,8 +33,15 @@ namespace peer::chaincode {
         bool initWarehouse(int fromWhId, int toWhId);
 
     protected:
+        bool executeNewOrder(std::string_view argSV);
+
+    protected:
         template<class Key, class Value>
         inline bool insertIntoTable(std::string_view tablePrefix, const Key& key, const Value& value);
+
+        template<class Key, class Value>
+        inline bool getValue(std::string_view tablePrefix, const Key& key, Value& value);
+
 
     private:
         client::tpcc::TPCCHelper helper;

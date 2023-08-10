@@ -8,17 +8,6 @@ namespace client::tpcc {
     using Timestamp = uint64_t;
     using Numeric = double;
 
-    inline constexpr static Integer minInteger = std::numeric_limits<int>::min();
-
-    enum class WorkloadType {
-        NEW_ORDER = 0,
-        DELIVERY = 1,
-        STOCK_LEVEL = 2,
-        ORDER_STATUS = 3,
-        PAYMENT = 4,
-        MAX = 5,
-    };
-
     template <size_t maxLength>
     class Varchar {
     public:

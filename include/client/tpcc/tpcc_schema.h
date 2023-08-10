@@ -79,7 +79,7 @@ namespace client::tpcc::schema {
             Integer c_w_id{};
             Integer c_d_id{};
             Varchar<16> c_last;
-            Varchar<16> c_first;
+            // Varchar<16> c_first;
         };
 
         Integer c_id;

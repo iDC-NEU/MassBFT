@@ -8,6 +8,10 @@
 #include "client/tpcc/tpcc_schema.h"
 #include "client/tpcc/tpcc_helper.h"
 
+namespace client::tpcc::proto {
+    struct Payment;
+}
+
 namespace peer::chaincode {
     class TPCCChaincode : public Chaincode {
     public:
@@ -34,6 +38,8 @@ namespace peer::chaincode {
 
     protected:
         bool executeNewOrder(std::string_view argSV);
+
+        bool executePayment(std::string_view argSV);
 
     protected:
         template<class Key, class Value>

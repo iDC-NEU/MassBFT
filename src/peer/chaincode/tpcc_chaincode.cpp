@@ -224,6 +224,9 @@ namespace peer::chaincode {
         auto ul4 = client::core::UniformLongGenerator(12, 24);
         auto ulx = client::core::UniformLongGenerator(1, 10);
         auto rd = client::utils::RandomDouble(0, 0.5);
+
+        // key lastName value: first name and cid
+        util::MyNodeHashMap<std::string, std::vector<std::pair<Varchar<16>, int32_t>>> customerMap;
         for (int i = 1; i <= nDistrict; i++) {
             for (int j = 1; j <= 3000; j++) {
                 schema::customer_t::key_t key{};
@@ -267,8 +270,10 @@ namespace peer::chaincode {
                 if (!insertIntoTable(TableNamesPrefix::CUSTOMER, key, value)) {
                     return false;
                 }
-                // init history
+                // add customer to map
+                customerMap.at(value.c_last.toString()).emplace_back(value.c_first, key.c_id);
 
+                // init history
                 schema::history_t::key_t historyKey{};
                 historyKey.h_c_id = j;
                 historyKey.h_c_d_id = i;
@@ -281,6 +286,24 @@ namespace peer::chaincode {
                 historyValue.h_amount = 10;
                 client::utils::RandomString(historyValue.h_data, (int)ul4.nextValue());
                 if (!insertIntoTable(TableNamesPrefix::HISTORY, historyKey, historyValue)) {
+                    return false;
+                }
+            }
+
+            for (auto& it : customerMap) {
+                std::vector<std::pair<Varchar<16>, int32_t>> &list = it.second;
+                std::sort(list.begin(), list.end());
+
+                // insert ceiling(n/2) to customer_last_name_idx, n starts from 1
+                client::tpcc::schema::customer_wdl_t::key_t cniKey{};
+                cniKey.c_w_id = partitionID + 1;
+                cniKey.c_d_id = i;
+                cniKey.c_last = Varchar<16>(it.first);
+                client::tpcc::schema::customer_wdl_t cniValue{};
+                cniValue.c_id = list[(list.size() - 1) / 2].second;
+                DCHECK(cniValue.c_id > 0) << "C_ID is not valid.";
+
+                if (!insertIntoTable(TableNamesPrefix::CUSTOMER_WDL, cniKey, cniValue)) {
                     return false;
                 }
             }
@@ -556,6 +579,123 @@ namespace peer::chaincode {
                 if (!insertIntoTable(TableNamesPrefix::ORDER_LINE, key, value)) {
                     return false;
                 }
+            }
+        }
+        return true;
+    }
+
+    bool TPCCChaincode::executePayment(std::string_view argSV) {
+        ::client::tpcc::proto::Payment payment{};
+        auto in = zpp::bits::in(argSV);
+        if(failure(in(payment))) {
+            return false;
+        }
+
+        schema::warehouse_t wValue;
+        {
+            schema::warehouse_t::key_t wKey{.w_id = payment.warehouseId};
+            if (!getValue(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
+                return false;
+            }
+            // cache the old value
+            Numeric w_ytd = wValue.w_ytd;
+            wValue.w_ytd += payment.homeOrderTotalAmount;
+            if (!insertIntoTable(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
+                return false;
+            }
+            // restore the original value
+            wValue.w_ytd = w_ytd;
+        }
+        schema::district_t dValue;
+        {
+            schema::district_t::key_t dKey {
+                    .d_w_id = payment.warehouseId,
+                    .d_id = payment.districtId,
+            };
+            if (!getValue(TableNamesPrefix::DISTRICT, dKey, dValue)) {
+                return false;
+            }
+            // cache the old value
+            Numeric d_ytd = dValue.d_ytd;
+            dValue.d_ytd += payment.homeOrderTotalAmount;
+            if (!insertIntoTable(TableNamesPrefix::DISTRICT, dKey, dValue)) {
+                return false;
+            }
+            // restore the original value
+            dValue.d_ytd = d_ytd;
+        }
+
+        Integer c_id;
+        if (payment.isPaymentById) {
+            c_id = payment.customerId;
+        } else {
+            schema::customer_wdl_t::key_t wdlKey {
+                    .c_w_id = payment.customerWarehouseId,
+                    .c_d_id = payment.customerDistrictId,
+                    .c_last = payment.customerLastName,
+            };
+            schema::customer_wdl_t wdlValue {};
+            if (!getValue(TableNamesPrefix::CUSTOMER_WDL, wdlKey, wdlValue)) {
+                DLOG(INFO) << "Can not find customer id";
+                return false;
+            }
+            c_id = wdlValue.c_id;
+            DCHECK(c_id > 0) << "Invalid C_ID read from index";
+        }
+        {
+            schema::customer_t::key_t cKey {
+                    .c_w_id = payment.customerWarehouseId,
+                    .c_d_id = payment.customerDistrictId,
+                    .c_id = c_id,
+            };
+            schema::customer_t cValue;
+            if (!getValue(TableNamesPrefix::CUSTOMER, cKey, cValue)) {
+                return false;
+            }
+
+            // update c_data
+            if (cValue.c_credit[0] == 'B' && cValue.c_credit[1] == 'C') {
+                std::string valueRaw;
+                valueRaw.reserve(1024);
+                zpp::bits::out outValue(valueRaw);
+                if(failure(outValue(c_id, payment, wValue.w_name, dValue.d_name, cValue.c_data))) {
+                    return false;
+                }
+                valueRaw.resize(500);
+                cValue.c_data = Varchar<500>(valueRaw);
+            } else {
+                DCHECK(cValue.c_credit[0] == 'G' && cValue.c_credit[1] == 'C');
+            }
+
+            // update values
+            cValue.c_balance -= payment.homeOrderTotalAmount;
+            cValue.c_ytd_payment += payment.homeOrderTotalAmount;
+            cValue.c_payment_cnt += 1;
+
+            if (!insertIntoTable(TableNamesPrefix::CUSTOMER, cKey, cValue)) {
+                return false;
+            }
+        }
+        {
+            std::string h_new_data = wValue.w_name.toString() + "    " + dValue.d_name.toString();
+            if (h_new_data.size() > 24) {
+                h_new_data.resize(24);
+            }
+            schema::history_t::key_t hKey {
+                    .h_c_id = c_id,
+                    .h_c_d_id = payment.customerDistrictId,
+                    .h_c_w_id = payment.customerWarehouseId,
+                    .h_d_id = payment.districtId,
+                    .h_w_id = payment.warehouseId,
+                    .h_date = payment.timestamp,
+            };
+            schema::history_t hValue {
+                .h_amount = payment.homeOrderTotalAmount,
+                .h_data = Varchar<24>(h_new_data),
+            };
+
+            if (!insertIntoTable(TableNamesPrefix::HISTORY, hKey, hValue)) {
+                return false;
             }
         }
         return true;

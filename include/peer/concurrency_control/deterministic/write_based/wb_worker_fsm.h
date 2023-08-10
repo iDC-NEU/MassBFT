@@ -40,11 +40,10 @@ namespace peer::cc {
                     auto ccNameSV = txn->getUserRequest().getCCNameSV();
                     auto it = ccList.find(ccNameSV);
                     if (it == ccList.end()) {   // chaincode not found
-                        auto ccName = std::string(ccNameSV);
                         auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db.get());
-                        auto ret = peer::chaincode::NewChaincodeByName(ccName, std::move(orm));
+                        auto ret = peer::chaincode::NewChaincodeByName(ccNameSV, std::move(orm));
                         CHECK(ret != nullptr) << "chaincode name not exist!";
-                        ccList[ccName] = std::move(ret);
+                        ccList[ccNameSV] = std::move(ret);
                         it = ccList.find(ccNameSV);
                     }
                     auto chaincode = it->second.get();

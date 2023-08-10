@@ -12,7 +12,7 @@
 #include "peer/chaincode/hash_chaincode.h"
 
 namespace peer::chaincode {
-    std::unique_ptr<Chaincode> NewChaincodeByName(const std::string &ccName, std::unique_ptr<ORM> orm) {
+    std::unique_ptr<Chaincode> NewChaincodeByName(std::string_view ccName, std::unique_ptr<ORM> orm) {
         if (ccName == "transfer") {
             return std::make_unique<peer::chaincode::SimpleTransfer>(std::move(orm));
         }

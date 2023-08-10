@@ -9,6 +9,8 @@
 #include "client/core/status.h"
 
 namespace client::tpcc {
+    using namespace ::client::core;
+
     void TPCCWorkload::init(const ::util::Properties &prop) {
         helper = std::make_unique<TPCCHelper>();
         auto n = TPCCProperties::NewFromProperty(prop);

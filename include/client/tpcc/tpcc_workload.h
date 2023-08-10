@@ -10,16 +10,13 @@
 #include "tpcc_property.h"
 
 namespace client::tpcc {
-
-    using namespace ::client::core;
-
     enum class Operation {
         NEW_ORDER,
         PAYMENT,
     };
-    using TPCCDiscreteGenerator = DiscreteGenerator<Operation>;
+    using TPCCDiscreteGenerator = core::DiscreteGenerator<Operation>;
 
-    class TPCCWorkload: public Workload {
+    class TPCCWorkload: public core::Workload {
     public:
         struct InvokeRequestType {
             constexpr static const auto TPCC = "tpcc";
@@ -29,22 +26,22 @@ namespace client::tpcc {
 
         void init(const ::util::Properties& prop) override;
 
-        bool doTransaction(DB* db) const override;
+        bool doTransaction(core::DB* db) const override;
 
     protected:
         void initOperationGenerator(const TPCCProperties::Proportion& p);
 
-        bool doNewOrderRand(DB* db, int warehouseId) const;
+        bool doNewOrderRand(core::DB* db, int warehouseId) const;
 
-        bool doPaymentRand(DB* db, int warehouseId) const;
+        bool doPaymentRand(core::DB* db, int warehouseId) const;
 
     private:
         int warehouseCount;
-        std::unique_ptr<NumberGenerator> warehouseChooser;
-        std::unique_ptr<NumberGenerator> districtIdChooser;
-        std::unique_ptr<NumberGenerator> orderLineCountChooser;
-        std::unique_ptr<DoubleGenerator> percentChooser;
-        std::unique_ptr<DoubleGenerator> amountChooser;
+        std::unique_ptr<core::NumberGenerator> warehouseChooser;
+        std::unique_ptr<core::NumberGenerator> districtIdChooser;
+        std::unique_ptr<core::NumberGenerator> orderLineCountChooser;
+        std::unique_ptr<core::DoubleGenerator> percentChooser;
+        std::unique_ptr<core::DoubleGenerator> amountChooser;
         std::unique_ptr<TPCCDiscreteGenerator> operationChooser;
         std::unique_ptr<TPCCHelper> helper;
     };

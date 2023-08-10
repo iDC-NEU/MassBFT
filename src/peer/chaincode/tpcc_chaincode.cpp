@@ -277,7 +277,7 @@ namespace peer::chaincode {
                     return false;
                 }
                 // add customer to map
-                customerMap.at(value.c_last.toString()).emplace_back(value.c_first, key.c_id);
+                customerMap[value.c_last.toString()].emplace_back(value.c_first, key.c_id);
 
                 // init history
                 schema::history_t::key_t historyKey{};

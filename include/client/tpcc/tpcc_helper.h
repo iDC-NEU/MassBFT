@@ -2,6 +2,8 @@
 // Created by user on 23-8-9.
 //
 
+#pragma once
+
 #include "client/tpcc/tpcc_types.h"
 #include "client/core/generator/uniform_long_generator.h"
 #include "client/core/generator/non_uniform_generator.h"

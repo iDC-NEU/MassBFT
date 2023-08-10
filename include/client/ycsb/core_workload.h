@@ -87,7 +87,6 @@ namespace client::ycsb {
             } else {
                 // fill with random data
                 value[fieldKey] = utils::RandomString((int)fieldLengthGenerator->nextValue());
-                LOG(INFO) << value[fieldKey];
             }
         }
 

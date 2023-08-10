@@ -10,10 +10,24 @@
 #include "client/tpcc/tpcc_property.h"
 
 namespace client::core {
+    template <typename Derived>
+    concept useDerivedDBFactory = requires(const util::Properties &n) {
+        { Derived::CreateDBFactory(n) } -> std::same_as<std::unique_ptr<core::DBFactory>>;
+    };
+
     template <class Derived, class PropertyType>
+    requires requires(Derived d, const util::Properties &n) {
+        { d.CreateWorkload(n) } -> std::same_as<std::shared_ptr<core::Workload>>;
+        { d.CreateProperty(n) } -> std::same_as<std::unique_ptr<PropertyType>>;
+    }
     class DefaultEngine {
     public:
-        explicit DefaultEngine(const util::Properties &n) :factory(n) {
+        explicit DefaultEngine(const util::Properties &n) {
+            if constexpr (useDerivedDBFactory<Derived>) {
+                factory = Derived::CreateDBFactory(n);
+            } else {
+                factory = std::make_unique<core::DBFactory>(n);
+            }
             workload = Derived::CreateWorkload(n);
             workload->init(n);
             measurements = std::make_shared<core::Measurements>();
@@ -33,7 +47,7 @@ namespace client::core {
         // not thread safe, called by ths same manager
         void startTestNoWait() {
             LOG(INFO) << "Running test.";
-            auto status = factory.newDBStatus();
+            auto status = factory->newDBStatus();
             statusThread = std::make_unique<core::StatusThread>(measurements, std::move(status));
             LOG(INFO) << "Run worker thread";
             for(auto &client :clients) {
@@ -76,7 +90,7 @@ namespace client::core {
             // Randomize seed of this thread
             core::GetThreadLocalRandomGenerator()->seed(seed++);
             for (int tid = 0; tid < threadCount; tid++) {   // create a set of clients
-                auto db = factory.newDB();  // each client create a connection
+                auto db = factory->newDB();  // each client create a connection
                 // Randomize seed of client thread
                 auto t = std::make_unique<core::ClientThread>(std::move(db), workload, seed++, (int)threadOpCount, tpsPerThread);
                 clients.emplace_back(std::move(t));
@@ -84,7 +98,7 @@ namespace client::core {
         }
 
     private:
-        core::DBFactory factory;
+        std::unique_ptr<core::DBFactory> factory;
         std::chrono::high_resolution_clock::time_point benchmarkUntil;
         std::unique_ptr<PropertyType> properties;
         std::shared_ptr<core::Workload> workload;

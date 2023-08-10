@@ -43,11 +43,11 @@ namespace client::core {
     public:
         explicit DBFactory(const util::Properties &n);
 
-        ~DBFactory();
+        virtual ~DBFactory();
 
-        [[nodiscard]] std::unique_ptr<DB> newDB() const;
+        [[nodiscard]] virtual std::unique_ptr<DB> newDB() const;
 
-        [[nodiscard]] std::unique_ptr<DBStatus> newDBStatus() const;
+        [[nodiscard]] virtual std::unique_ptr<DBStatus> newDBStatus() const;
 
     private:
         util::NodeConfigPtr server;

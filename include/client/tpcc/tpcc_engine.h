@@ -9,19 +9,15 @@
 #include "client/tpcc/tpcc_property.h"
 
 namespace client::tpcc {
-    class TPCCEngine : public core::DefaultEngine<TPCCEngine, TPCCProperties> {
-    public:
-        explicit TPCCEngine(const util::Properties &n)
-                : core::DefaultEngine<TPCCEngine, TPCCProperties>(n) { }
-
-        ~TPCCEngine() { waitUntilFinish(); }
-
-        static auto CreateWorkload(const util::Properties &) {
+    struct TPCCFactory {
+        static std::shared_ptr<core::Workload> CreateWorkload(const util::Properties &) {
             return std::make_shared<TPCCWorkload>();
         }
 
-        static auto CreateProperty(const util::Properties &n) {
+        static std::unique_ptr<TPCCProperties> CreateProperty(const util::Properties &n) {
             return TPCCProperties::NewFromProperty(n);
         }
     };
+
+    using TPCCEngine = core::DefaultEngine<TPCCFactory, TPCCProperties>;
 }

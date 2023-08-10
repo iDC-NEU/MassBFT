@@ -9,19 +9,15 @@
 #include "client/ycsb/ycsb_property.h"
 
 namespace client::ycsb {
-    class YCSBEngine : public core::DefaultEngine<YCSBEngine, YCSBProperties> {
-    public:
-        explicit YCSBEngine(const util::Properties &n)
-                : core::DefaultEngine<YCSBEngine, YCSBProperties>(n) { }
-
-        ~YCSBEngine() { waitUntilFinish(); }
-
-        static auto CreateWorkload(const util::Properties &) {
+    struct YCSBFactory {
+        static std::shared_ptr<core::Workload> CreateWorkload(const util::Properties &) {
             return std::make_shared<CoreWorkload>();
         }
 
-        static auto CreateProperty(const util::Properties &n) {
+        static std::unique_ptr<YCSBProperties> CreateProperty(const util::Properties &n) {
             return YCSBProperties::NewFromProperty(n);
         }
     };
+
+    using YCSBEngine = core::DefaultEngine<YCSBFactory, YCSBProperties>;
 }

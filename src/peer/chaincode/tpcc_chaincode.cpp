@@ -22,6 +22,12 @@ namespace peer::chaincode {
             }
             return -1;
         }
+        if (funcNameSV == InvokeRequestType::PAYMENT) {
+            if (executePayment(argSV)) {
+                return 0;
+            }
+            return -1;
+        }
         DLOG(INFO) << "Invalid function call.";
         return -1;
     }

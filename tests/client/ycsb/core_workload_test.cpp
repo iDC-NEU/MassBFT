@@ -26,16 +26,16 @@ protected:
         std::vector<int> counts(5);
         for (int i = 0; i < 10000; ++i) {
             switch (generator->nextValue()) {
-                case client::core::Operation::READ:
+                case client::ycsb::Operation::READ:
                     ++counts[0];
                     break;
-                case client::core::Operation::UPDATE:
+                case client::ycsb::Operation::UPDATE:
                     ++counts[1];
                     break;
-                case client::core::Operation::INSERT:
+                case client::ycsb::Operation::INSERT:
                     ++counts[2];
                     break;
-                case client::core::Operation::SCAN:
+                case client::ycsb::Operation::SCAN:
                     ++counts[3];
                     break;
                 default:
@@ -47,7 +47,7 @@ protected:
 
 protected:
     client::ycsb::CoreWorkload coreWorkload;
-    std::unique_ptr<client::core::DiscreteGenerator> generator;
+    std::unique_ptr<client::ycsb::YCSBDiscreteGenerator> generator;
 };
 
 TEST_F(CoreWorkloadTest, TestOperationGenerator) {

@@ -33,35 +33,12 @@ namespace client {
 
     class NeuChainDB: public core::DB {
     public:
-        struct InvokeRequestType {
-            constexpr static const auto YCSB = "ycsb";
-            constexpr static const auto UPDATE = "u";
-            constexpr static const auto INSERT = "i";
-            constexpr static const auto READ = "r";
-            constexpr static const auto DELETE = "d";
-            constexpr static const auto SCAN = "s";
-            constexpr static const auto READ_MODIFY_WRITE = "m";
-        };
-
         NeuChainDB(util::NodeConfigPtr server, std::shared_ptr<NeuChainDBConnection> dbc, std::shared_ptr<const util::Key> priKey);
 
         void stop() override;
 
-        core::Status read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) override;
-
-        core::Status scan(const std::string& table, const std::string& startKey, uint64_t recordCount, const std::vector<std::string>& fields) override;
-
-        core::Status update(const std::string& table, const std::string& key, const utils::ByteIteratorMap& values) override;
-
-        core::Status readModifyWrite(const std::string& table, const std::string& key,
-                                     const std::vector<std::string>& readFields, const utils::ByteIteratorMap& writeValues) override;
-
-        core::Status insert(const std::string& table, const std::string& key, const utils::ByteIteratorMap& values) override;
-
-        core::Status remove(const std::string& table, const std::string& key) override;
-
     protected:
-        core::Status sendInvokeRequest(const std::string& funcName, const std::string& args);
+        core::Status sendInvokeRequest(const std::string& chaincodeName, const std::string& funcName, const std::string& args) override;
 
     private:
         int64_t _nextNonce;

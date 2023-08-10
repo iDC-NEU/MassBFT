@@ -2,7 +2,7 @@
 // Created by peng on 11/6/22.
 //
 
-#include "client/ycsb/engine.h"
+#include "client/ycsb/ycsb_engine.h"
 #include "tests/mock_property_generator.h"
 #include "tests/peer/mock_peer.h"
 #include "gtest/gtest.h"

@@ -4,6 +4,7 @@
 #include "peer/chaincode/ycsb_row_level.h"
 #include "client/ycsb/ycsb_property.h"
 #include "client/ycsb/core_workload.h"
+#include "client/core/write_through_db.h"
 
 namespace peer::chaincode {
     int chaincode::YCSBRowLevel::InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) {
@@ -26,49 +27,6 @@ namespace peer::chaincode {
         }
     }
 
-    class WriteThroughDB: public client::core::DB {
-    public:
-        explicit WriteThroughDB(ORM* orm) :_orm(orm) { }
-
-        void stop() override { }
-
-        client::core::Status read(const std::string&, const std::string&, const std::vector<std::string>&) override {
-            return client::core::ERROR;
-        }
-
-        client::core::Status scan(const std::string&, const std::string&, uint64_t, const std::vector<std::string>&) override {
-            return client::core::ERROR;
-        }
-
-        client::core::Status update(const std::string&, const std::string&, const client::utils::ByteIteratorMap&) override {
-            return client::core::ERROR;
-        }
-
-        client::core::Status readModifyWrite(const std::string&, const std::string&, const std::vector<std::string>&, const client::utils::ByteIteratorMap&) override {
-            return client::core::ERROR;
-        }
-
-        client::core::Status insert(const std::string&, const std::string& key, const client::utils::ByteIteratorMap& rhs) override {
-            std::unordered_map<std::string_view, std::string_view> lhs;
-            for (const auto& it: rhs) {
-                lhs[it.first] = it.second;
-            }
-            // serialize final value
-            std::string rawWriteValue;
-            zpp::bits::out out(rawWriteValue);
-            if(failure(out(lhs))) {
-                return client::core::ERROR;
-            }
-            _orm->put(std::string(key), std::move(rawWriteValue));
-            return client::core::STATUS_OK;
-        }
-
-        client::core::Status remove(const std::string&, const std::string&) override { return client::core::ERROR; }
-
-    private:
-        ORM* _orm;
-    };
-
     int peer::chaincode::YCSBRowLevel::InitDatabase() {
         ::client::core::GetThreadLocalRandomGenerator()->seed(0); // use deterministic value
         auto* property = util::Properties::GetProperties();
@@ -89,7 +47,7 @@ namespace peer::chaincode {
 
         // start load data
         auto opCount = ycsbProperties->getRecordCount();
-        auto db = std::make_unique<WriteThroughDB>(orm.get());
+        auto db = std::make_unique<client::core::WriteThroughDB>(this);
         for (auto i=0; i<opCount; i++) {
             if (!workload->doInsert(db.get())) {
                 LOG(ERROR) << "Load data failed!";

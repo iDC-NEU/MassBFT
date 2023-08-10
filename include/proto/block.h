@@ -72,6 +72,7 @@ namespace proto {
 
             [[nodiscard]] bool serializeForProofGen(std::vector<int>& posList, std::string& ret, int startPos = 0) const {
                 posList.resize(userRequests.size());
+                ret.reserve(userRequests.size() * 256);
                 zpp::bits::out out(ret);
                 out.reset(startPos);
                 for (int i=0; i<(int)userRequests.size(); i++) {
@@ -110,6 +111,7 @@ namespace proto {
 
             [[nodiscard]] bool serializeForProofGen(std::vector<int>& posList, std::string& ret, int startPos = 0) const {
                 posList.resize(txReadWriteSet.size());
+                ret.reserve(txReadWriteSet.size() * 384);
                 zpp::bits::out out(ret);
                 out.reset(startPos);
                 for (int i=0; i<(int)txReadWriteSet.size(); i++) {

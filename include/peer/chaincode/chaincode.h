@@ -30,5 +30,5 @@ namespace peer::chaincode {
         std::unique_ptr<ORM> orm;
     };
 
-    std::unique_ptr<Chaincode> NewChaincodeByName(const std::string &ccName, std::unique_ptr<ORM> orm);
+    std::unique_ptr<Chaincode> NewChaincodeByName(std::string_view ccName, std::unique_ptr<ORM> orm);
 }

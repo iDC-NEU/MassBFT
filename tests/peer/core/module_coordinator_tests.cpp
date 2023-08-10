@@ -9,7 +9,7 @@
 #include "common/timer.h"
 #include "common/reliable_zeromq.h"
 #include "common/property.h"
-#include "client/ycsb/engine.h"
+#include "client/ycsb/ycsb_engine.h"
 #include "tests/mock_property_generator.h"
 #include "gtest/gtest.h"
 #include "glog/logging.h"

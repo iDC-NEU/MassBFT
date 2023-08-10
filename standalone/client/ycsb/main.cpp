@@ -2,7 +2,7 @@
 // Created by peng on 11/6/22.
 //
 
-#include "client/ycsb/engine.h"
+#include "client/ycsb/ycsb_engine.h"
 
 int main(int argc, char *argv[]) {
     util::OpenSSLSHA256::initCrypto();

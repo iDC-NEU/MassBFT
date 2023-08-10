@@ -1,27 +1,42 @@
 //
-// Created by user on 23-6-28.
+// Created by user on 23-8-10.
 //
 
 #pragma once
 
 #include "client/core/status_thread.h"
 #include "client/core/client_thread.h"
-#include "client/ycsb/core_workload.h"
-#include "client/ycsb/ycsb_property.h"
+#include "client/core/workload.h"
+#include "client/tpcc/tpcc_property.h"
 
-namespace client::ycsb {
-    class YCSBEngine {
+namespace client::core {
+    template <typename Derived>
+    concept useDerivedDBFactory = requires(const util::Properties &n) {
+        { Derived::CreateDBFactory(n) } -> std::same_as<std::unique_ptr<core::DBFactory>>;
+    };
+
+    template <class Derived, class PropertyType>
+    requires requires(Derived d, const util::Properties &n) {
+        { d.CreateWorkload(n) } -> std::same_as<std::shared_ptr<core::Workload>>;
+        { d.CreateProperty(n) } -> std::same_as<std::unique_ptr<PropertyType>>;
+    }
+    class DefaultEngine {
     public:
-        explicit YCSBEngine(const util::Properties &n) :factory(n) {
-            workload = std::make_shared<CoreWorkload>();
+        explicit DefaultEngine(const util::Properties &n) {
+            if constexpr (useDerivedDBFactory<Derived>) {
+                factory = Derived::CreateDBFactory(n);
+            } else {
+                factory = std::make_unique<core::DBFactory>(n);
+            }
+            workload = Derived::CreateWorkload(n);
             workload->init(n);
             measurements = std::make_shared<core::Measurements>();
             workload->setMeasurements(measurements);
-            ycsbProperties = YCSBProperties::NewFromProperty(n);
+            properties = Derived::CreateProperty(n);
             initClients();
         }
 
-        ~YCSBEngine() { waitUntilFinish(); }
+        ~DefaultEngine() { waitUntilFinish(); }
 
         // not thread safe, called by ths same manager
         void startTest() {
@@ -32,7 +47,7 @@ namespace client::ycsb {
         // not thread safe, called by ths same manager
         void startTestNoWait() {
             LOG(INFO) << "Running test.";
-            auto status = factory.newDBStatus();
+            auto status = factory->newDBStatus();
             statusThread = std::make_unique<core::StatusThread>(measurements, std::move(status));
             LOG(INFO) << "Run worker thread";
             for(auto &client :clients) {
@@ -40,8 +55,8 @@ namespace client::ycsb {
             }
             LOG(INFO) << "Run status thread";
             statusThread->run();
-            auto totalBenchmarkTime = static_cast<int>((double)ycsbProperties->getOperationCount() /
-                                                       (ycsbProperties->getTargetTPSPerThread() * ycsbProperties->getThreadCount()));
+            auto totalBenchmarkTime = static_cast<int>((double)properties->getOperationCount() /
+                                                       (properties->getTargetTPSPerThread() * properties->getThreadCount()));
             benchmarkUntil = std::chrono::system_clock::now() + std::chrono::seconds(totalBenchmarkTime);
         }
 
@@ -59,23 +74,23 @@ namespace client::ycsb {
 
     protected:
         void initClients() {
-            auto operationCount = ycsbProperties->getOperationCount();
-            auto threadCount = std::min(ycsbProperties->getThreadCount(), (int)operationCount);
+            auto operationCount = properties->getOperationCount();
+            auto threadCount = std::min(properties->getThreadCount(), (int)operationCount);
             auto threadOpCount = operationCount / threadCount;
             if (threadOpCount <= 0) {
                 threadOpCount += 1;
             }
-            auto tpsPerThread = ycsbProperties->getTargetTPSPerThread();
+            auto tpsPerThread = properties->getTargetTPSPerThread();
             // use static seed, seed MUST start from 1 (seed=0 and seed=1 may generate the same sequence)
             unsigned long seed = 1;
-            if (ycsbProperties->getUseRandomSeed()) {
+            if (properties->getUseRandomSeed()) {
                 // Generate a random seed
                 seed = util::Timer::time_now_ns();
             }
             // Randomize seed of this thread
             core::GetThreadLocalRandomGenerator()->seed(seed++);
             for (int tid = 0; tid < threadCount; tid++) {   // create a set of clients
-                auto db = factory.newDB();  // each client create a connection
+                auto db = factory->newDB();  // each client create a connection
                 // Randomize seed of client thread
                 auto t = std::make_unique<core::ClientThread>(std::move(db), workload, seed++, (int)threadOpCount, tpsPerThread);
                 clients.emplace_back(std::move(t));
@@ -83,10 +98,10 @@ namespace client::ycsb {
         }
 
     private:
-        core::DBFactory factory;
+        std::unique_ptr<core::DBFactory> factory;
         std::chrono::high_resolution_clock::time_point benchmarkUntil;
-        std::unique_ptr<YCSBProperties> ycsbProperties;
-        std::shared_ptr<CoreWorkload> workload;
+        std::unique_ptr<PropertyType> properties;
+        std::shared_ptr<core::Workload> workload;
         std::shared_ptr<core::Measurements> measurements;
         std::unique_ptr<core::StatusThread> statusThread;
         std::vector<std::unique_ptr<core::ClientThread>> clients;

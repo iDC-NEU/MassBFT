@@ -8,19 +8,12 @@
 #include "glog/logging.h"
 
 namespace client::core {
-    enum class Operation {
-        INSERT,
-        READ,
-        UPDATE,
-        SCAN,
-        READ_MODIFY_WRITE,
-    };
-
+    template <class Operation>
     class DiscreteGenerator : public Generator<Operation> {
     public:
         void addValue(double weight, Operation value) {
             if (values.empty()) {
-                setLastValue(value);
+                Generator<Operation>::setLastValue(value);
             }
             values.emplace_back(value, weight);
             sum += weight;
@@ -30,13 +23,13 @@ namespace client::core {
             double chooser = randomDouble.nextValue();
             for (auto p : values) {
                 if (chooser < p.second / sum) {
-                    setLastValue(p.first);
+                    Generator<Operation>::setLastValue(p.first);
                     return p.first;
                 }
                 chooser -= p.second / sum;
             }
             CHECK(false);
-            return lastValue();
+            return Generator<Operation>::lastValue();
         }
 
         double mean() override {

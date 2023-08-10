@@ -25,25 +25,7 @@ namespace client::core {
 
         virtual void stop() = 0;
 
-        // fields: The list of fields to read, or null for all of them
-        virtual core::Status read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) = 0;
-
-        // fields: The list of fields to read, or null for all of them
-        virtual core::Status scan(const std::string& table, const std::string& startKey, uint64_t recordCount, const std::vector<std::string>& fields) = 0;
-
-        // values: A HashMap of field/value pairs to update in the record
-        virtual core::Status update(const std::string& table, const std::string& key, const utils::ByteIteratorMap& values) = 0;
-
-        // values: A HashMap of field/value pairs to update in the record
-        virtual core::Status readModifyWrite(const std::string& table,
-                                             const std::string& key,
-                                             const std::vector<std::string>& readFields,
-                                             const utils::ByteIteratorMap& writeValues) = 0;
-
-        // values: A HashMap of field/value pairs to update in the record
-        virtual core::Status insert(const std::string& table, const std::string& key, const utils::ByteIteratorMap& values) = 0;
-
-        virtual core::Status remove(const std::string& table, const std::string& key) = 0;
+        virtual core::Status sendInvokeRequest(const std::string& chaincodeName, const std::string& funcName, const std::string& args) = 0;
     };
 
     class DBStatus {
@@ -61,11 +43,11 @@ namespace client::core {
     public:
         explicit DBFactory(const util::Properties &n);
 
-        ~DBFactory();
+        virtual ~DBFactory();
 
-        [[nodiscard]] std::unique_ptr<DB> newDB() const;
+        [[nodiscard]] virtual std::unique_ptr<DB> newDB() const;
 
-        [[nodiscard]] std::unique_ptr<DBStatus> newDBStatus() const;
+        [[nodiscard]] virtual std::unique_ptr<DBStatus> newDBStatus() const;
 
     private:
         util::NodeConfigPtr server;

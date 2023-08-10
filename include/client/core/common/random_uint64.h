@@ -15,6 +15,7 @@ namespace client::utils {
             return std::make_unique<RandomUINT64>();
         }
 
+        // [lb, ub]
         explicit RandomUINT64(uint64_t lb=0, uint64_t ub=std::numeric_limits<uint64_t>::max())
                 : uniform(lb, ub) { }
 

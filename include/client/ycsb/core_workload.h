@@ -6,7 +6,6 @@
 
 #include "client/core/workload.h"
 #include "client/core/client_thread.h"
-#include "client/core/measurements.h"
 #include "client/core/status.h"
 #include "client/core/generator/constant_integer_generator.h"
 #include "client/core/generator/discrete_generator.h"
@@ -17,14 +16,24 @@
 #include "client/core/generator/acknowledge_counter_generator.h"
 #include "client/core/generator/scrambled_zipfian_generator.h"
 #include "client/ycsb/ycsb_property.h"
+#include "client/ycsb/ycsb_db_wrapper.h"
 
 namespace client::ycsb {
 
     using namespace ::client::core;
 
+    enum class Operation {
+        INSERT,
+        READ,
+        UPDATE,
+        SCAN,
+        READ_MODIFY_WRITE,
+    };
+    using YCSBDiscreteGenerator = DiscreteGenerator<Operation>;
+
     class CoreWorkload: public Workload {
         std::unique_ptr<NumberGenerator> keySequence;
-        std::unique_ptr<DiscreteGenerator> operationChooser;
+        std::unique_ptr<YCSBDiscreteGenerator> operationChooser;
         std::unique_ptr<NumberGenerator> keyChooser;
         std::unique_ptr<NumberGenerator> fieldChooser;
         std::unique_ptr<AcknowledgedCounterGenerator> transactionInsertKeySequence;
@@ -40,8 +49,6 @@ namespace client::ycsb {
 
         std::string tableName;
         std::vector<std::string> fieldnames;
-
-        mutable std::shared_ptr<Measurements> measurements;
 
     public:
         static inline std::string buildKeyName(uint64_t keyNum, int zeroPadding, bool orderedInserts) {
@@ -121,8 +128,8 @@ namespace client::ycsb {
             return nullptr;
         }
 
-        static std::unique_ptr<DiscreteGenerator> createOperationGenerator(const YCSBProperties::Proportion& p) {
-            auto operationChooser = std::make_unique<DiscreteGenerator>();
+        static std::unique_ptr<YCSBDiscreteGenerator> createOperationGenerator(const YCSBProperties::Proportion& p) {
+            auto operationChooser = std::make_unique<YCSBDiscreteGenerator>();
             if (p.readProportion > 0) {
                 operationChooser->addValue(p.readProportion, Operation::READ);
             }
@@ -177,8 +184,6 @@ namespace client::ycsb {
             writeAllFields = n->getWriteAllFields();
         }
 
-        void setMeasurements(auto&& rhs) { measurements = std::forward<decltype(rhs)>(rhs); }
-
     private:
         void buildSingleValue(utils::ByteIteratorMap& value, const std::string& key) const {
             const auto& fieldKey = fieldnames[fieldChooser->nextValue()];
@@ -186,8 +191,8 @@ namespace client::ycsb {
                 value[fieldKey] = buildDeterministicValue(key, fieldKey);
             } else {
                 // fill with random data
-                value[fieldKey] = utils::RandomString(fieldLengthGenerator->nextValue());
-                // LOG(INFO) << value[fieldKey];
+                value[fieldKey] = utils::RandomString((int)fieldLengthGenerator->nextValue());
+                LOG(INFO) << value[fieldKey];
             }
         }
 
@@ -197,7 +202,7 @@ namespace client::ycsb {
                     values[fieldKey] = buildDeterministicValue(key, fieldKey);
                 } else {
                     // fill with random data
-                    values[fieldKey] = utils::RandomString(fieldLengthGenerator->nextValue());
+                    values[fieldKey] = utils::RandomString((int)fieldLengthGenerator->nextValue());
                 }
             }
         }
@@ -232,7 +237,7 @@ namespace client::ycsb {
 
             int numOfRetries = 0;
             while (true) {
-                auto status = db->insert(tableName, dbKey, values);
+                auto status = DBWrapper(db).insert(tableName, dbKey, values);
                 if (status.isOk()) {
                     measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
                     return true;
@@ -336,7 +341,7 @@ namespace client::ycsb {
                 fields = fieldnames;
             }
 
-            auto status = db->read(tableName, keyName, fields);
+            auto status = DBWrapper(db).read(tableName, keyName, fields);
             measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
         }
 
@@ -361,7 +366,7 @@ namespace client::ycsb {
                 buildSingleValue(values, keyName);
             }
 
-            auto status = db->readModifyWrite(tableName, keyName, fields, values);
+            auto status = DBWrapper(db).readModifyWrite(tableName, keyName, fields, values);
             measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
         }
 
@@ -380,7 +385,7 @@ namespace client::ycsb {
                 const auto& fieldName = fieldnames[fieldChooser->nextValue()];
                 fields.push_back(fieldName);
             }
-            auto status = db->scan(tableName, startKeyName, len, fields);
+            auto status = DBWrapper(db).scan(tableName, startKeyName, len, fields);
             measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
         }
 
@@ -397,7 +402,7 @@ namespace client::ycsb {
                 // update a random field
                 buildSingleValue(values, keyName);
             }
-            auto status = db->update(tableName, keyName, values);
+            auto status = DBWrapper(db).update(tableName, keyName, values);
             measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
         }
 
@@ -410,7 +415,7 @@ namespace client::ycsb {
                 auto dbKey = CoreWorkload::buildKeyName(keyNum, zeroPadding, orderedInserts);
                 utils::ByteIteratorMap values;
                 buildValues(values, dbKey);
-                auto status = db->insert(tableName, dbKey, values);
+                auto status = DBWrapper(db).insert(tableName, dbKey, values);
                 measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
             } catch (const std::exception& e) {
                 LOG(ERROR) << e.what();

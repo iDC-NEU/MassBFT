@@ -4,11 +4,10 @@
 
 #include "client/neuchain_db.h"
 #include "client/neuchain_dbc.h"
-#include "client/ycsb/core_workload.h"
-#include "client/core/common/random_uint64.h"
-#include "proto/user_request.h"
 #include "proto/user_connection.pb.h"
+#include "common/timer.h"
 #include <brpc/channel.h>
+#include <thread>
 
 namespace brpc::policy {
     DECLARE_int32(h2_client_connection_window_size);
@@ -31,111 +30,12 @@ namespace client {
         _invokeClient->shutdown();
     }
 
-    core::Status NeuChainDB::read(const std::string& table, const std::string& key, const std::vector<std::string>& fields) {
-        std::string data;
-        zpp::bits::out out(data);
-        // 1. table and key
-        if (failure(out(table, key))) {
-            return core::ERROR;
-        }
-        // 2. fields
-        if (failure(out(fields))) {
-            return core::ERROR;
-        }
-        return sendInvokeRequest(InvokeRequestType::READ, data);
-    }
-
-    core::Status NeuChainDB::scan(const std::string &table,
-                                                      const std::string &startKey,
-                                                      uint64_t recordCount,
-                                                      const std::vector<std::string> &fields) {
-        std::string data;
-        zpp::bits::out out(data);
-        if (failure(out(table, startKey, recordCount, fields))) {
-            return core::ERROR;
-        }
-        return sendInvokeRequest(InvokeRequestType::SCAN, data);
-    }
-
-    core::Status NeuChainDB::update(const std::string& table, const std::string& key, const utils::ByteIteratorMap& values) {
-        std::vector<std::pair<std::string, std::string>> args;
-        // NOTICE: the first one is table and key
-        for(const auto& pair: values) {
-            args.emplace_back(pair.first, pair.second);
-        }
-        std::string data;
-        zpp::bits::out out(data);
-        // 1. table and key
-        if (failure(out(table, key))) {
-            return core::ERROR;
-        }
-        // 2. fields
-        if (failure(out(args))) {
-            return core::ERROR;
-        }
-        return sendInvokeRequest(InvokeRequestType::UPDATE, data);
-    }
-
-    core::Status NeuChainDB::readModifyWrite(const std::string &table, const std::string &key,
-                                                                 const std::vector<std::string> &readFields,
-                                                                 const utils::ByteIteratorMap &writeValues) {
-        std::vector<std::pair<std::string, std::string>> writeArgs;
-        // NOTICE: the first one is table and key
-        for(const auto& pair: writeValues) {
-            writeArgs.emplace_back(pair.first, pair.second);
-        }
-        std::string data;
-        zpp::bits::out out(data);
-        // 1. table and key
-        if (failure(out(table, key))) {
-            return core::ERROR;
-        }
-        // 2. read fields
-        if (failure(out(readFields))) {
-            return core::ERROR;
-        }
-        // 2. write fields
-        if (failure(out(writeArgs))) {
-            return core::ERROR;
-        }
-        return sendInvokeRequest(InvokeRequestType::READ_MODIFY_WRITE, data);
-    }
-
-    core::Status NeuChainDB::insert(const std::string &table, const std::string &key, const utils::ByteIteratorMap &values) {
-        std::vector<std::pair<std::string, std::string>> args;
-        // NOTICE: the first one is table and key
-        for(const auto& pair: values) {
-            args.emplace_back(pair.first, pair.second);
-        }
-        std::string data;
-        zpp::bits::out out(data);
-        // 1. table and key
-        if (failure(out(table, key))) {
-            return core::ERROR;
-        }
-        // 2. fields
-        if (failure(out(args))) {
-            return core::ERROR;
-        }
-        return sendInvokeRequest(InvokeRequestType::INSERT, data);
-    }
-
-    core::Status NeuChainDB::remove(const std::string &table, const std::string &key) {
-        std::string data;
-        zpp::bits::out out(data);
-        // only table and key
-        if (failure(out(table, key))) {
-            return core::ERROR;
-        }
-        return sendInvokeRequest(InvokeRequestType::DELETE, data);
-    }
-
-    core::Status NeuChainDB::sendInvokeRequest(const std::string& funcName, const std::string& args) {
+    core::Status NeuChainDB::sendInvokeRequest(const std::string& chaincodeName, const std::string& funcName, const std::string& args) {
         // archive manually
         std::string data;
         zpp::bits::out out(data);
         UserRequestLikeStruct u {
-                InvokeRequestType::YCSB,
+                chaincodeName,
                 funcName,
                 args
         };

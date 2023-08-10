@@ -1,6 +1,6 @@
 #pragma once
 
-#include <array>
+#include "zpp_bits.h"
 #include "glog/logging.h"
 
 namespace client::tpcc {
@@ -94,6 +94,13 @@ namespace client::tpcc {
         void resize(size_t size) {
             DCHECK(size <= maxLength);
             length = size;
+        }
+
+    public:
+        friend zpp::bits::access;
+
+        constexpr static auto serialize(auto &archive, auto &b) {
+            return archive(b.length, b.data);
         }
 
     private:

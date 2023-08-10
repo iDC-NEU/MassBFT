@@ -5,9 +5,12 @@
 #include "peer/chaincode/tpcc_chaincode.h"
 #include "client/core/common/byte_iterator.h"
 #include "client/core/common/random_double.h"
+#include "client/core/generator/generator.h"
 #include "client/tpcc/tpcc_schema.h"
+#include "client/tpcc/tpcc_property.h"
 #include "common/timer.h"
 #include "common/phmap.h"
+#include "common/property.h"
 
 namespace peer::chaincode {
     using namespace client::tpcc;
@@ -17,7 +20,31 @@ namespace peer::chaincode {
     }
 
     int TPCCChaincode::InitDatabase() {
-        return -1;
+        ::client::core::GetThreadLocalRandomGenerator()->seed(0); // use deterministic value
+        auto* property = util::Properties::GetProperties();
+        auto tpccProperties = client::tpcc::TPCCProperties::NewFromProperty(*property);
+        if (!initItem()) {
+            return -1;
+        }
+        auto [beginPartition, endPartition] = TPCCHelper::CalculatePartition(0, 1, tpccProperties->getWarehouseCount());
+        if (!initWarehouse(beginPartition, endPartition)) {
+            return -1;
+        }
+        for (int partition = beginPartition; partition < endPartition; partition++) {
+            if (!initStock(partition)) {
+                return -1;
+            }
+            if (!initDistrict(TPCCHelper::DISTRICT_COUNT, partition)) {
+                return -1;
+            }
+            if (!initCustomer(TPCCHelper::DISTRICT_COUNT, partition)) {
+                return -1;
+            }
+            if (!initOrder(TPCCHelper::DISTRICT_COUNT, partition)) {
+                return -1;
+            }
+        }
+        return 0;
     }
 
     // partitionID + 1 is the w_id
@@ -32,7 +59,7 @@ namespace peer::chaincode {
         auto xUL = client::core::UniformLongGenerator(1, 10);
 
         // For each row in the WAREHOUSE table, 100,000 rows in the STOCK table
-        for (int i = 0; i < RandomGenerator::ITEMS_COUNT; i++) {
+        for (int i = 0; i < TPCCHelper::ITEMS_COUNT; i++) {
             client::tpcc::schema::stock_t::key_t key{};
             key.s_w_id = partitionID + 1; // W_ID start from 1
             key.s_i_id = i + 1; // S_I_ID also start from 1
@@ -63,19 +90,16 @@ namespace peer::chaincode {
             auto sDataLen = (int)dataStrUL.nextValue();
             client::utils::RandomString(value.s_data, sDataLen);
             if (xUL.nextValue() == 1) {
-                auto posUL = client::core::UniformLongGenerator(0, sDataLen - RandomGenerator::ORIGINAL_STR.size());
+                auto posUL = client::core::UniformLongGenerator(0, sDataLen - TPCCHelper::ORIGINAL_STR.size());
                 value.s_data.resize(posUL.nextValue());
-                value.s_data = value.s_data || RandomGenerator::ORIGINAL_STR;
+                value.s_data = value.s_data || TPCCHelper::ORIGINAL_STR;
             }
             insertIntoTable(partitionID, key, value);
         }
         return true;
     }
 
-    bool TPCCChaincode::initItem(int partitionID) {
-        if (partitionID < 0) {
-            return false; // partition_id start from 0
-        }
+    bool TPCCChaincode::initItem() {
         // auto tablePrefix = "item_" + std::to_string(partitionID);
         // init generators
         auto imIdUL = client::core::UniformLongGenerator(1, 10000);
@@ -85,7 +109,7 @@ namespace peer::chaincode {
         auto xUL = client::core::UniformLongGenerator(1, 10);
 
         // 100,000 rows in the ITEM table
-        for (int i = 1; i <= RandomGenerator::ITEMS_COUNT; i++) {
+        for (int i = 1; i <= TPCCHelper::ITEMS_COUNT; i++) {
             schema::item_t::key_t key{};
             key.i_id = i;
 
@@ -102,11 +126,11 @@ namespace peer::chaincode {
             auto sDataLen = (int)dataStrUL.nextValue();
             client::utils::RandomString(value.i_data, sDataLen);
             if (xUL.nextValue() == 1) {
-                auto posUL = client::core::UniformLongGenerator(0, sDataLen - RandomGenerator::ORIGINAL_STR.size());
+                auto posUL = client::core::UniformLongGenerator(0, sDataLen - TPCCHelper::ORIGINAL_STR.size());
                 value.i_data.resize(posUL.nextValue());
-                value.i_data = value.i_data || RandomGenerator::ORIGINAL_STR;
+                value.i_data = value.i_data || TPCCHelper::ORIGINAL_STR;
             }
-            insertIntoTable(partitionID, key, value);
+            insertIntoTable(key, value);
         }
         return true;
     }
@@ -198,7 +222,7 @@ namespace peer::chaincode {
                 client::utils::RandomString(value.c_street_2, (int)ul2.nextValue());
                 client::utils::RandomString(value.c_city, (int)ul2.nextValue());
                 client::utils::RandomString(value.c_state, 2);
-                value.c_zip = randomGenerator.randomZipCode();
+                value.c_zip = helper.randomZipCode();
                 client::utils::RandomString(value.c_phone, 16);
 
                 value.c_since = util::Timer::time_now_ns();
@@ -211,10 +235,9 @@ namespace peer::chaincode {
                 client::utils::RandomString(value.c_data, (int)ul3.nextValue());
 
                 if (j < 1000) {
-                    value.c_last = RandomGenerator::GenerateLastName(j - 1);
+                    value.c_last = TPCCHelper::GenerateLastName(j - 1);
                 } else {
-                    value.c_last = RandomGenerator::GenerateLastName(
-                            randomGenerator.getNonUniformRandomLastNameForLoad());
+                    value.c_last = TPCCHelper::GenerateLastName(helper.getNonUniformRandomLastNameForLoad());
                 }
                 // For 10% of the rows, selected at random , C_CREDIT = "BC"
                 if (ulx.nextValue() == 1) {
@@ -265,7 +288,7 @@ namespace peer::chaincode {
             client::utils::RandomString(value.d_street_2, (Integer)ul2.nextValue());
             client::utils::RandomString(value.d_city, (Integer)ul2.nextValue());
             client::utils::RandomString(value.d_state, 2);
-            value.d_zip = randomGenerator.randomZipCode();
+            value.d_zip = helper.randomZipCode();
             value.d_tax = rd.nextValue();
             value.d_ytd = 3000000;
             value.d_next_o_id = 3001;
@@ -288,12 +311,11 @@ namespace peer::chaincode {
             client::utils::RandomString(value.w_street_2, (int) ul2.nextValue());
             client::utils::RandomString(value.w_city, (int) ul2.nextValue());
             client::utils::RandomString(value.w_state, 2);
-            value.w_zip = randomGenerator.randomZipCode();
+            value.w_zip = helper.randomZipCode();
             value.w_tax = rd.nextValue();
             value.w_ytd = 3000000;
             insertIntoTable(i, key, value);
         }
         return true;
     }
-
 }

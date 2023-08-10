@@ -7,9 +7,9 @@
 #include "client/core/generator/non_uniform_generator.h"
 
 namespace client::tpcc {
-    class RandomGenerator {
+    class TPCCHelper {
     public:
-        RandomGenerator()
+        TPCCHelper()
                 : zipCodeUL(0, 9999)
                 , itemIDNU(8191, 1, ITEMS_COUNT, OL_I_ID_C)
                 , customerIDNU(1023, 1, 3000, C_ID_C)
@@ -51,6 +51,8 @@ namespace client::tpcc {
 
         static constexpr Integer ITEMS_COUNT = 100000;  // 100K
 
+        static constexpr auto DISTRICT_COUNT = 10;  // 10
+
         inline static const std::vector<std::string> lastNames = {
                 "BAR", "OUGHT", "ABLE",  "PRI",   "PRES",
                 "ESE", "ANTI",  "CALLY", "ATION", "EING"
@@ -61,6 +63,17 @@ namespace client::tpcc {
         static constexpr Integer C_LAST_RUN_C = 223;   // in range [0, 255]
 
         inline static const std::string ORIGINAL_STR = "ORIGINAL";
+
+        // nodeId start from 0, return warehouseId-1 = partitionId [begin, end)
+        static std::pair<int, int> CalculatePartition(int myId, int nodesCount, int warehouseCount) {
+            const uint64_t blockSize = warehouseCount / nodesCount;
+            auto begin = myId * blockSize;
+            auto end = begin + blockSize;
+            if (myId == nodesCount - 1) {
+                end = warehouseCount;
+            }
+            return {begin, end};
+        }
 
     private:
         client::core::UniformLongGenerator zipCodeUL;

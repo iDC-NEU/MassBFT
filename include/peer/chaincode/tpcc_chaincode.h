@@ -6,7 +6,7 @@
 
 #include "peer/chaincode/chaincode.h"
 #include "client/tpcc/tpcc_schema.h"
-#include "client/tpcc/tpcc_random_helper.h"
+#include "client/tpcc/tpcc_helper.h"
 
 namespace peer::chaincode {
     class TPCCChaincode : public Chaincode {
@@ -20,7 +20,8 @@ namespace peer::chaincode {
     protected:
         bool initStock(int partitionID);
 
-        bool initItem(int partitionID);
+        // item is read-only and will be replicated anyway
+        bool initItem();
 
         bool initOrder(int nDistrict, int partitionID);
 
@@ -28,7 +29,7 @@ namespace peer::chaincode {
 
         bool initDistrict(int nDistrict, int partitionID);
 
-        // warehouse id is the partition id
+        // [fromWhId, toWhId)
         bool initWarehouse(int fromWhId, int toWhId);
 
     protected:
@@ -39,8 +40,7 @@ namespace peer::chaincode {
                              const client::tpcc::schema::stock_t::key_t& key,
                              const client::tpcc::schema::stock_t& value);
 
-        void insertIntoTable(int partitionID,
-                             const client::tpcc::schema::item_t::key_t& key,
+        void insertIntoTable(const client::tpcc::schema::item_t::key_t& key,
                              const client::tpcc::schema::item_t& value);
 
         void insertIntoTable(int partitionID,
@@ -86,6 +86,6 @@ namespace peer::chaincode {
         std::string buildTablePrefix(const std::string& tableName, int partitionID);
 
     private:
-        client::tpcc::RandomGenerator randomGenerator;
+        client::tpcc::TPCCHelper helper;
     };
 }

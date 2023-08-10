@@ -16,8 +16,8 @@ namespace client::tpcc {
         template<class Container>
         requires requires(const Container& str) { str.begin(); str.end(); str.size(); }
         explicit Varchar(const Container& str)
-                : length(str.size()){
-            DCHECK(this->size() < maxLength);
+                : length(str.size()) {
+            DCHECK(this->size() <= maxLength);
             std::copy(str.begin(), str.end(), data.begin());
         }
 

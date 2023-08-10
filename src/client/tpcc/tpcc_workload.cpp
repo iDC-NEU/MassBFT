@@ -4,9 +4,10 @@
 
 #include "client/tpcc/tpcc_workload.h"
 #include "client/tpcc/tpcc_proto.h"
+#include "client/core/generator/uniform_long_except_generator.h"
 #include "client/core/db.h"
-#include "common/timer.h"
 #include "client/core/status.h"
+#include "common/timer.h"
 
 namespace client::tpcc {
     using namespace ::client::core;
@@ -58,7 +59,7 @@ namespace client::tpcc {
         newOrderProto.customerId = (Integer)helper->getCustomerID();
 
         // init generators
-        NonUniformGenerator remoteWarehouseChooser(1, warehouseCount, warehouseId);
+        UniformLongExceptGenerator remoteWarehouseChooser(1, warehouseCount, warehouseId);
         utils::RandomUINT64 quantityChooser(1, 10);
         for (Integer i = 0; i < newOrderProto.orderLineCount; i++) {
             newOrderProto.orderLineNumbers[i] = i + 1;
@@ -88,7 +89,7 @@ namespace client::tpcc {
         paymentProto.warehouseId = (Integer)warehouseId;
         paymentProto.districtId = (Integer)districtIdChooser->nextValue();
         if (percentChooser->nextValue() > 85) {
-            NonUniformGenerator customerWarehouseChooser(1, warehouseCount, warehouseId);
+            UniformLongExceptGenerator customerWarehouseChooser(1, warehouseCount, warehouseId);
             paymentProto.customerWarehouseId = (Integer)customerWarehouseChooser.nextValue();
             paymentProto.customerDistrictId = (Integer)districtIdChooser->nextValue();
         } else {

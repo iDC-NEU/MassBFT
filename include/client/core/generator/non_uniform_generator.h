@@ -11,7 +11,9 @@ namespace client::core {
     class NonUniformGenerator : public NumberGenerator {
     public:
         explicit NonUniformGenerator(uint64_t a, uint64_t lb, uint64_t ub, uint64_t C = 42)
-                : generator1(0, a), generator2(lb, ub), lb(lb), ub(ub), C(C) { }
+                : generator1(0, a), generator2(lb, ub), lb(lb), ub(ub), C(C) {
+            DCHECK((ub - lb + 1) != 0);
+        }
 
         uint64_t nextValue() override {
             return (((generator1.nextValue() | generator2.nextValue()) + C) % (ub - lb + 1)) + lb;

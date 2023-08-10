@@ -16,23 +16,41 @@ namespace peer::chaincode {
 
         int InitDatabase() override;
 
-    protected:
-        int query(const std::string_view &account);
+        int Set(std::string_view key, std::string_view value) {
+            orm->put(std::string(key), std::string(value));
+            return 0;
+        }
 
+        // return the value(string_view) instead of 0
+        int Get(std::string_view key) {
+            std::string_view value;
+            if (orm->get(std::string(key), &value)) {
+                return std::stoi(std::string(value));
+            }
+            return -1;
+        }
+
+    protected:
+        // query a account's amount.
+        int query(const std::string_view &acc);
+
+        // transfer the entire contents of one customer's savings account into another customer's checking account.
+        // transfer all assets from a to b.
         int amalgamate(const std::string_view &from, const std::string_view &to);
 
-        int updateBalance(const std::string_view &from, const std::string_view &val);
+        // add some money to checkingTab of a account
+        int updateBalance(const std::string_view &acc, const std::string_view &amount);
 
-        int updateSaving(const std::string_view &from, const std::string_view &val);
+        // add some money to savingTab of a account
+        int updateSaving(const std::string_view &acc, const std::string_view &amount);
 
+        // send checkingTab a to b
         int sendPayment(const std::string_view &from, const std::string_view &to, const std::string_view &amount);
 
-        int writeCheck(const std::string_view &from, const std::string_view &amountRaw);
+        // remove an amount from the customer's
+        int writeCheck(const std::string_view &from, const std::string_view &amount);
 
     private:
-        std::function<std::string(const std::string &)> queryLambda;
-        std::function<void(const std::string &, int)> updateLambda;
-
         const int BALANCE = 1000;
         const std::string savingTab = "saving";
         const std::string checkingTab = "checking";

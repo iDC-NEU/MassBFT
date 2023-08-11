@@ -13,6 +13,18 @@
 
 using namespace client::tpcc;
 
+class MockStatus: public client::core::DBStatus {
+public:
+    std::unique_ptr<::proto::Block> getBlock(int) override { return nullptr; }
+
+    bool connect(int, int) override  { return true; }
+
+    bool getTop(int& blockNumber, int, int) override  {
+        blockNumber = -1;
+        return true;
+    }
+};
+
 class MockTPCCDBFactory : public client::core::DBFactory {
 public:
     explicit MockTPCCDBFactory(const util::Properties &n)
@@ -27,6 +39,10 @@ public:
     [[nodiscard]] std::unique_ptr<client::core::DB> newDB() const override {
         initDatabase();
         return std::make_unique<client::core::WriteThroughDB>(chaincode.get());
+    }
+
+    [[nodiscard]] std::unique_ptr<client::core::DBStatus> newDBStatus() const override {
+        return std::make_unique<MockStatus>();
     }
 
     void initDatabase() const {
@@ -72,7 +88,7 @@ protected:
         tests::MockPropertyGenerator::GenerateDefaultProperties(1, 3);
         tests::MockPropertyGenerator::SetLocalId(0, 0);
 
-        TPCCProperties::SetTPCCProperties(TPCCProperties::RANDOM_SEED, false);
+        TPCCProperties::SetTPCCProperties(TPCCProperties::USE_RANDOM_SEED, false);
         TPCCProperties::SetTPCCProperties(TPCCProperties::THREAD_COUNT_PROPERTY, 1);
     };
 
@@ -81,6 +97,14 @@ protected:
 
 TEST_F(TPCCWorkloadTest, NewOrderTest) {
     TPCCProperties::SetTPCCProperties(TPCCProperties::NEW_ORDER_PROPORTION_PROPERTY, 1.0);
+
+    auto* p = util::Properties::GetProperties();
+    MockTPCCEngine engine(*p);
+    engine.startTest();
+}
+
+TEST_F(TPCCWorkloadTest, PaymentTest) {
+    TPCCProperties::SetTPCCProperties(TPCCProperties::PAYMENT_PROPORTION_PROPERTY, 1.0);
 
     auto* p = util::Properties::GetProperties();
     MockTPCCEngine engine(*p);

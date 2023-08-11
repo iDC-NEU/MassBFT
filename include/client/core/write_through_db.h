@@ -15,13 +15,14 @@ namespace client::core {
 
         client::core::Status sendInvokeRequest(const std::string&, const std::string& func, const std::string& args) override {
             if (cc->InvokeChaincode(func, args) != 0) {
-                return client::core::ERROR;
+                return core::Status(core::Status::State::ERROR, util::Timer::time_now_ms(), std::to_string(nonce++));
             }
-            return client::core::STATUS_OK;
+            return core::Status(core::Status::State::OK, util::Timer::time_now_ms(), std::to_string(nonce++));
         }
 
     private:
         peer::chaincode::Chaincode* cc;
+        std::atomic<int> nonce;
     };
 
 }

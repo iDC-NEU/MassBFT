@@ -297,15 +297,15 @@ namespace peer::chaincode {
             }
 
             for (auto& it : customerMap) {
-                std::vector<std::pair<Varchar<16>, int32_t>> &list = it.second;
-                std::sort(list.begin(), list.end());
-
                 // insert ceiling(n/2) to customer_last_name_idx, n starts from 1
                 client::tpcc::schema::customer_wdl_t::key_t cniKey{};
                 cniKey.c_w_id = partitionID + 1;
                 cniKey.c_d_id = i;
                 cniKey.c_last = Varchar<16>(it.first);
                 client::tpcc::schema::customer_wdl_t cniValue{};
+                // fill in cniValue
+                auto &list = it.second;
+                std::sort(list.begin(), list.end());
                 cniValue.c_id = list[(list.size() - 1) / 2].second;
                 DCHECK(cniValue.c_id > 0) << "C_ID is not valid.";
 

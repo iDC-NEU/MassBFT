@@ -36,6 +36,8 @@ namespace client::tpcc {
 
     private:
         int warehouseCount{};
+        // look up C_ID on secondary index.
+        bool paymentLookup{};
         std::unique_ptr<core::NumberGenerator> warehouseChooser;
         std::unique_ptr<core::NumberGenerator> districtIdChooser;
         std::unique_ptr<core::NumberGenerator> orderLineCountChooser;

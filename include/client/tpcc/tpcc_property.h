@@ -30,7 +30,9 @@ namespace client::tpcc {
         // The target number of operations to perform.
         constexpr static const auto OPERATION_COUNT_PROPERTY = "operation_count";
 
-        constexpr static const auto RANDOM_SEED = "random_seed";
+        constexpr static const auto USE_RANDOM_SEED = "use_random_seed";
+
+        constexpr static const auto ENABLE_PAYMENT_LOOKUP_PROPERTY = "enable_payment_lookup";
 
         static std::unique_ptr<TPCCProperties> NewFromProperty(const util::Properties &n) {
             auto ret = std::unique_ptr<TPCCProperties>(new TPCCProperties(n.getCustomPropertiesOrPanic(TPCC_PROPERTIES)));
@@ -72,7 +74,11 @@ namespace client::tpcc {
         }
 
         inline bool getUseRandomSeed() const {
-            return n[RANDOM_SEED].as<bool>(true);
+            return n[USE_RANDOM_SEED].as<bool>(true);
+        }
+
+        inline bool enablePaymentLookup() const {
+            return n[ENABLE_PAYMENT_LOOKUP_PROPERTY].as<bool>(false);
         }
 
     public:

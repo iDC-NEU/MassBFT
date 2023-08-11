@@ -2,6 +2,7 @@
 // Created by user on 23-8-9.
 //
 #include "peer/chaincode/small_bank_chaincode.h"
+#include "client/smallbank/smallbank_property.h"
 
 peer::chaincode::SmallBankChaincode::SmallBankChaincode(std::unique_ptr<ORM> orm_) : Chaincode(std::move(orm_)) {
     //TODO: init
@@ -71,8 +72,8 @@ int peer::chaincode::SmallBankChaincode::InitDatabase() {
 }
 
 int peer::chaincode::SmallBankChaincode::query(const std::string_view &acc) {
-    int bal1 = Get(savingTab + "_" + std::string(acc));
-    int bal2 = Get(checkingTab + "_" + std::string(acc));
+    int bal1 = Get(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB) + "_" + std::string(acc));
+    int bal2 = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(acc));
 
     DLOG(INFO) << "query account:" << acc <<", savingTab: " << bal1  <<", checkingTab: " << bal2;
     return true;
@@ -84,34 +85,34 @@ int peer::chaincode::SmallBankChaincode::amalgamate(const std::string_view &from
         LOG(INFO) <<"the transfer accounts (in and out) are the same.";
         return false;
     }
-    int sav_bal1= Get(savingTab + "_" + std::string(from));
-    int che_bal2 = Get(checkingTab + "_" + std::string(to));
+    int sav_bal1= Get(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB)  + "_" + std::string(from));
+    int che_bal2 = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(to));
 
-    Set(savingTab + "_" + std::string(from), std::to_string(0));
-    Set(checkingTab + "_" + std::string(to), std::to_string(sav_bal1 + che_bal2));
+    Set(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB)  + "_" + std::string(from), std::to_string(0));
+    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(to), std::to_string(sav_bal1 + che_bal2));
     return true;
 }
 
 int peer::chaincode::SmallBankChaincode::updateBalance(const std::string_view &acc,
                                                        const std::string_view &amount) {
-    int balance = Get(checkingTab + "_" + std::string(acc));
+    int balance = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(acc));
     int transfer = std::stoi(std::string(amount));
     if (transfer < 0) {
         return false;
     }
-    Set(checkingTab + "_" + std::string(acc), std::to_string(balance+transfer));
+    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(acc), std::to_string(balance+transfer));
     return true;
 }
 
 int peer::chaincode::SmallBankChaincode::updateSaving(const std::string_view &acc,
                                                       const std::string_view &amount) {
-    int balance = Get(savingTab + "_" + std::string(acc));
+    int balance = Get(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB) + "_" + std::string(acc));
     int transfer = std::stoi(std::string(amount));
     if (transfer < 0) {
         return false;
     }
 
-    Set(savingTab + "_" + std::string(acc), std::to_string(balance+transfer));
+    Set(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB) + "_" + std::string(acc), std::to_string(balance+transfer));
     return true;
 }
 
@@ -122,8 +123,8 @@ int peer::chaincode::SmallBankChaincode::sendPayment(const std::string_view &fro
         return false;
     }
 
-    int bal1= Get(checkingTab + "_" + std::string(from));
-    int bal2 = Get(checkingTab + "_" + std::string(to));
+    int bal1= Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(from));
+    int bal2 = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(to));
     int transfer = std::stoi(std::string(amount));
 
     bal1 -= transfer;
@@ -131,15 +132,15 @@ int peer::chaincode::SmallBankChaincode::sendPayment(const std::string_view &fro
         return false;
     bal2 += transfer;
 
-    Set(checkingTab + "_" + std::string(from), std::to_string(bal1));
-    Set(checkingTab + "_" + std::string(to), std::to_string(bal2));
+    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(from), std::to_string(bal1));
+    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(to), std::to_string(bal2));
     return true;
 }
 
 int peer::chaincode::SmallBankChaincode::writeCheck(const std::string_view &from,
                                                     const std::string_view &amount) {
     // TODO: have confusion with this function
-    int bal1 = Get(checkingTab + "_" + std::string(from));
+    int bal1 = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(from));
     int transfer = std::stoi(std::string(amount));
 
     bal1 -= transfer;
@@ -147,6 +148,6 @@ int peer::chaincode::SmallBankChaincode::writeCheck(const std::string_view &from
         return false;
     }
 
-    Set(checkingTab + "_" + std::string(from), std::to_string(bal1));
+    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(from), std::to_string(bal1));
     return true;
 }

@@ -50,9 +50,5 @@ namespace peer::chaincode {
         // remove an amount from the customer's
         int writeCheck(const std::string_view &from, const std::string_view &amount);
 
-    private:
-        const int BALANCE = 1000;
-        const std::string savingTab = "saving";
-        const std::string checkingTab = "checking";
     };
 }

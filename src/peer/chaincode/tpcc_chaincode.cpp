@@ -606,6 +606,7 @@ namespace peer::chaincode {
             // cache the old value
             Numeric w_ytd = wValue.w_ytd;
             wValue.w_ytd += payment.homeOrderTotalAmount;
+            // the warehouse's year-to-date balance, is increased by H_ AMOUNT.
             if (!insertIntoTable(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
                 return false;
             }
@@ -624,6 +625,7 @@ namespace peer::chaincode {
             // cache the old value
             Numeric d_ytd = dValue.d_ytd;
             dValue.d_ytd += payment.homeOrderTotalAmount;
+            // the district's year-to-date balance, is increased by H_AMOUNT.
             if (!insertIntoTable(TableNamesPrefix::DISTRICT, dKey, dValue)) {
                 return false;
             }

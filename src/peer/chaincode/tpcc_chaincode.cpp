@@ -642,7 +642,7 @@ namespace peer::chaincode {
             };
             schema::customer_wdl_t wdlValue {};
             if (!getValue(TableNamesPrefix::CUSTOMER_WDL, wdlKey, wdlValue)) {
-                DLOG(INFO) << "Can not find customer id";
+                DLOG(INFO) << "Can not find customer id: " << wdlKey.c_w_id << " " << wdlKey.c_d_id << " " << wdlKey.c_last.toString();
                 return false;
             }
             c_id = wdlValue.c_id;

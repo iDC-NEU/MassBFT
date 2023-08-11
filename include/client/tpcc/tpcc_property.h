@@ -14,6 +14,7 @@ namespace client::tpcc {
     public:
         constexpr static const auto TPCC_PROPERTIES = "tpcc";
 
+        // client worker count
         constexpr static const auto THREAD_COUNT_PROPERTY = "thread_count";
 
         constexpr static const auto TARGET_THROUGHPUT_PROPERTY = "target_throughput";

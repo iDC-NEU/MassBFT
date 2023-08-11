@@ -15,8 +15,8 @@ namespace brpc::policy {
 
 namespace client {
     NeuChainDB::NeuChainDB(util::NodeConfigPtr server, std::shared_ptr<NeuChainDBConnection> dbc, std::shared_ptr<const util::Key> priKey) {
-        if (brpc::policy::FLAGS_h2_client_connection_window_size < 1024 * 1024 * 10) {
-            brpc::policy::FLAGS_h2_client_connection_window_size = 1024 * 1024 * 10;
+        if (brpc::policy::FLAGS_h2_client_connection_window_size < 1024 * 1024 * 100) {
+            brpc::policy::FLAGS_h2_client_connection_window_size = 1024 * 1024 * 100;
         }
         _nextNonce = static_cast<int64_t>(utils::RandomUINT64::NewRandomUINT64()->nextValue() << 32);
         LOG(INFO) << "Created a connection to NeuChainDB with nonce: " << _nextNonce;

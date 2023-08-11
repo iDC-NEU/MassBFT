@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "peer/concurrency_control/deterministic/chiancode_worker_fsm.h"
+#include "peer/concurrency_control/deterministic/chaincode_worker_fsm.h"
 #include "peer/concurrency_control/deterministic/reserve_table.h"
 
 namespace peer::cc {
@@ -17,40 +17,34 @@ namespace peer::cc {
 
         ReceiverState OnExecuteTransaction() override {
             DCHECK(getDB() != nullptr && reserveTable != nullptr);
-            do {    // defer func
-                if (txnList.empty()) {
-                    LOG(WARNING) << "OnExecuteTransaction input error";
-                    break;
+            for (auto& txn: txnList()) {
+                // find the chaincode using ccList
+                auto ccNameSV = txn->getUserRequest().getCCNameSV();
+                auto* chaincode = createOrGetChaincode(ccNameSV);
+                auto& userRequest = txn->getUserRequest();
+                auto ret = chaincode->InvokeChaincode(userRequest.getFuncNameSV(), userRequest.getArgs());
+                // get the rwSets out of the orm
+                txn->setRetValue(chaincode->reset(txn->getReads(), txn->getWrites()));
+                // 1. transaction internal error, abort it without adding reserve table
+                if (ret != 0) {
+                    txn->setExecutionResult(ResultType::ABORT_NO_RETRY);
+                    continue;
                 }
-                for (auto& txn: txnList) {
-                    // find the chaincode using ccList
-                    auto ccNameSV = txn->getUserRequest().getCCNameSV();
-                    auto* chaincode = createOrGetChaincode(ccNameSV);
-                    auto& userRequest = txn->getUserRequest();
-                    auto ret = chaincode->InvokeChaincode(userRequest.getFuncNameSV(), userRequest.getArgs());
-                    // get the rwSets out of the orm
-                    txn->setRetValue(chaincode->reset(txn->getReads(), txn->getWrites()));
-                    // 1. transaction internal error, abort it without adding reserve table
-                    if (ret != 0) {
-                        txn->setExecutionResult(ResultType::ABORT_NO_RETRY);
-                        continue;
-                    }
-                    // for committed transactions, read only optimization
-                    if (txn->getWrites().empty()) {
-                        txn->setExecutionResult(ResultType::COMMIT);
-                        continue;
-                    }
-                    // 2. reserve rw set
-                    reserveTable->reserveRWSets(txn->getReads(), txn->getWrites(), txn->getTransactionIdPtr());
+                // for committed transactions, read only optimization
+                if (txn->getWrites().empty()) {
+                    txn->setExecutionResult(ResultType::COMMIT);
+                    continue;
                 }
-            } while(false);
+                // 2. reserve rw set
+                reserveTable->reserveRWSets(txn->getReads(), txn->getWrites(), txn->getTransactionIdPtr());
+            }
             // DLOG(INFO) << "Finished execution, id: " << id;
             return peer::cc::ReceiverState::FINISH_EXEC;
         }
 
         ReceiverState OnCommitTransaction() override {
             auto saveToDBFunc = [&](auto* batch) {
-                for (auto& txn: txnList) {
+                for (auto& txn: txnList()) {
                     // 1. txn internal error, abort it without dealing with reserve table
                     auto result = txn->getExecutionResult();
                     if (result == ResultType::ABORT_NO_RETRY) {
@@ -90,12 +84,9 @@ namespace peer::cc {
             return peer::cc::ReceiverState::FINISH_COMMIT;
         }
 
-        [[nodiscard]] TxnListType& getMutableTxnList() { return txnList; }
-
         void setReserveTable(std::shared_ptr<ReserveTable> reserveTable_) { reserveTable = std::move(reserveTable_); }
 
     private:
-        TxnListType txnList;
         std::shared_ptr<ReserveTable> reserveTable;
     };
 }

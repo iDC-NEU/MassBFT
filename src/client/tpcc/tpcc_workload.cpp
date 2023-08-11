@@ -17,6 +17,7 @@ namespace client::tpcc {
         auto n = TPCCProperties::NewFromProperty(prop);
         initOperationGenerator(n->getProportion());
         warehouseCount = n->getWarehouseCount();
+        paymentLookup = n->enablePaymentLookup();
         if (n->getWarehouseLocality()) {
             auto [beginPartition, endPartition] = TPCCHelper::CalculatePartition(0, 1, warehouseCount);
             // partitionId+1 = warehouseId
@@ -100,7 +101,9 @@ namespace client::tpcc {
         paymentProto.homeOrderTotalDate = util::Timer::time_now_ns();
         paymentProto.timestamp = util::Timer::time_now_ns();
 
-        if (percentChooser->nextValue() < 60) {
+        // The customer is randomly selected 60% of the time by last name (C_W_ID ,
+        // C_D_ID, C_LAST) and 40% of the time by number (C_W_ID , C_D_ID , C_ID).
+        if (paymentLookup && percentChooser->nextValue() < 60) {
             paymentProto.isPaymentById = false;
             paymentProto.customerLastName = TPCCHelper::GenerateLastName(helper->getNonUniformRandomLastNameForRun());
         } else {

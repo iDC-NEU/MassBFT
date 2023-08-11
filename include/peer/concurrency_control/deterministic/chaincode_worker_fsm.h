@@ -40,7 +40,16 @@ namespace peer::cc {
 
         [[nodiscard]] inline db::DBConnection* getDB() const { return db.get(); }
 
+        [[nodiscard]] TxnListType& getMutableTxnList() { return _txnList; }
+
+    protected:
+        [[nodiscard]] TxnListType& txnList() {
+            DLOG_IF(WARNING, _txnList.empty()) << "txnList is empty.";
+            return _txnList;
+        }
+
     private:
+        TxnListType _txnList;
         util::MyFlatHashMap<std::string, std::unique_ptr<peer::chaincode::Chaincode>> ccList;
         std::shared_ptr<db::DBConnection> db;
     };

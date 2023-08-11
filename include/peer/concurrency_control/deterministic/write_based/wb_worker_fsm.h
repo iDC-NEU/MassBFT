@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "peer/concurrency_control/deterministic/chiancode_worker_fsm.h"
+#include "peer/concurrency_control/deterministic/chaincode_worker_fsm.h"
 #include "peer/concurrency_control/deterministic/write_based/wb_reserve_table.h"
 
 namespace peer::cc {
@@ -17,32 +17,26 @@ namespace peer::cc {
 
         ReceiverState OnExecuteTransaction() override {
             DCHECK(getDB() != nullptr && reserveTable != nullptr);
-            do {    // defer func
-                if (txnList.empty()) {
-                    LOG(WARNING) << "OnExecuteTransaction input error";
-                    break;
+            for (auto& txn: txnList()) {
+                // find the chaincode using ccList
+                auto ccNameSV = txn->getUserRequest().getCCNameSV();
+                auto* chaincode = createOrGetChaincode(ccNameSV);
+                auto& userRequest = txn->getUserRequest();
+                auto ret = chaincode->InvokeChaincode(userRequest.getFuncNameSV(), userRequest.getArgs());
+                // get the rwSets out of the orm
+                txn->setRetValue(chaincode->reset(txn->getReads(), txn->getWrites()));
+                // 1. transaction internal error, abort it without adding reserve table
+                if (ret != 0) {
+                    txn->setExecutionResult(ResultType::ABORT_NO_RETRY);
+                    continue;
                 }
-                for (auto& txn: txnList) {
-                    // find the chaincode using ccList
-                    auto ccNameSV = txn->getUserRequest().getCCNameSV();
-                    auto* chaincode = createOrGetChaincode(ccNameSV);
-                    auto& userRequest = txn->getUserRequest();
-                    auto ret = chaincode->InvokeChaincode(userRequest.getFuncNameSV(), userRequest.getArgs());
-                    // get the rwSets out of the orm
-                    txn->setRetValue(chaincode->reset(txn->getReads(), txn->getWrites()));
-                    // 1. transaction internal error, abort it without adding reserve table
-                    if (ret != 0) {
-                        txn->setExecutionResult(ResultType::ABORT_NO_RETRY);
-                        continue;
-                    }
-                    // read only optimization
-                    if (txn->getWrites().empty()) {
-                        continue;
-                    }
-                    // 2. reserve rw set
-                    reserveTable->reserveWrites(txn->getWrites(), txn->getTransactionIdPtr());
+                // read only optimization
+                if (txn->getWrites().empty()) {
+                    continue;
                 }
-            } while(false);
+                // 2. reserve rw set
+                reserveTable->reserveWrites(txn->getWrites(), txn->getTransactionIdPtr());
+            }
             return peer::cc::ReceiverState::FINISH_EXEC;
         }
 
@@ -57,13 +51,11 @@ namespace peer::cc {
             return ret;
         }
 
-        [[nodiscard]] TxnListType& getMutableTxnList() { return txnList; }
-
         void setReserveTable(std::shared_ptr<WBReserveTable> reserveTable_) { reserveTable = std::move(reserveTable_); }
 
     protected:
         ReceiverState onFirstCommit() {
-            for (auto& txn: txnList) {
+            for (auto& txn: txnList()) {
                 // 1. txn internal error, abort it without dealing with reserve table
                 auto result = txn->getExecutionResult();
                 if (result == ResultType::ABORT_NO_RETRY) {
@@ -97,7 +89,7 @@ namespace peer::cc {
                     }
                 };
 
-                for (auto& txn: txnList) {
+                for (auto& txn: txnList()) {
                     // 1. txn internal error, abort it without dealing with reserve table
                     auto result = txn->getExecutionResult();
                     if (result == ResultType::ABORT_NO_RETRY || result == ResultType::ABORT) {
@@ -116,7 +108,6 @@ namespace peer::cc {
 
     private:
         bool firstCommit = true;
-        TxnListType txnList;
         std::shared_ptr<WBReserveTable> reserveTable;
     };
 

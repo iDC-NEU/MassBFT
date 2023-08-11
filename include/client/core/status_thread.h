@@ -44,6 +44,7 @@ namespace client::core {
             while(running.load(std::memory_order_relaxed)) {
                 if (!warmedUp && sleepUntil > warmedUpTime) {
                     warmedUp = true;
+                    timer.start();
                     LOG(INFO) << "The system warmup is completed, and the statistical indicators will be reset.";
                     txCountCommit = 0;
                     txCountAbort = 0;

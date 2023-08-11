@@ -61,6 +61,68 @@ namespace peer::cc {
             return true;
         }
 
+        // NOT thread safe, processTxnList will take the transactions and move them back after execution
+        bool processTxnList(std::vector<std::unique_ptr<proto::Transaction>>& txnList) {
+            const auto totalWorkerCount = (int)workerList.size();
+            // prepare txn function
+            auto afterStart = [&](const auto& worker, auto& fsm) {
+                auto& fsmTxnList = fsm.getMutableTxnList();
+                fsmTxnList.clear();
+                auto id = worker.getId();
+                for (int i = id; i < (int)txnList.size(); i += totalWorkerCount) {
+                    fsmTxnList.push_back(std::move(txnList[i]));
+                }
+            };
+            // move back
+            auto afterCommit = [&](const auto& worker, auto& fsm) {
+                auto& fsmTxnList = fsm.getMutableTxnList();
+                auto id = worker.getId();
+                for (int i = id, j = 0; i < (int)txnList.size(); i += totalWorkerCount) {
+                    txnList[i] = std::move(fsmTxnList[j++]);
+                }
+            };
+            return static_cast<Derived*>(this)->processSync(afterStart, afterCommit);
+        }
+
+        bool processValidatedRequests(std::vector<std::unique_ptr<proto::Envelop>>& requests,
+                                      std::vector<std::unique_ptr<proto::TxReadWriteSet>>& retRWSets,
+                                      std::vector<std::byte>& retResults) {
+            retResults.resize(requests.size());
+            retRWSets.resize(requests.size());
+            const auto totalWorkerCount = (int)workerList.size();
+            // prepare txn function
+            auto afterStart = [&](const auto& worker, auto& fsm) {
+                auto& fsmTxnList = fsm.getMutableTxnList();
+                fsmTxnList.clear();
+                fsmTxnList.reserve(requests.size() / totalWorkerCount + 1);
+                for (int i = worker.getId(); i < (int)requests.size(); i += totalWorkerCount) {
+                    auto txn = proto::Transaction::NewTransactionFromEnvelop(std::move(requests[i]));
+                    CHECK(txn != nullptr) << "Can not get exn from envelop!";
+                    fsmTxnList.push_back(std::move(txn));   // txn may be nullptr
+                }
+            };
+            // move back
+            auto afterCommit = [&](const auto& worker, auto& fsm) {
+                auto& fsmTxnList = fsm.getMutableTxnList();
+                auto id = worker.getId();
+                for (int i = id, j = 0; i < (int)requests.size(); i += totalWorkerCount) {
+                    auto& txn = fsmTxnList[j++];
+                    retResults[i] = static_cast<std::byte>(false);
+                    if (txn == nullptr) {
+                        retRWSets[i] = std::make_unique<proto::TxReadWriteSet>();
+                        continue;
+                    }
+                    if (txn->getExecutionResult() == proto::Transaction::ExecutionResult::COMMIT) {
+                        retResults[i] = static_cast<std::byte>(true);
+                    }
+                    auto ret = proto::Transaction::DestroyTransaction(std::move(txn));
+                    requests[i] = std::move(ret.first);
+                    retRWSets[i] = std::move(ret.second);
+                }
+            };
+            return static_cast<Derived*>(this)->processSync(afterStart, afterCommit);
+        }
+
     protected:
         Coordinator() = default;
 
@@ -99,5 +161,4 @@ namespace peer::cc {
         // countdown: for method processParallel
         bthread::CountdownEvent countdown;
     };
-
 }

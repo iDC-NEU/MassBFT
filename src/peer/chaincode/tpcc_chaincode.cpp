@@ -297,15 +297,15 @@ namespace peer::chaincode {
             }
 
             for (auto& it : customerMap) {
-                std::vector<std::pair<Varchar<16>, int32_t>> &list = it.second;
-                std::sort(list.begin(), list.end());
-
                 // insert ceiling(n/2) to customer_last_name_idx, n starts from 1
                 client::tpcc::schema::customer_wdl_t::key_t cniKey{};
                 cniKey.c_w_id = partitionID + 1;
                 cniKey.c_d_id = i;
                 cniKey.c_last = Varchar<16>(it.first);
                 client::tpcc::schema::customer_wdl_t cniValue{};
+                // fill in cniValue
+                auto &list = it.second;
+                std::sort(list.begin(), list.end());
                 cniValue.c_id = list[(list.size() - 1) / 2].second;
                 DCHECK(cniValue.c_id > 0) << "C_ID is not valid.";
 
@@ -606,6 +606,7 @@ namespace peer::chaincode {
             // cache the old value
             Numeric w_ytd = wValue.w_ytd;
             wValue.w_ytd += payment.homeOrderTotalAmount;
+            // the warehouse's year-to-date balance, is increased by H_ AMOUNT.
             if (!insertIntoTable(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
                 return false;
             }
@@ -624,6 +625,7 @@ namespace peer::chaincode {
             // cache the old value
             Numeric d_ytd = dValue.d_ytd;
             dValue.d_ytd += payment.homeOrderTotalAmount;
+            // the district's year-to-date balance, is increased by H_AMOUNT.
             if (!insertIntoTable(TableNamesPrefix::DISTRICT, dKey, dValue)) {
                 return false;
             }
@@ -642,7 +644,7 @@ namespace peer::chaincode {
             };
             schema::customer_wdl_t wdlValue {};
             if (!getValue(TableNamesPrefix::CUSTOMER_WDL, wdlKey, wdlValue)) {
-                DLOG(INFO) << "Can not find customer id";
+                DLOG(INFO) << "Can not find customer id: " << wdlKey.c_w_id << " " << wdlKey.c_d_id << " " << wdlKey.c_last.toString();
                 return false;
             }
             c_id = wdlValue.c_id;

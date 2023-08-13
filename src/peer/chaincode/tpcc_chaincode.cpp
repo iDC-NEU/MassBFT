@@ -482,6 +482,19 @@ namespace peer::chaincode {
             const auto& ol_i_id = newOrder.itemIds[i];
             const auto& ol_quantity = newOrder.quantities[i];
             const auto& ol_supply_w_id = newOrder.supplierWarehouse[i];
+            const auto& line_number = newOrder.orderLineNumbers[i];
+            Numeric i_price;
+            {
+                // find the item
+                schema::item_t::key_t itemKey{.i_id = ol_i_id};
+                schema::item_t itemValue;
+                if (!getValue(TableNamesPrefix::ITEM, itemKey, itemValue)) {
+                    DLOG(INFO) << "Item search miss, rollback.";
+                    return false;
+                }
+                i_price = itemValue.i_price;
+            }
+            Varchar<24> s_dist;
             {
                 // The row in the STOCK table with matching S_I_ID (equals OL_I_ID) and
                 // S_W_ID (equals OL_SUPPLY_W_ID) is selected.
@@ -506,28 +519,13 @@ namespace peer::chaincode {
                 if (!insertIntoTable(TableNamesPrefix::STOCK, stockKey, stockValue)) {
                     return false;
                 }
-            }
-            const auto& line_number = newOrder.orderLineNumbers[i];
-            Numeric i_price;
-            {
-                // find the item
-                schema::item_t::key_t itemKey{.i_id = ol_i_id};
-                schema::item_t itemValue;
-                if (!getValue(TableNamesPrefix::ITEM, itemKey, itemValue)) {
-                    DLOG(INFO) << "Item search miss, rollback.";
-                    return false;
-                }
-                i_price = itemValue.i_price;
-            }
-            Varchar<24> s_dist;
-            {
-                schema::stock_t::key_t stockKey {
-                        .s_w_id = newOrder.warehouseId,
-                        .s_i_id = ol_i_id,
-                };
-                schema::stock_t stockValue;
-                if (!getValue(TableNamesPrefix::STOCK, stockKey, stockValue)) {
-                    return false;
+                // search another stock
+                if (stockKey.s_w_id != newOrder.warehouseId) {
+                    // find the other stock with new warehouse id
+                    stockKey.s_w_id = newOrder.warehouseId;
+                    if (!getValue(TableNamesPrefix::STOCK, stockKey, stockValue)) {
+                        return false;
+                    }
                 }
                 switch (newOrder.districtId) {
                     case 1:

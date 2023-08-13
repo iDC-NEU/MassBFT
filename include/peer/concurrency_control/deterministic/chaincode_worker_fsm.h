@@ -24,7 +24,7 @@ namespace peer::cc {
         inline peer::chaincode::Chaincode* createOrGetChaincode(std::string_view ccNameSV) {
             auto it = ccList.find(ccNameSV);
             if (it == ccList.end()) {   // chaincode not found
-                auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db.get());
+                auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db);
                 auto ret = peer::chaincode::NewChaincodeByName(ccNameSV, std::move(orm));
                 CHECK(ret != nullptr) << "chaincode name not exist!";
                 auto& rawPointer = *ret;

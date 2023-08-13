@@ -15,6 +15,7 @@ namespace client::small_bank {
     };
 
     // REF: https://ses.library.usyd.edu.au/bitstream/handle/2123/5353/michael-cahill-2009-thesis.pdf
+    // REF2: https://www.comp.nus.edu.sg/~cs5226/papers/si-cost-icde08.pdf
     struct InvokeRequestType {
         inline static constexpr auto SMALL_BANK = "sb";
         // a parameterized transaction that represents calculating the total balance for a customer with name N.

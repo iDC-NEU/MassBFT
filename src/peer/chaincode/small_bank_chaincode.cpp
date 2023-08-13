@@ -36,7 +36,7 @@ namespace peer::chaincode {
 
         auto balanceGenerator = client::utils::RandomDouble(StaticConfig::MIN_BALANCE, StaticConfig::MAX_BALANCE);
         for (AccountIDType acctId = 0; acctId < sbp->getAccountsCount(); acctId++) {
-            std::string acctName = client::utils::RandomString(20);
+            std::string acctName = client::utils::RandomString(StaticConfig::Account_NAME_LENGTH);
             if (!insertIntoTable(TableNamesPrefix::ACCOUNTS, acctId, acctName)) {
                 return -1;
             }

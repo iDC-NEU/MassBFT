@@ -4,6 +4,7 @@
 #include "ca/config_initializer.h"
 #include "client/ycsb/ycsb_property.h"
 #include "client/tpcc/tpcc_property.h"
+#include "client/small_bank/small_bank_property.h"
 #include "common/property.h"
 #include "common/crypto.h"
 #include "common/ssh.h"
@@ -16,8 +17,9 @@ namespace ca {
         }
         auto* properties = util::Properties::GetProperties();
         auto ccProperties = properties->getChaincodeProperties();
-        ccProperties.install("ycsb");
-        ccProperties.install("small_bank");
+        ccProperties.install(client::tpcc::TPCCProperties::TPCC_PROPERTIES);
+        ccProperties.install(client::ycsb::YCSBProperties::YCSB_PROPERTIES);
+        ccProperties.install(client::small_bank::SmallBankProperties::SMALL_BANK_PROPERTIES);
         auto nodeProperties = properties->getNodeProperties();
         auto bccspProperties = properties->getCustomProperties("bccsp");
 

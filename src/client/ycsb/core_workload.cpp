@@ -58,7 +58,7 @@ namespace client::ycsb {
             // that hasn't been inserted yet, will just ignore it and pick another key. this way, the size of
             // the keyspace doesn't change from the perspective of the scrambled zipfian generator
             const auto insertProportion = n.getProportion().insertProportion;
-            auto opCount = n.getOperationCount();
+            auto opCount = n.getTargetThroughput() * n.getBenchmarkSeconds();
             auto expectedNewKeys =  (int)((double)opCount * insertProportion * 2.0); // 2 is fudge factor
             return ScrambledZipfianGenerator::NewScrambledZipfianGenerator(insertStart, insertStart + insertCount + expectedNewKeys);
         }

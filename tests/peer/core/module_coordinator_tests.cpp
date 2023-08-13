@@ -28,12 +28,12 @@ protected:
         // avoid database overload
         util::Properties::SetProperties(util::Properties::ARIA_WORKER_COUNT, 1);
         // init ycsb config
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::RECORD_COUNT_PROPERTY, 10000);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::OPERATION_COUNT_PROPERTY, 30000);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::UPDATE_PROPORTION_PROPERTY, 0.50);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::RECORD_COUNT_PROPERTY, 10000);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::BENCHMARK_SECONDS_PROPERTY, 30);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::UPDATE_PROPORTION_PROPERTY, 0.50);
         util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 100);
         util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 1000);
         // load ycsb database

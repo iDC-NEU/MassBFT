@@ -4,22 +4,12 @@
 
 #pragma once
 
-#include "common/property.h"
+#include "client/core/default_property.h"
 
 namespace client::small_bank {
-    class SmallBankProperties {
+    class SmallBankProperties : public core::BaseProperties<SmallBankProperties> {
     public:
-        constexpr static const auto SMALL_BANK_PROPERTIES = "small_bank";
-
-        // client worker count
-        constexpr static const auto THREAD_COUNT_PROPERTY = "thread_count";
-
-        constexpr static const auto TARGET_THROUGHPUT_PROPERTY = "target_throughput";
-
-        // The target number of operations to perform.
-        constexpr static const auto OPERATION_COUNT_PROPERTY = "operation_count";
-
-        constexpr static const auto USE_RANDOM_SEED = "use_random_seed";
+        constexpr static const auto PROPERTY_NAME = "small_bank";
 
         // account information
         constexpr static const auto ACCOUNTS_COUNT_PROPERTY = "accounts_count";
@@ -38,41 +28,7 @@ namespace client::small_bank {
         constexpr static const auto AMALGAMATE_PROPORTION = "amg_proportion";
         constexpr static const auto WRITE_CHECK_PROPORTION = "wc_proportion";
 
-        static std::unique_ptr<SmallBankProperties> NewFromProperty(const util::Properties &n) {
-            auto ret = std::unique_ptr<SmallBankProperties>(new SmallBankProperties(n.getCustomPropertiesOrPanic(SMALL_BANK_PROPERTIES)));
-            return ret;
-        }
-
     public:
-        SmallBankProperties(const SmallBankProperties& rhs) = default;
-
-        SmallBankProperties(SmallBankProperties&& rhs) noexcept : n(rhs.n) { }
-
-        static void SetSmallBankProperties(auto&& key, auto&& value) {
-            auto* properties = util::Properties::GetProperties();
-            auto node = properties->getCustomProperties(SMALL_BANK_PROPERTIES);
-            node[key] = value;
-        }
-
-    public:
-        inline auto getThreadCount() const {
-            return n[THREAD_COUNT_PROPERTY].as<int>((int)std::thread::hardware_concurrency());
-        }
-
-        inline auto getTargetTPSPerThread() const {
-            auto target = n[TARGET_THROUGHPUT_PROPERTY].as<int>(1000);  // testing targetTPS=1000
-            auto threadCount = getThreadCount();
-            return ((double) target) / threadCount;
-        }
-
-        inline auto getOperationCount() const {
-            return n[OPERATION_COUNT_PROPERTY].as<uint64_t>(10000); // 10k for default
-        }
-
-        inline bool getUseRandomSeed() const {
-            return n[USE_RANDOM_SEED].as<bool>(true);
-        }
-
         inline auto getAccountsCount() const {
             return n[ACCOUNTS_COUNT_PROPERTY].as<int>(1000000); // default 1M
         }
@@ -114,10 +70,6 @@ namespace client::small_bank {
             return p;
         }
 
-    protected:
-        explicit SmallBankProperties(const YAML::Node& node) : n(node) { }
-
-    private:
-        YAML::Node n;
+        explicit SmallBankProperties(const YAML::Node& node) : core::BaseProperties<SmallBankProperties>(node) { }
     };
 }

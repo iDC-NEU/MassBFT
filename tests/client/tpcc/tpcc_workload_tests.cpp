@@ -88,15 +88,15 @@ protected:
         tests::MockPropertyGenerator::GenerateDefaultProperties(1, 3);
         tests::MockPropertyGenerator::SetLocalId(0, 0);
 
-        TPCCProperties::SetTPCCProperties(TPCCProperties::USE_RANDOM_SEED, false);
-        TPCCProperties::SetTPCCProperties(TPCCProperties::THREAD_COUNT_PROPERTY, 1);
+        TPCCProperties::SetProperties(TPCCProperties::USE_RANDOM_SEED, false);
+        TPCCProperties::SetProperties(TPCCProperties::THREAD_COUNT_PROPERTY, 1);
     };
 
     void TearDown() override { };
 };
 
 TEST_F(TPCCWorkloadTest, NewOrderTest) {
-    TPCCProperties::SetTPCCProperties(TPCCProperties::NEW_ORDER_PROPORTION_PROPERTY, 1.0);
+    TPCCProperties::SetProperties(TPCCProperties::NEW_ORDER_PROPORTION_PROPERTY, 1.0);
 
     auto* p = util::Properties::GetProperties();
     MockTPCCEngine engine(*p);
@@ -104,7 +104,7 @@ TEST_F(TPCCWorkloadTest, NewOrderTest) {
 }
 
 TEST_F(TPCCWorkloadTest, PaymentTest) {
-    TPCCProperties::SetTPCCProperties(TPCCProperties::PAYMENT_PROPORTION_PROPERTY, 1.0);
+    TPCCProperties::SetProperties(TPCCProperties::PAYMENT_PROPORTION_PROPERTY, 1.0);
 
     auto* p = util::Properties::GetProperties();
     MockTPCCEngine engine(*p);

@@ -55,9 +55,7 @@ namespace client::core {
             }
             LOG(INFO) << "Run status thread";
             statusThread->run();
-            auto totalBenchmarkTime = static_cast<int>((double)properties->getOperationCount() /
-                                                       (properties->getTargetTPSPerThread() * properties->getThreadCount()));
-            benchmarkUntil = std::chrono::system_clock::now() + std::chrono::seconds(totalBenchmarkTime);
+            benchmarkUntil = std::chrono::system_clock::now() + std::chrono::seconds(properties->getBenchmarkSeconds());
         }
 
         // not thread safe, called by ths same manager
@@ -74,13 +72,10 @@ namespace client::core {
 
     protected:
         void initClients() {
-            auto operationCount = properties->getOperationCount();
+            auto operationCount = properties->getTargetThroughput() * properties->getBenchmarkSeconds();
             auto threadCount = std::min(properties->getThreadCount(), (int)operationCount);
-            auto threadOpCount = operationCount / threadCount;
-            if (threadOpCount <= 0) {
-                threadOpCount += 1;
-            }
-            auto tpsPerThread = properties->getTargetTPSPerThread();
+            auto threadOpCount = std::max(static_cast<double>(operationCount) / threadCount, 1.0);
+            auto tpsPerThread = static_cast<double>(properties->getTargetThroughput()) / threadCount;
             // use static seed, seed MUST start from 1 (seed=0 and seed=1 may generate the same sequence)
             unsigned long seed = 1;
             if (properties->getUseRandomSeed()) {

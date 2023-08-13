@@ -4,6 +4,7 @@
 #include "ca/config_initializer.h"
 #include "client/ycsb/ycsb_property.h"
 #include "client/tpcc/tpcc_property.h"
+#include "client/small_bank/small_bank_property.h"
 #include "common/property.h"
 #include "common/crypto.h"
 #include "common/ssh.h"
@@ -16,8 +17,9 @@ namespace ca {
         }
         auto* properties = util::Properties::GetProperties();
         auto ccProperties = properties->getChaincodeProperties();
-        ccProperties.install("ycsb");
-        ccProperties.install("smallbank");
+        ccProperties.install(client::tpcc::TPCCProperties::PROPERTY_NAME);
+        ccProperties.install(client::ycsb::YCSBProperties::PROPERTY_NAME);
+        ccProperties.install(client::small_bank::SmallBankProperties::PROPERTY_NAME);
         auto nodeProperties = properties->getNodeProperties();
         auto bccspProperties = properties->getCustomProperties("bccsp");
 
@@ -55,26 +57,21 @@ namespace ca {
         util::Properties::SetProperties(util::Properties::SSH_USERNAME, "root");
         util::Properties::SetProperties(util::Properties::SSH_PASSWORD, "neu1234.");
 
-        // init ycsb property
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::OPERATION_COUNT_PROPERTY, 1000 * 25 * 30);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 25);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 7);
-        // ycsb-a example
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::UPDATE_PROPORTION_PROPERTY, 0.50);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::INSERT_PROPORTION_PROPERTY, 0.00);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::SCAN_PROPORTION_PROPERTY, 0.00);
-        client::ycsb::YCSBProperties::SetYCSBProperties(client::ycsb::YCSBProperties::READMODIFYWRITE_PROPORTION_PROPERTY, 0.00);
+        // init utility
+        client::small_bank::SmallBankProperties::SetProperties(client::small_bank::SmallBankProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 25);
+        client::small_bank::SmallBankProperties::SetProperties(client::small_bank::SmallBankProperties::THREAD_COUNT_PROPERTY, 7);
+        client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 25);
+        client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::THREAD_COUNT_PROPERTY, 7);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 7);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 25);
 
-        // init tpcc property
-        client::tpcc::TPCCProperties::SetTPCCProperties(client::tpcc::TPCCProperties::WAREHOUSE_COUNT_PROPERTY, 10);
-        client::tpcc::TPCCProperties::SetTPCCProperties(client::tpcc::TPCCProperties::OPERATION_COUNT_PROPERTY, 1000 * 25 * 30);
-        client::tpcc::TPCCProperties::SetTPCCProperties(client::tpcc::TPCCProperties::TARGET_THROUGHPUT_PROPERTY, 1000 * 25);
-        client::tpcc::TPCCProperties::SetTPCCProperties(client::tpcc::TPCCProperties::THREAD_COUNT_PROPERTY, 7);
-        // mix example
-        client::tpcc::TPCCProperties::SetTPCCProperties(client::tpcc::TPCCProperties::PAYMENT_PROPORTION_PROPERTY, 0.50);
-        client::tpcc::TPCCProperties::SetTPCCProperties(client::tpcc::TPCCProperties::NEW_ORDER_PROPORTION_PROPERTY, 0.50);
+        // init custom property
+        client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::WAREHOUSE_COUNT_PROPERTY, 10);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);
+        // ycsb-a example
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::UPDATE_PROPORTION_PROPERTY, 0.50);
+
         return true;
     }
 

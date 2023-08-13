@@ -81,8 +81,8 @@ TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator1) {
     using namespace client::ycsb;
     CHECK(util::Properties::LoadProperties());
     auto* property = util::Properties::GetProperties();
-    YCSBProperties::SetYCSBProperties(YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "constant");
-    YCSBProperties::SetYCSBProperties(YCSBProperties::FIELD_LENGTH_PROPERTY, 35);
+    YCSBProperties::SetProperties(YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "constant");
+    YCSBProperties::SetProperties(YCSBProperties::FIELD_LENGTH_PROPERTY, 35);
     auto p = YCSBProperties::NewFromProperty(*property);
     auto gen = CoreWorkload::getFieldLengthGenerator(*p);
     const auto val = gen->nextValue();
@@ -96,9 +96,9 @@ TEST_F(CoreWorkloadTest, TestGetFieldLengthGenerator2) {
     using namespace client::ycsb;
     CHECK(util::Properties::LoadProperties());
     auto* property = util::Properties::GetProperties();
-    YCSBProperties::SetYCSBProperties(YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "uniform");
-    YCSBProperties::SetYCSBProperties(YCSBProperties::FIELD_LENGTH_PROPERTY, 50);
-    YCSBProperties::SetYCSBProperties(YCSBProperties::MIN_FIELD_LENGTH_PROPERTY, 41);
+    YCSBProperties::SetProperties(YCSBProperties::FIELD_LENGTH_DISTRIBUTION_PROPERTY, "uniform");
+    YCSBProperties::SetProperties(YCSBProperties::FIELD_LENGTH_PROPERTY, 50);
+    YCSBProperties::SetProperties(YCSBProperties::MIN_FIELD_LENGTH_PROPERTY, 41);
     auto p = YCSBProperties::NewFromProperty(*property);
     auto gen = CoreWorkload::getFieldLengthGenerator(*p);
     std::unordered_map<uint64_t, int> counts;

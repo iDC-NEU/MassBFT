@@ -270,7 +270,6 @@ namespace client::ycsb {
             measurements->beginTransaction(status.getDigest(), status.getGenTimeMs());
         }
 
-
         void doTransactionInsert(core::DB* db) const {
             // choose the next key
             auto keyNum = transactionInsertKeySequence->nextValue();

@@ -11,16 +11,16 @@
 namespace client::tpcc {
     struct TableNamesPrefix {
         inline static constexpr std::string_view WAREHOUSE = "w_";
-        inline static const std::string DISTRICT = "d_";
-        inline static const std::string CUSTOMER = "c_";
-        inline static const std::string CUSTOMER_WDL = "c-wdl_";
-        inline static const std::string HISTORY = "h_";
-        inline static const std::string NEW_ORDER = "n_";
-        inline static const std::string ORDER = "o_";
-        inline static const std::string ORDER_WDC = "o-wdc_";
-        inline static const std::string ORDER_LINE = "ol_";
-        inline static const std::string ITEM = "i_";
-        inline static const std::string STOCK = "s_";
+        inline static constexpr std::string_view DISTRICT = "d_";
+        inline static constexpr std::string_view CUSTOMER = "c_";
+        inline static constexpr std::string_view CUSTOMER_WDL = "c-wdl_";
+        inline static constexpr std::string_view HISTORY = "h_";
+        inline static constexpr std::string_view NEW_ORDER = "n_";
+        inline static constexpr std::string_view ORDER = "o_";
+        inline static constexpr std::string_view ORDER_WDC = "o-wdc_";
+        inline static constexpr std::string_view ORDER_LINE = "ol_";
+        inline static constexpr std::string_view ITEM = "i_";
+        inline static constexpr std::string_view STOCK = "s_";
     };
 
     struct InvokeRequestType {

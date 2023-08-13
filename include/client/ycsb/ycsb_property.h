@@ -4,122 +4,105 @@
 
 #pragma once
 
-#include "common/property.h"
-#include "yaml-cpp/yaml.h"
-#include "glog/logging.h"
-#include <thread>
+#include "client/core/default_property.h"
 
 namespace client::ycsb {
-    class YCSBProperties : std::enable_shared_from_this<YCSBProperties> {
+    class YCSBProperties : public core::BaseProperties<YCSBProperties> {
     public:
-        constexpr static const auto YCSB_PROPERTIES = "ycsb";
+        constexpr static const auto PROPERTY_NAME = "ycsb";
 
-        /// ----- For clients -----
-        // The target number of operations to perform.
-        constexpr static const auto OPERATION_COUNT_PROPERTY = "operationcount";
         /**
-         * Indicates how many inserts to do if less than recordcount.
+         * Indicates how many inserts to do if less than record_count.
          * Useful for partitioning the load among multiple servers if the client is the bottleneck.
-         * Additional workloads should support the "insertstart" property which tells them which record to start at.
+         * Additional workloads should support the "insert_start" property which tells them which record to start at.
          */
-        constexpr static const auto INSERT_COUNT_PROPERTY = "insertcount";
+        constexpr static const auto INSERT_COUNT_PROPERTY = "insert_count";
 
         // The number of records to load into the database initially.
-        constexpr static const auto RECORD_COUNT_PROPERTY = "recordcount";
+        constexpr static const auto RECORD_COUNT_PROPERTY = "record_count";
 
-        constexpr static const auto THREAD_COUNT_PROPERTY = "threadcount";
-
-        // used to specify the target throughput.
-        constexpr static const auto TARGET_THROUGHPUT_PROPERTY = "target_throughput";
-        /// ----- For clients -----
-
+        // ----- For clients -----
         // The name of the database table to run queries against.
-        constexpr static const auto TABLENAME_PROPERTY = "table";
+        constexpr static const auto TABLE_NAME_PROPERTY = "table";
 
         // The name of the property for the number of fields in a record.
-        constexpr static const auto FIELD_COUNT_PROPERTY = "fieldcount";
+        constexpr static const auto FIELD_COUNT_PROPERTY = "field_count";
 
         /**
          * The name of the property for the field length distribution. Options are "uniform", "zipfian"
          * (favouring short records), "constant", and "histogram".
          * If "uniform", "zipfian" or "constant", the maximum field length will be that specified by the
-         * fieldlength property. If "histogram", then the histogram will be read from the filename
-         * specified in the "fieldlengthhistogram" property.
+         * field_length property. If "histogram", then the histogram will be read from the filename
+         * specified in the "field_length_distribution" property.
          */
-        constexpr static const auto FIELD_LENGTH_DISTRIBUTION_PROPERTY = "fieldlengthdistribution";
+        constexpr static const auto FIELD_LENGTH_DISTRIBUTION_PROPERTY = "field_length_distribution";
 
         // The name of the property for the length of a field in bytes.
-        constexpr static const auto FIELD_LENGTH_PROPERTY = "fieldlength";
+        constexpr static const auto FIELD_LENGTH_PROPERTY = "field_length";
 
         // The name of the property for the minimum length of a field in bytes.
-        constexpr static const auto MIN_FIELD_LENGTH_PROPERTY = "minfieldlength";
+        constexpr static const auto MIN_FIELD_LENGTH_PROPERTY = "min_field_length";
 
         // The name of the property for deciding whether to read one field (false) or all fields (true) of a record.
-        constexpr static const auto READ_ALL_FIELDS_PROPERTY = "readallfields";
+        constexpr static const auto READ_ALL_FIELDS_PROPERTY = "read_all_fields";
 
         /**
-         * The name of the property for determining how to read all the fields when readallfields is true.
+         * The name of the property for determining how to read all the fields when read_all_fields is true.
          * If set to true, all the field names will be passed into the underlying client. If set to false,
          * null will be passed into the underlying client. When passed a null, some clients may retrieve
          * the entire row with a wildcard, which may be slower than naming all the fields.
          */
-        constexpr static const auto READ_ALL_FIELDS_BY_NAME_PROPERTY = "readallfieldsbyname";
+        constexpr static const auto READ_ALL_FIELDS_BY_NAME_PROPERTY = "read_all_fields_by_name";
 
         // The name of the property for deciding whether to write one field (false) or all fields (true) of a record.
-        constexpr static const auto WRITE_ALL_FIELDS_PROPERTY = "writeallfields";
+        constexpr static const auto WRITE_ALL_FIELDS_PROPERTY = "write_all_fields";
 
         /**
          * The name of the property for deciding whether to check all returned
          * data against the formation template to ensure data integrity.
          */
-        constexpr static const auto DATA_INTEGRITY_PROPERTY = "dataintegrity";
+        constexpr static const auto DATA_INTEGRITY_PROPERTY = "data_integrity";
 
         // The name of the property for the proportion of transactions that are reads.
-        constexpr static const auto READ_PROPORTION_PROPERTY = "readproportion";
+        constexpr static const auto READ_PROPORTION_PROPERTY = "read_proportion";
 
         // The name of the property for the proportion of transactions that are updates.
-        constexpr static const auto UPDATE_PROPORTION_PROPERTY = "updateproportion";
+        constexpr static const auto UPDATE_PROPORTION_PROPERTY = "update_proportion";
 
         // The name of the property for the proportion of transactions that are inserts.
-        constexpr static const auto INSERT_PROPORTION_PROPERTY = "insertproportion";
+        constexpr static const auto INSERT_PROPORTION_PROPERTY = "insert_proportion";
 
         // The name of the property for the proportion of transactions that are scans.
-        constexpr static const auto SCAN_PROPORTION_PROPERTY = "scanproportion";
+        constexpr static const auto SCAN_PROPORTION_PROPERTY = "scan_proportion";
 
         // The name of the property for the proportion of transactions that are read-modify-write.
-        constexpr static const auto READMODIFYWRITE_PROPORTION_PROPERTY = "readmodifywriteproportion";
+        constexpr static const auto READMODIFYWRITE_PROPORTION_PROPERTY = "read_modify_write_proportion";
 
-        /**
-         * The name of the property for the the distribution of requests across the keyspace. Options are
-         * "uniform", "zipfian" and "latest"
-         */
-        constexpr static const auto REQUEST_DISTRIBUTION_PROPERTY = "requestdistribution";
+        // The name of the property for the distribution of requests across the keyspace.
+        // Options are "uniform", "zipfian" and "latest"
+        constexpr static const auto REQUEST_DISTRIBUTION_PROPERTY = "request_distribution";
 
-        /**
-         * The name of the property for adding zero padding to record numbers in order to match
-         * string sort order. Controls the number of 0s to left pad with.
-         */
-        constexpr static const auto ZERO_PADDING_PROPERTY = "zeropadding";
+        // The name of the property for adding zero padding to record numbers in order to match string sort order.
+        // Controls the number of 0s to left pad with.
+        constexpr static const auto ZERO_PADDING_PROPERTY = "zero_padding";
 
         // The name of the property for the min scan length (number of records).
-        constexpr static const auto MIN_SCAN_LENGTH_PROPERTY = "minscanlength";
+        constexpr static const auto MIN_SCAN_LENGTH_PROPERTY = "min_scan_length";
 
         // The name of the property for the max scan length (number of records).
-        constexpr static const auto MAX_SCAN_LENGTH_PROPERTY = "maxscanlength";
+        constexpr static const auto MAX_SCAN_LENGTH_PROPERTY = "max_scan_length";
 
         // The name of the property for the scan length distribution. Options are "uniform" and "zipfian" (favoring short scans)
-        constexpr static const auto SCAN_LENGTH_DISTRIBUTION_PROPERTY = "scanlengthdistribution";
+        constexpr static const auto SCAN_LENGTH_DISTRIBUTION_PROPERTY = "scan_length_distribution";
 
         // The name of the property for the order to insert records. Options are "ordered" or "hashed"
-        constexpr static const auto INSERT_ORDER_PROPERTY = "insertorder";
+        constexpr static const auto INSERT_ORDER_PROPERTY = "insert_order";
 
         // Percentage data items that constitute the hot set.
-        constexpr static const auto HOTSPOT_DATA_FRACTION = "hotspotdatafraction";
-        constexpr static const auto HOTSPOT_DATA_FRACTION_DEFAULT = 0.2;
+        constexpr static const auto HOTSPOT_DATA_FRACTION = "hot_spot_data_fraction";
 
         // Percentage operations that access the hot set.
-        constexpr static const auto HOTSPOT_OPN_FRACTION = "hotspotopnfraction";
-        constexpr static const auto HOTSPOT_OPN_FRACTION_DEFAULT = 0.8;
+        constexpr static const auto HOTSPOT_OPN_FRACTION = "hot_spot_opn_fraction";
 
         // How many times to retry when insertion of a single item to a DB fails.
         constexpr static const auto INSERTION_RETRY_LIMIT = "core_workload_insertion_retry_limit";
@@ -127,7 +110,7 @@ namespace client::ycsb {
         // On average, how long to wait between the retries, in seconds.
         constexpr static const auto INSERTION_RETRY_INTERVAL = "core_workload_insertion_retry_interval";
 
-        constexpr static const auto INSERT_START_PROPERTY = "insertstart";
+        constexpr static const auto INSERT_START_PROPERTY = "insert_start";
 
         constexpr static const auto EXPONENTIAL_PERCENTILE_PROPERTY = "exponential.percentile";
         constexpr static const double EXPONENTIAL_PERCENTILE_DEFAULT = 95;
@@ -135,42 +118,9 @@ namespace client::ycsb {
         constexpr static const auto EXPONENTIAL_FRAC_PROPERTY = "exponential.frac";
         constexpr static const auto EXPONENTIAL_FRAC_DEFAULT = 0.8571428571;  // 1/7
 
-        // Use random seed to init ycsb client
-        constexpr static const auto RANDOM_SEED = "random_seed";
-
-        static std::unique_ptr<YCSBProperties> NewFromProperty(const util::Properties &n) {
-            auto ret = std::unique_ptr<YCSBProperties>(new YCSBProperties(n.getCustomPropertiesOrPanic(YCSB_PROPERTIES)));
-            return ret;
-        }
-
     public:
-        YCSBProperties(const YCSBProperties& rhs) = default;
-
-        YCSBProperties(YCSBProperties&& rhs) noexcept : n(rhs.n) { }
-
-        auto getSharedFromThis() const {
-            return shared_from_this();
-        }
-
-        static void SetYCSBProperties(auto&& key, auto&& value) {
-            auto* properties = util::Properties::GetProperties();
-            auto node = properties->getCustomProperties(YCSBProperties::YCSB_PROPERTIES);
-            node[key] = value;
-        }
-
-    public:
-        auto getThreadCount() const {
-            return n[THREAD_COUNT_PROPERTY].as<int>((int)std::thread::hardware_concurrency());
-        }
-
-        double getTargetTPSPerThread() const {
-            auto target = n[TARGET_THROUGHPUT_PROPERTY].as<int>(1000);  // testing targetTPS=1000
-            auto threadCount = getThreadCount();
-            return ((double) target) / threadCount;
-        }
-
         inline auto getTableName() const {
-            return n[TABLENAME_PROPERTY].as<std::string>("user_table");
+            return n[TABLE_NAME_PROPERTY].as<std::string>("user_table");
         }
 
         inline auto getFieldCount() const {
@@ -292,13 +242,9 @@ namespace client::ycsb {
             return std::make_pair(percentile, frac);
         }
 
-        inline auto getOperationCount() const {
-            return n[OPERATION_COUNT_PROPERTY].as<uint64_t>(10000); // 10k for default
-        }
-
         inline auto getHotspotArgs() const {
-            auto hotSetFraction = n[HOTSPOT_DATA_FRACTION].as<double>(HOTSPOT_DATA_FRACTION_DEFAULT);
-            auto hotOpnFraction = n[HOTSPOT_OPN_FRACTION].as<double>(HOTSPOT_OPN_FRACTION_DEFAULT);
+            auto hotSetFraction = n[HOTSPOT_DATA_FRACTION].as<double>(0.2);
+            auto hotOpnFraction = n[HOTSPOT_OPN_FRACTION].as<double>(0.8);
             return std::make_pair(hotSetFraction, hotOpnFraction);
         }
 
@@ -310,15 +256,7 @@ namespace client::ycsb {
             return n[INSERTION_RETRY_INTERVAL].as<int>(1);  // second
         }
 
-        inline bool getUseRandomSeed() const {
-            return n[RANDOM_SEED].as<bool>(true);
-        }
-
-    protected:
-        explicit YCSBProperties(const YAML::Node& node) :n(node) { }
-
-    private:
-        YAML::Node n;
+        explicit YCSBProperties(const YAML::Node& node) :core::BaseProperties<YCSBProperties>(node) { }
     };
 
 }

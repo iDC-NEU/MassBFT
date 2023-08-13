@@ -11,6 +11,7 @@
 #include "peer/chaincode/ycsb_row_level.h"
 #include "peer/chaincode/hash_chaincode.h"
 #include "peer/chaincode/tpcc_chaincode.h"
+#include "peer/chaincode/small_bank_chaincode.h"
 
 namespace peer::chaincode {
     std::unique_ptr<Chaincode> NewChaincodeByName(std::string_view ccName, std::unique_ptr<ORM> orm) {
@@ -18,8 +19,11 @@ namespace peer::chaincode {
             // return std::make_unique<peer::chaincode::YCSBChaincode>(std::move(orm));
             return std::make_unique<peer::chaincode::YCSBRowLevel>(std::move(orm));
         }
-        if (ccName == "tpcc") {
+        if (ccName == client::tpcc::InvokeRequestType::TPCC) {
             return std::make_unique<peer::chaincode::TPCCChaincode>(std::move(orm));
+        }
+        if (ccName == client::small_bank::InvokeRequestType::SMALL_BANK) {
+            return std::make_unique<peer::chaincode::SmallBankChaincode>(std::move(orm));
         }
         if (ccName == "transfer") {
             return std::make_unique<peer::chaincode::SimpleTransfer>(std::move(orm));
@@ -33,5 +37,4 @@ namespace peer::chaincode {
         LOG(ERROR) << "No matched chaincode found!";
         return nullptr;
     }
-
 }

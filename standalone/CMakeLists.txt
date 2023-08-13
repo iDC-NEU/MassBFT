@@ -48,6 +48,16 @@ set_target_properties(${PROJECT_NAME}_tpcc PROPERTIES CXX_STANDARD 20 OUTPUT_NAM
 
 target_link_libraries(${PROJECT_NAME}_tpcc NBP cxxopts ${COMMON_DEPENDENCIES})
 
+# ---- Create small_bank standalone executable ----
+
+file(GLOB small_bank_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/client/small_bank/*.cpp)
+
+add_executable(${PROJECT_NAME}_small_bank ${small_bank_sources})
+
+set_target_properties(${PROJECT_NAME}_small_bank PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "small_bank")
+
+target_link_libraries(${PROJECT_NAME}_small_bank NBP cxxopts ${COMMON_DEPENDENCIES})
+
 # ---- Create pension standalone executable ----
 
 file(GLOB pension_headers CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/client/pension_demo/*.h")

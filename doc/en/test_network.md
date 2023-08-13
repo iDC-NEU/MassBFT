@@ -14,7 +14,7 @@ or you can use the following sample configuration file for a group of three node
 chaincode:
   ycsb:
     init: true
-  smallbank:
+  small_bank:
     init: true
 nodes:
   group_0:
@@ -54,12 +54,12 @@ ssh_username: user
 ssh_password: 123456
 replicator_lowest_port: 19990
 ycsb:
-  recordcount: 10000
-  operationcount: 6000
+  record_count: 10000
+  benchmark_seconds: 6000
   target_throughput: 200
-  threadcount: 1
-  readproportion: 0.5
-  updateproportion: 0.5
+  thread_count: 1
+  read_proportion: 0.5
+  update_proportion: 0.5
 ```
 
 Please name the configuration file as "peer.yaml" and place it in the execution path of the peer binary for it to be loaded.

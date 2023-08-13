@@ -28,7 +28,7 @@ namespace client::core {
                 }
                 chooser -= p.second / sum;
             }
-            CHECK(false);
+            CHECK(false) << "The sum of the proportions of each transaction type may be less than 1";
             return Generator<Operation>::lastValue();
         }
 

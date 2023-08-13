@@ -12,18 +12,23 @@ namespace client::small_bank {
         zeroToOneChooser = std::make_unique<utils::RandomDouble>(0, 1);
         auto n = SmallBankProperties::NewFromProperty(prop);
         initOperationGenerator(n->getProportion());
-        accountsCount = n->getAccountsCount();
         hotspotTxnPercentage = n->getProbAccountHotspot();
+        accountsCount = n->getAccountsCount();
+        if (hotspotTxnPercentage == 0) {    // disable hotspot
+            CHECK(accountsCount - 1 > 0) << "nonHotSpotTxnChooser can not generate two different account value!";
+            nonHotSpotTxnChooser = std::make_unique<utils::RandomUINT64>(0, accountsCount - 1);
+            return;
+        }
         int hotSpotSize = n->getHotspotFixedSize();
         if (!n->hotspotUseFixedSize()) {
             hotSpotSize = static_cast<int>(n->getHotspotPercentage() * accountsCount);
         }
-        auto ub = std::min(hotSpotSize, accountsCount);
+        auto ub = std::min(hotSpotSize, accountsCount - 1);
         CHECK(ub > 0) << "hotSpotTxnChooser can not generate two different account value!";
         hotSpotTxnChooser = std::make_unique<utils::RandomUINT64>(0, ub);
-        auto lb = std::min(hotSpotSize+1, accountsCount);
-        CHECK(lb < accountsCount) << "nonHotSpotTxnChooser can not generate two different account value!";
-        nonHotSpotTxnChooser = std::make_unique<utils::RandomUINT64>(std::min(hotSpotSize+1, accountsCount), accountsCount);
+        auto lb = std::min(hotSpotSize + 1, accountsCount - 1);
+        CHECK(lb < accountsCount - 1) << "nonHotSpotTxnChooser can not generate two different account value!";
+        nonHotSpotTxnChooser = std::make_unique<utils::RandomUINT64>(lb, accountsCount - 1);
     }
 
     void SmallBankWorkload::initOperationGenerator(const SmallBankProperties::Proportion &p) {

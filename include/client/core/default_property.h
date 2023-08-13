@@ -54,7 +54,7 @@ namespace client::core {
         }
 
         inline auto getBenchmarkSeconds() const {
-            return n[BENCHMARK_SECONDS_PROPERTY].as<uint64_t>(10000);
+            return n[BENCHMARK_SECONDS_PROPERTY].as<uint64_t>(30);
         }
 
         inline bool getUseRandomSeed() const {

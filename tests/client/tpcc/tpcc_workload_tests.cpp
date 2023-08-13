@@ -31,7 +31,7 @@ public:
         : client::core::DBFactory(n) {
         db = peer::db::DBConnection::NewConnection("ChaincodeTestDB");
         CHECK(db != nullptr) << "failed to init db!";
-        auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db.get());
+        auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db);
         chaincode = peer::chaincode::NewChaincodeByName("tpcc", std::move(orm));
         CHECK(chaincode != nullptr) << "failed to init chaincode!";
     }
@@ -57,7 +57,7 @@ public:
         }));
     }
 
-    std::unique_ptr<peer::db::DBConnection> db;
+    std::shared_ptr<peer::db::DBConnection> db;
     std::unique_ptr<peer::chaincode::Chaincode> chaincode;
 };
 

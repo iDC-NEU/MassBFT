@@ -70,7 +70,15 @@ namespace client::tpcc {
             } else {
                 newOrderProto.supplierWarehouse[i] = (Integer)warehouseId;
             }
-            newOrderProto.itemIds[i] = helper->getItemID();
+            while(true) {
+                auto& itemList = newOrderProto.itemIds;
+                auto nextItemId = helper->getItemID();
+                if (std::find(itemList.begin(), itemList.begin() + i, nextItemId) == itemList.begin() + i) {
+                    newOrderProto.itemIds[i] = nextItemId;
+                    break;
+                }
+                // item already exist in itemList
+            }
             newOrderProto.quantities[i] = (Integer)quantityChooser.nextValue();
         }
         newOrderProto.timestamp = util::Timer::time_now_ns();

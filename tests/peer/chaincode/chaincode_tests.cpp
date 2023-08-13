@@ -27,7 +27,7 @@ protected:
     void initDB() {
         db = peer::db::DBConnection::NewConnection("ChaincodeTestDB");
         CHECK(db != nullptr) << "failed to init db!";
-        auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db.get());
+        auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db);
         chaincode = peer::chaincode::NewChaincodeByName("transfer", std::move(orm));
         chaincode->InvokeChaincode("init", ParamToString({"100"}));
         proto::KVList reads, writes;
@@ -38,7 +38,7 @@ protected:
         ASSERT_TRUE(writes[99]->getValueSV() == "0");
     }
 
-    std::unique_ptr<peer::db::DBConnection> db;
+    std::shared_ptr<peer::db::DBConnection> db;
     std::unique_ptr<peer::chaincode::Chaincode> chaincode;
 
 };

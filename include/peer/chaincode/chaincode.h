@@ -21,7 +21,7 @@ namespace peer::chaincode {
 
         virtual int InitDatabase() { return 0; }
 
-        std::string reset(proto::KVList& reads_, proto::KVList& writes_) {
+        inline std::string reset(proto::KVList& reads_, proto::KVList& writes_) {
             return orm->reset(reads_, writes_);
         }
 

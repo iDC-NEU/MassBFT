@@ -45,7 +45,7 @@ namespace tests::peer {
             _execResults.reserve(1000 * 1000);
             _dbc = ::peer::db::DBConnection::NewConnection("YCSBChaincodeTestDB");
             CHECK(_dbc != nullptr) << "failed to init db!";
-            auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(_dbc.get());
+            auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(_dbc);
             _chaincode = ::peer::chaincode::NewChaincodeByName("ycsb", std::move(orm));
             if (_chaincode->InitDatabase() != 0) {
                 return false;
@@ -139,7 +139,7 @@ namespace tests::peer {
         std::shared_ptr<::peer::BlockLRUCache> _blockStorage;
         std::shared_ptr<util::ZMQInstance> _subscriber;
         std::unique_ptr<std::thread> _collectorThread;
-        std::unique_ptr<::peer::db::DBConnection> _dbc;
+        std::shared_ptr<::peer::db::DBConnection> _dbc;
         std::unique_ptr<::peer::chaincode::Chaincode> _chaincode;
         // the actual contents are in the block envelop
         std::vector<std::tuple<std::unique_ptr<proto::UserRequest>, std::unique_ptr<proto::KVList>, std::unique_ptr<proto::KVList>>> _execResults;

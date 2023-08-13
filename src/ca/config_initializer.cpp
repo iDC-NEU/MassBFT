@@ -17,7 +17,7 @@ namespace ca {
         auto* properties = util::Properties::GetProperties();
         auto ccProperties = properties->getChaincodeProperties();
         ccProperties.install("ycsb");
-        ccProperties.install("smallbank");
+        ccProperties.install("small_bank");
         auto nodeProperties = properties->getNodeProperties();
         auto bccspProperties = properties->getCustomProperties("bccsp");
 

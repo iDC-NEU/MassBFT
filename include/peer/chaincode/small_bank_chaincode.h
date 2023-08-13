@@ -4,11 +4,15 @@
 
 #pragma once
 
-#include "chaincode.h"
+#include "peer/chaincode/chaincode.h"
+#include "client/small_bank/small_bank_helper.h"
+#include "common/phmap.h"
 
 namespace peer::chaincode {
     class SmallBankChaincode : public Chaincode {
     public:
+        using FunctionType = std::function<bool(std::string_view argSV)>;
+
         explicit SmallBankChaincode(std::unique_ptr<ORM> orm_);
 
         // return ret code
@@ -16,39 +20,25 @@ namespace peer::chaincode {
 
         int InitDatabase() override;
 
-        int Set(std::string_view key, std::string_view value) {
-            orm->put(std::string(key), std::string(value));
-            return 0;
-        }
+    protected:
+        bool balance(std::string_view argSV);
 
-        // return the value(string_view) instead of 0
-        int Get(std::string_view key) {
-            std::string_view value;
-            if (orm->get(std::string(key), &value)) {
-                return std::stoi(std::string(value));
-            }
-            return -1;
-        }
+        bool depositChecking(std::string_view argSV);
+
+        bool transactSavings(std::string_view argSV);
+
+        bool amalgamate(std::string_view argSV);
+
+        bool writeCheck(std::string_view argSV);
 
     protected:
-        // query a account's amount.
-        int query(const std::string_view &acc);
+        template<class Key, class Value>
+        inline bool insertIntoTable(std::string_view tablePrefix, const Key& key, const Value& value);
 
-        // transfer the entire contents of one customer's savings account into another customer's checking account.
-        // transfer all assets from a to b.
-        int amalgamate(const std::string_view &from, const std::string_view &to);
+        template<class Key, class Value>
+        inline bool getValue(std::string_view tablePrefix, const Key& key, Value& value);
 
-        // add some money to checkingTab of a account
-        int updateBalance(const std::string_view &acc, const std::string_view &amount);
-
-        // add some money to savingTab of a account
-        int updateSaving(const std::string_view &acc, const std::string_view &amount);
-
-        // send checkingTab a to b
-        int sendPayment(const std::string_view &from, const std::string_view &to, const std::string_view &amount);
-
-        // remove an amount from the customer's
-        int writeCheck(const std::string_view &from, const std::string_view &amount);
-
+    private:
+        util::MyFlatHashMap<std::string_view, FunctionType> functionMap;
     };
 }

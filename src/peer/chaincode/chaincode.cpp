@@ -19,8 +19,11 @@ namespace peer::chaincode {
             // return std::make_unique<peer::chaincode::YCSBChaincode>(std::move(orm));
             return std::make_unique<peer::chaincode::YCSBRowLevel>(std::move(orm));
         }
-        if (ccName == "tpcc") {
+        if (ccName == client::tpcc::InvokeRequestType::TPCC) {
             return std::make_unique<peer::chaincode::TPCCChaincode>(std::move(orm));
+        }
+        if (ccName == client::small_bank::InvokeRequestType::SMALL_BANK) {
+            return std::make_unique<peer::chaincode::SmallBankChaincode>(std::move(orm));
         }
         if (ccName == "transfer") {
             return std::make_unique<peer::chaincode::SimpleTransfer>(std::move(orm));
@@ -31,11 +34,7 @@ namespace peer::chaincode {
         if (ccName == "hash_chaincode") {
             return std::make_unique<peer::chaincode::HashChaincode>(std::move(orm));
         }
-        if (ccName == "small_bank") {
-            return std::make_unique<peer::chaincode::SmallBankChaincode>(std::move(orm));
-        }
         LOG(ERROR) << "No matched chaincode found!";
         return nullptr;
     }
-
 }

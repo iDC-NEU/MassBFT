@@ -7,7 +7,7 @@
 #include "client/core/workload.h"
 #include "client/core/generator/discrete_generator.h"
 #include "client/tpcc/tpcc_helper.h"
-#include "tpcc_property.h"
+#include "client/tpcc/tpcc_property.h"
 
 namespace client::tpcc {
     enum class Operation {

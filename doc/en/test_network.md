@@ -14,7 +14,7 @@ or you can use the following sample configuration file for a group of three node
 chaincode:
   ycsb:
     init: true
-  smallbank:
+  small_bank:
     init: true
 nodes:
   group_0:

@@ -2,152 +2,243 @@
 // Created by user on 23-8-9.
 //
 #include "peer/chaincode/small_bank_chaincode.h"
-#include "client/smallbank/smallbank_property.h"
+#include "client/small_bank/small_bank_property.h"
+#include "client/core/common/byte_iterator.h"
+#include "client/core/common/random_double.h"
 
-peer::chaincode::SmallBankChaincode::SmallBankChaincode(std::unique_ptr<ORM> orm_) : Chaincode(std::move(orm_)) {
-    //TODO: init
+namespace peer::chaincode {
+    using namespace client::small_bank;
+    SmallBankChaincode::SmallBankChaincode(std::unique_ptr<ORM> orm_) : Chaincode(std::move(orm_)) {
+        // prepare function map
+        functionMap[InvokeRequestType::BALANCE] = [this](std::string_view argSV) { return this->balance(argSV); };
+        functionMap[InvokeRequestType::DEPOSIT_CHECKING] = [this](std::string_view argSV) { return this->depositChecking(argSV); };
+        functionMap[InvokeRequestType::TRANSACT_SAVING] = [this](std::string_view argSV) { return this->transactSavings(argSV); };
+        functionMap[InvokeRequestType::AMALGAMATE] = [this](std::string_view argSV) { return this->amalgamate(argSV); };
+        functionMap[InvokeRequestType::WRITE_CHECK] = [this](std::string_view argSV) { return this->writeCheck(argSV); };
+    }
 
-}
-
-int peer::chaincode::SmallBankChaincode::InvokeChaincode(std::string_view funcNameSV,
-                                                         std::string_view argSV) {
-    zpp::bits::in in(argSV);
-    // acc means account
-    std::string_view acc, from, to, amount;
-    if (funcNameSV == "amalgamate") {
-        if (failure(in(from, to))) {
+    int SmallBankChaincode::InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) {
+        auto it = functionMap.find(funcNameSV);
+        if (it == functionMap.end()) {
+            LOG(WARNING) << "Function not found!";
             return -1;
         }
-        return this->amalgamate(from, to);
-    }
-    if (funcNameSV == "getBalance") {
-        if (failure(in(acc))) {
-            return -1;
+        if (it->second(argSV)) {
+            return 0;
         }
-        return this->query(acc);
+        return -1;
     }
-    if (funcNameSV == "updateBalance") {
-        if (failure(in(from, amount))) {
-            return -1;
+
+    int SmallBankChaincode::InitDatabase() {
+        ::client::core::GetThreadLocalRandomGenerator()->seed(0); // use deterministic value
+        auto* property = util::Properties::GetProperties();
+        auto sbp = SmallBankProperties::NewFromProperty(*property);
+
+        auto balanceGenerator = client::utils::RandomDouble(StaticConfig::MIN_BALANCE, StaticConfig::MAX_BALANCE);
+        for (AccountIDType acctId = 0; acctId < sbp->getAccountsCount(); acctId++) {
+            std::string acctName = client::utils::RandomString(20);
+            if (!insertIntoTable(TableNamesPrefix::ACCOUNTS, acctId, acctName)) {
+                return -1;
+            }
+            double checkingBalance = balanceGenerator.nextValue();
+            double savingsBalance = balanceGenerator.nextValue();
+            if (!insertIntoTable(TableNamesPrefix::CHECKING, acctId, checkingBalance)) {
+                return -1;
+            }
+            if (!insertIntoTable(TableNamesPrefix::SAVINGS, acctId, savingsBalance)) {
+                return -1;
+            }
         }
-        return this->updateBalance(from, amount);
+        return 0;
     }
-    if (funcNameSV == "updateSaving") {
-        if (failure(in(from, amount))) {
-            return -1;
+
+    bool SmallBankChaincode::balance(std::string_view argSV) {
+        zpp::bits::in in(argSV);
+        client::small_bank::AccountIDType acctId;
+        if (failure(in(acctId))) {
+            return false;
         }
-        return this->updateSaving(from, amount);
-    }
-    if (funcNameSV == "sendPayment") {
-        if (failure(in(from, to, amount))) {
-            return -1;
+        std::string_view accountName;
+        if (!getValue(TableNamesPrefix::ACCOUNTS, acctId, accountName)) {
+            return false;  // can not find the account
         }
-        return this->sendPayment(from, to, amount);
-    }
-    if (funcNameSV == "writeCheck") {
-        if (failure(in(from, amount))) {
-            return -1;
+        double savingsBalance, checkingBalance;
+        if (!getValue(TableNamesPrefix::SAVINGS, acctId, savingsBalance)) {
+            return false;
         }
-        return this->writeCheck(from, amount);
-    }
-    return 0;
-}
-
-int peer::chaincode::SmallBankChaincode::InitDatabase() {
-    // TODO:Random simulation inserting user account amount
-    // randomly insert into database smallBank: checking and saving respectively
-//    Random random;
-//    for(int i = 0; i < 10000; i++) {
-//        AriaORM::ORMInsert* insert = helper->newInsert("small_bank");
-//        insert->set("key", checkingTab + "_" + std::to_string(i));
-//        insert->set("value", std::to_string(random.next()%100));
-//    }
-//
-//    for(int i = 0; i < 10000; i++) {
-//        AriaORM::ORMInsert* insert = helper->newInsert("small_bank");
-//        insert->set("key", savingTab + "_" + std::to_string(i));
-//        insert->set("value", std::to_string(random.next()%100));
-//    }
-//    return true;
-}
-
-int peer::chaincode::SmallBankChaincode::query(const std::string_view &acc) {
-    int bal1 = Get(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB) + "_" + std::string(acc));
-    int bal2 = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(acc));
-
-    DLOG(INFO) << "query account:" << acc <<", savingTab: " << bal1  <<", checkingTab: " << bal2;
-    return true;
-}
-
-int peer::chaincode::SmallBankChaincode::amalgamate(const std::string_view &from,
-                                                    const std::string_view &to) {
-    if(from == to){
-        LOG(INFO) <<"the transfer accounts (in and out) are the same.";
-        return false;
-    }
-    int sav_bal1= Get(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB)  + "_" + std::string(from));
-    int che_bal2 = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(to));
-
-    Set(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB)  + "_" + std::string(from), std::to_string(0));
-    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(to), std::to_string(sav_bal1 + che_bal2));
-    return true;
-}
-
-int peer::chaincode::SmallBankChaincode::updateBalance(const std::string_view &acc,
-                                                       const std::string_view &amount) {
-    int balance = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(acc));
-    int transfer = std::stoi(std::string(amount));
-    if (transfer < 0) {
-        return false;
-    }
-    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(acc), std::to_string(balance+transfer));
-    return true;
-}
-
-int peer::chaincode::SmallBankChaincode::updateSaving(const std::string_view &acc,
-                                                      const std::string_view &amount) {
-    int balance = Get(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB) + "_" + std::string(acc));
-    int transfer = std::stoi(std::string(amount));
-    if (transfer < 0) {
-        return false;
+        if (!getValue(TableNamesPrefix::CHECKING, acctId, checkingBalance)) {
+            return false;
+        }
+        // It returns the sum of savings and checking balances for the specified customer
+        std::string ret;
+        zpp::bits::out out(ret);
+        if (failure(out(acctId, savingsBalance + checkingBalance))) {
+            return false;
+        }
+        orm->setResult(std::move(ret));
+        return true;
     }
 
-    Set(std::string(client::smallbank::SMALLBANKProperties::SAVING_TAB) + "_" + std::string(acc), std::to_string(balance+transfer));
-    return true;
-}
-
-int peer::chaincode::SmallBankChaincode::sendPayment(const std::string_view &from, const std::string_view &to,
-                                                     const std::string_view &amount) {
-    if(from == to){
-        LOG(INFO) <<"the transfer accounts (in and out) are the same.";
-        return false;
+    bool SmallBankChaincode::depositChecking(std::string_view argSV) {
+        zpp::bits::in in(argSV);
+        client::small_bank::AccountIDType acctId;
+        double amount;
+        if (failure(in(acctId, amount))) {
+            return false;
+        }
+        // If the value V is negative or if the name N is not found in the table, the transaction will roll back.
+        if (amount < 0) {
+            return false;
+        }
+        std::string_view accountName;
+        if (!getValue(TableNamesPrefix::ACCOUNTS, acctId, accountName)) {
+            return false;  // can not find the account
+        }
+        double balance;
+        if (!getValue(TableNamesPrefix::CHECKING, acctId, balance)) {
+            return false;
+        }
+        balance += amount;
+        if (!insertIntoTable(TableNamesPrefix::CHECKING, acctId, balance)) {
+            return false;
+        }
+        return true;
     }
 
-    int bal1= Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(from));
-    int bal2 = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(to));
-    int transfer = std::stoi(std::string(amount));
-
-    bal1 -= transfer;
-    if (bal1 < 0 || transfer< 0)
-        return false;
-    bal2 += transfer;
-
-    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(from), std::to_string(bal1));
-    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(to), std::to_string(bal2));
-    return true;
-}
-
-int peer::chaincode::SmallBankChaincode::writeCheck(const std::string_view &from,
-                                                    const std::string_view &amount) {
-    // TODO: have confusion with this function
-    int bal1 = Get(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(from));
-    int transfer = std::stoi(std::string(amount));
-
-    bal1 -= transfer;
-    if(transfer < 0){
-        return false;
+    bool SmallBankChaincode::transactSavings(std::string_view argSV) {
+        // It increases or decreases the savings balance by V for the specified customer.
+        zpp::bits::in in(argSV);
+        client::small_bank::AccountIDType acctId;
+        double amount;
+        if (failure(in(acctId, amount))) {
+            return false;
+        }
+        std::string_view accountName;
+        if (!getValue(TableNamesPrefix::ACCOUNTS, acctId, accountName)) {
+            return false;  // can not find the account
+        }
+        double balance;
+        if (!getValue(TableNamesPrefix::SAVINGS, acctId, balance)) {
+            return false;
+        }
+        // if the transaction would result in a negative savings balance for the customer, the transaction will roll back.
+        balance += amount;
+        if (balance < 0) {
+            return false;
+        }
+        if (!insertIntoTable(TableNamesPrefix::SAVINGS, acctId, balance)) {
+            return false;
+        }
+        return true;
     }
 
-    Set(std::string(client::smallbank::SMALLBANKProperties::CHECKING_TAB) + "_" + std::string(from), std::to_string(bal1));
-    return true;
+    bool SmallBankChaincode::amalgamate(std::string_view argSV) {
+        zpp::bits::in in(argSV);
+        client::small_bank::AccountIDType accId0, accId1;
+        if (failure(in(accId0, accId1))) {
+            return false;
+        }
+        std::string_view accountName0, accountName1;
+        if (!getValue(TableNamesPrefix::ACCOUNTS, accId0, accountName0)) {
+            return false;  // can not find the account
+        }
+        if (!getValue(TableNamesPrefix::ACCOUNTS, accId1, accountName1)) {
+            return false;  // can not find the account
+        }
+        // It reads the balances for both accounts of customer N1
+        double savings0;
+        if (!getValue(TableNamesPrefix::SAVINGS, accId0, savings0)) {
+            return false;
+        }
+        double checking0;
+        if (!getValue(TableNamesPrefix::CHECKING, accId0, checking0)) {
+            return false;
+        }
+        // then sets both to zero
+        if (!insertIntoTable(TableNamesPrefix::SAVINGS, accId0, double(0))) {
+            return false;
+        }
+        if (!insertIntoTable(TableNamesPrefix::CHECKING, accId0, double(0))) {
+            return false;
+        }
+        // and finally increases the checking balance for N2 by the sum of N1’s previous balances.
+        double checking1;
+        if (!getValue(TableNamesPrefix::CHECKING, accId1, checking1)) {
+            return false;
+        }
+        checking1 += savings0 + checking0;
+        if (!insertIntoTable(TableNamesPrefix::CHECKING, accId1, checking1)) {
+            return false;
+        }
+        return true;
+    }
+
+    bool SmallBankChaincode::writeCheck(std::string_view argSV) {
+        zpp::bits::in in(argSV);
+        client::small_bank::AccountIDType acctId;
+        double amount;
+        if (failure(in(acctId, amount))) {
+            return false;
+        }
+        std::string_view accountName;
+        if (!getValue(TableNamesPrefix::ACCOUNTS, acctId, accountName)) {
+            return false;  // can not find the account
+        }
+        // evaluate the sum of savings and checking balances for the given customer
+        double savings;
+        if (!getValue(TableNamesPrefix::SAVINGS, acctId, savings)) {
+            return false;
+        }
+        double checking;
+        if (!getValue(TableNamesPrefix::CHECKING, acctId, checking)) {
+            return false;
+        }
+        double sum = checking + savings;
+        // If the sum is less than V, it decreases the checking balance by V + 1 (reflecting a penalty of $1 for overdrawing)
+        if (sum < amount) {
+            checking -= amount + 1;
+        } else {    // otherwise it decreases the checking balance by V.
+            checking -= amount;
+        }
+        if (!insertIntoTable(TableNamesPrefix::CHECKING, acctId, checking)) {
+            return false;
+        }
+        return true;
+    }
+
+    template<class Key, class Value>
+    bool SmallBankChaincode::getValue(std::string_view tablePrefix, const Key &key, Value &value) {
+        std::string keyRaw(tablePrefix);
+        zpp::bits::out outKey(keyRaw);
+        outKey.reset(keyRaw.size());
+        if(failure(outKey(key))) {
+            return false;
+        }
+        std::string_view valueSV;
+        if (!orm->get(std::move(keyRaw), &valueSV)) {
+            return false;
+        }
+        zpp::bits::in inValue(valueSV);
+        if(failure(inValue(value))) {
+            return false;
+        }
+        return true;
+    }
+
+    template<class Key, class Value>
+    bool SmallBankChaincode::insertIntoTable(std::string_view tablePrefix, const Key &key, const Value &value) {
+        std::string keyRaw(tablePrefix);
+        zpp::bits::out outKey(keyRaw);
+        outKey.reset(keyRaw.size());
+        if(failure(outKey(key))) {
+            return false;
+        }
+        std::string valueRaw;
+        zpp::bits::out outValue(valueRaw);
+        if(failure(outValue(value))) {
+            return false;
+        }
+        orm->put(std::move(keyRaw), std::move(valueRaw));
+        return true;
+    }
 }

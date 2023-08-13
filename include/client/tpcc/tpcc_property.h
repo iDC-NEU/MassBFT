@@ -5,9 +5,6 @@
 #pragma once
 
 #include "common/property.h"
-#include "yaml-cpp/yaml.h"
-#include "glog/logging.h"
-#include <thread>
 
 namespace client::tpcc {
     class TPCCProperties {
@@ -62,16 +59,16 @@ namespace client::tpcc {
             return ((double) target) / threadCount;
         }
 
+        inline auto getOperationCount() const {
+            return n[OPERATION_COUNT_PROPERTY].as<uint64_t>(10000); // 10k for default
+        }
+
         inline bool getWarehouseLocality() const {
             return n[WAREHOUSE_LOCALITY_PROPERTY].as<bool>(false);
         }
 
         inline int getWarehouseCount() const {
             return n[WAREHOUSE_COUNT_PROPERTY].as<int>(1);
-        }
-
-        inline auto getOperationCount() const {
-            return n[OPERATION_COUNT_PROPERTY].as<uint64_t>(10000); // 10k for default
         }
 
         inline bool getUseRandomSeed() const {

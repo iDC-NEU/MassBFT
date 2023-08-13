@@ -13,17 +13,8 @@
 namespace peer::chaincode {
     class ORM {
     public:
-        ~ORM() = default;
-
-        ORM(const ORM&) = delete;
-
-        ORM(ORM&&) = delete;
-
-        static std::unique_ptr<ORM> NewORMFromDBInterface(const db::DBConnection* dbInstance) {
-            std::unique_ptr<ORM> orm(new ORM());
-            orm->getFromDB = [dbInstance](auto && PH1, auto && PH2) {
-                return dbInstance->get(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2));
-            };
+        static std::unique_ptr<ORM> NewORMFromDBInterface(std::shared_ptr<const db::DBConnection> db) {
+            std::unique_ptr<ORM> orm(new ORM(std::move(db)));
             return orm;
         }
 
@@ -32,8 +23,9 @@ namespace peer::chaincode {
         }
 
         [[nodiscard]] bool get(std::string&& key, std::string_view* valueSV) {
+            DCHECK(!keyAlreadyExistInWrites(key));  // read stale
             std::string value;
-            auto ret = getFromDB(key, &value);
+            auto ret = db->get(key, &value);
             // empty value is marked deleted
             if (!ret || value.empty()) {
                 return false;
@@ -59,6 +51,7 @@ namespace peer::chaincode {
         }
 
         void put(std::string&& key, std::string&& value) {
+            DCHECK(!keyAlreadyExistInWrites(key));  // update twice
             std::unique_ptr<proto::KV> writeKV(new proto::KV());
             writeKV->setKey(std::move(key));
             writeKV->setValue(std::move(value));
@@ -70,6 +63,7 @@ namespace peer::chaincode {
         }
 
         void del(std::string&& key) {
+            DCHECK(!keyAlreadyExistInWrites(key));  // update twice
             std::unique_ptr<proto::KV> writeKV(new proto::KV());
             writeKV->setKey(std::move(key));
             writes.push_back(std::move(writeKV));
@@ -91,15 +85,32 @@ namespace peer::chaincode {
             result.clear();
         }
 
+    public:
+        ~ORM() = default;
+
+        ORM(const ORM&) = delete;
+
+        ORM(ORM&&) = delete;
+
     protected:
-        ORM() = default;
+        explicit ORM(std::shared_ptr<const db::DBConnection> db) : db(std::move(db)) { }
+
+        [[nodiscard]] inline bool keyAlreadyExistInWrites(const std::string& key) const {
+            if (writes.size() > 100) {
+                return false;   // skip when rw set is too big
+            }
+            for (const auto& it: writes) {
+                if (key == it->getKeySV()) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
     private:
+        std::shared_ptr<const db::DBConnection> db;
         proto::KVList reads;
         proto::KVList writes;
         std::string result;
-        // ORM should not modify db state
-        std::function<bool(std::string_view key, std::string* value)> getFromDB;
     };
-
 }

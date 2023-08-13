@@ -2,7 +2,7 @@
 // Created by user on 23-7-3.
 //
 
-#include "chaincode.h"
+#include "peer/chaincode/chaincode.h"
 
 namespace peer::chaincode {
     class YCSBRowLevel : public Chaincode {

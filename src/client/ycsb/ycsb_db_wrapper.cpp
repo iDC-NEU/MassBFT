@@ -3,6 +3,7 @@
 //
 
 #include "client/ycsb/ycsb_db_wrapper.h"
+#include "client/ycsb/ycsb_helper.h"
 #include "client/core/status.h"
 
 namespace client::ycsb {

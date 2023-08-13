@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "chaincode.h"
+#include "peer/chaincode/chaincode.h"
 
 namespace peer::chaincode {
     class YCSBChaincode : public Chaincode {

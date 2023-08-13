@@ -3,24 +3,26 @@
 //
 
 #include "peer/chaincode/ycsb_chaincode.h"
-#include "client/ycsb/ycsb_property.h"
+#include "client/ycsb/ycsb_helper.h"
 #include "client/ycsb/core_workload.h"
 #include "client/core/write_through_db.h"
 
 namespace peer::chaincode {
+    using namespace client::ycsb;
+
     int YCSBChaincode::InvokeChaincode(std::string_view funcNameSV, std::string_view argSV) {
         switch (funcNameSV[0]) {
-            case 'u':   // update op
+            case InvokeRequestType::UPDATE[0]:   // update op
                 return this->update(argSV);
-            case 'i':   // insert op
+            case InvokeRequestType::INSERT[0]:   // insert op
                 return this->insert(argSV);
-            case 'r':   // read op
+            case InvokeRequestType::READ[0]:   // read op
                 return this->read(argSV);
-            case 'd':   // delete op
+            case InvokeRequestType::DELETE[0]:   // delete op
                 return this->remove(argSV);
-            case 's':   // scan op
+            case InvokeRequestType::SCAN[0]:   // scan op
                 return this->scan(argSV);
-            case 'm':   // modify op
+            case InvokeRequestType::READ_MODIFY_WRITE[0]:   // modify op
                 return this->readModifyWrite(argSV);
             default:
                 LOG(ERROR) << "Unknown method!";
@@ -108,20 +110,20 @@ namespace peer::chaincode {
     int YCSBChaincode::InitDatabase() {
         ::client::core::GetThreadLocalRandomGenerator()->seed(0); // use deterministic value
         auto* property = util::Properties::GetProperties();
-        auto ycsbProperties = client::ycsb::YCSBProperties::NewFromProperty(*property);
+        auto ycsbProperties = YCSBProperties::NewFromProperty(*property);
 
         // set insert start = 0
         auto oldInsertStart = ycsbProperties->getInsertStart();
-        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::INSERT_START_PROPERTY, 0);
+        YCSBProperties::SetProperties(YCSBProperties::INSERT_START_PROPERTY, 0);
 
         // create new workload
-        auto workload = std::make_shared<client::ycsb::CoreWorkload>();
+        auto workload = std::make_shared<CoreWorkload>();
         workload->init(*property);
         auto measurements = std::make_shared<client::core::Measurements>();
         workload->setMeasurements(measurements);
 
         // restore the original value
-        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::INSERT_START_PROPERTY, oldInsertStart);
+        YCSBProperties::SetProperties(YCSBProperties::INSERT_START_PROPERTY, oldInsertStart);
 
         // start load data
         auto opCount = ycsbProperties->getRecordCount();
@@ -137,7 +139,7 @@ namespace peer::chaincode {
 
     YCSBChaincode::YCSBChaincode(std::unique_ptr<ORM> orm) : Chaincode(std::move(orm)) {
         auto* property = util::Properties::GetProperties();
-        auto ycsbProperties = client::ycsb::YCSBProperties::NewFromProperty(*property);
+        auto ycsbProperties = YCSBProperties::NewFromProperty(*property);
         fieldNames = ycsbProperties->getFieldNames();
     }
 }

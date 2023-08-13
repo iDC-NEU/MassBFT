@@ -9,16 +9,6 @@
 namespace client::ycsb {
     class DBWrapper {
     public:
-        struct InvokeRequestType {
-            constexpr static const auto YCSB = "ycsb";
-            constexpr static const auto UPDATE = "u";
-            constexpr static const auto INSERT = "i";
-            constexpr static const auto READ = "r";
-            constexpr static const auto DELETE = "d";
-            constexpr static const auto SCAN = "s";
-            constexpr static const auto READ_MODIFY_WRITE = "m";
-        };
-
         explicit DBWrapper(client::core::DB* db) :db(db) { }
 
         core::Status read(const std::string& table, const std::string& key, const std::vector<std::string>& fields);

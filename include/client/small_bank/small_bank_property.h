@@ -34,7 +34,7 @@ namespace client::small_bank {
 
         constexpr static const auto BALANCE_PROPORTION = "bal_proportion";
         constexpr static const auto DEPOSIT_CHECKING_PROPORTION = "dc_proportion";
-        constexpr static const auto TRANSACT_SAVING_PROPORTION = "rs_proportion";
+        constexpr static const auto TRANSACT_SAVING_PROPORTION = "ts_proportion";
         constexpr static const auto AMALGAMATE_PROPORTION = "ang_proportion";
         constexpr static const auto WRITE_CHECK_PROPORTION = "wc_proportion";
 

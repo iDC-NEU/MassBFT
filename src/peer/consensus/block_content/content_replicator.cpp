@@ -87,13 +87,13 @@ namespace peer::consensus {
         return _receiver->checkAndStart();
     }
 
-    bool ContentReplicator::pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>> &&batch, bool skipValidate) {
+    bool ContentReplicator::pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>> &&batch, bool validateOnReceive) {
         std::shared_ptr<::proto::Block> block(new proto::Block);
         block->body.userRequests = std::move(batch);
-        std::function<bool(const proto::Envelop& envelop)> validateHandle = nullptr;
-        if (!skipValidate) {
-            validateHandle = [this](const proto::Envelop& envelop)->bool {
-                return this->validateUserRequest(envelop);
+        util::ValidateHandleType validateHandle = nullptr;
+        if (validateOnReceive) {    // validate twice, not needed
+            validateHandle = [this](const auto& signature, const auto& hash)->bool {
+                return this->validateUserRequestHash(signature, hash);
             };
         }
         auto updateDataHashAndSerializeBlock = [&]() -> bool {
@@ -134,12 +134,13 @@ namespace peer::consensus {
             LOG(WARNING) << "Can not deserialize block.";
             return;
         }
+        auto validateHandle = [this](const auto& signature, const auto& hash)->bool {
+            return this->validateUserRequestHash(signature, hash);
+        };
         // main thread validate merkle root
         auto mt = util::UserRequestMTGenerator::GenerateMerkleTree(
                 block->body.userRequests,
-                [this](const proto::Envelop& envelop)->bool {
-                    return this->validateUserRequest(envelop);
-                },
+                validateHandle,
                 pmt::ModeType::ModeTreeBuild,
                 _threadPoolForBCCSP);
         if (mt == nullptr) {

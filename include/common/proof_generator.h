@@ -8,11 +8,12 @@
 #include "proto/block.h"
 
 namespace util {
+    using ValidateHandleType = std::function<bool(const proto::SignatureString& signature, const OpenSSLSHA256::digestType& hash)>;
     class UserRequestMTGenerator {
     public:
         [[nodiscard]] static std::unique_ptr<pmt::MerkleTree> GenerateMerkleTree(
                 const std::vector<std::unique_ptr<proto::Envelop>>& userRequests,
-                const std::function<bool(const proto::Envelop& envelop)>& validateHandle,
+                const ValidateHandleType& validateHandle,
                 pmt::ModeType nodeType = pmt::ModeType::ModeProofGenAndTreeBuild,
                 std::shared_ptr<util::thread_pool_light> wp = nullptr) {
             pmt::Config pmtConfig;
@@ -50,24 +51,17 @@ namespace util {
         public:
             explicit EnvelopDataBlock(
                     const proto::Envelop& envelop,
-                    std::function<bool(const proto::Envelop& envelop)> validateHandle)
+                    ValidateHandleType validateHandle)
                     : _envelop(envelop), _validateHandle(std::move(validateHandle)) { }
 
             [[nodiscard]] std::optional<pmt::HashString> Digest() const override {
-                // serialize envelop first
-                std::string str;
-                str.reserve(1024);
-                zpp::bits::out out(str);
-                if(failure(out(_envelop.getPayload()))) {
-                    LOG(ERROR) << "Serialize userRequests failed!";
-                    return std::nullopt;
-                }
+                auto str = _envelop.getPayload();
                 auto digest = util::OpenSSLSHA256::generateDigest(str.data(), str.size());
                 if (digest == std::nullopt) {
                     LOG(ERROR) << "Can not generate digest.";
                     return std::nullopt;
                 }
-                if (_validateHandle && !_validateHandle(_envelop)) {
+                if (_validateHandle && !_validateHandle(_envelop.getSignature(), *digest)) {
                     LOG(ERROR) << "Validate userRequests failed!";
                     return std::nullopt;
                 }
@@ -76,7 +70,7 @@ namespace util {
 
         private:
             const proto::Envelop& _envelop;
-            std::function<bool(const proto::Envelop& envelop)> _validateHandle;
+            ValidateHandleType _validateHandle;
         };
     };
 

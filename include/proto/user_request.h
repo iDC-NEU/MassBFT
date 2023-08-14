@@ -77,7 +77,7 @@ namespace proto {
         std::string_view _funcNameSV;
         std::string _args;
         std::string_view _argsSV;
-        int64_t _nonce;
+        int64_t _nonce{};
     };
 
     class DeserializeStorage {
@@ -183,6 +183,4 @@ namespace proto {
         std::string _payload;
         SignatureString _signature;
     };
-
-
 }

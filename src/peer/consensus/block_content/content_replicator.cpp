@@ -92,8 +92,7 @@ namespace peer::consensus {
         block->body.userRequests = std::move(batch);
         auto updateDataHashAndSerializeBlock = [&]() -> bool {
             // generate merkle root
-            util::ProofGenerator pg(block->body);
-            auto mt = pg.generateMerkleTree(pmt::ModeType::ModeTreeBuild);
+            auto mt = util::UserRequestMTGenerator::GenerateMerkleTree(block->body.userRequests, nullptr);
             if (mt == nullptr) {
                 LOG(WARNING) << "Generate merkle tree failed.";
                 return false;
@@ -158,37 +157,22 @@ namespace peer::consensus {
             LOG(WARNING) << "Can not deserialize block.";
             return;
         }
-        bool success = true;
-        auto numRoutines = (int)_threadPoolForBCCSP->get_thread_count();
-        bthread::CountdownEvent countdown(numRoutines);
-        for (auto i = 0; i < numRoutines; i++) {
-            _threadPoolForBCCSP->push_task([&, start=i]{
-                auto& userRequests = block->body.userRequests;
-                for (int j = start; j < (int)userRequests.size(); j += numRoutines) {
-                    if (!validateUserRequest(*userRequests[j])) {
-                        success = false;
-                        break;
-                    }
-                }
-                countdown.signal();
-            });
-        }
         // main thread validate merkle root
-        util::ProofGenerator pg(block->body);
-        auto mt = pg.generateMerkleTree(pmt::ModeType::ModeTreeBuild);
-        if (success && mt == nullptr) {
+        auto mt = util::UserRequestMTGenerator::GenerateMerkleTree(
+                block->body.userRequests,
+                [this](const proto::Envelop& envelop)->bool {
+                    return this->validateUserRequest(envelop);
+                },
+                pmt::ModeType::ModeTreeBuild,
+                _threadPoolForBCCSP);
+        if (mt == nullptr) {
             LOG(WARNING) << "Generate merkle tree failed.";
-            success = false;
+            return;
         }
-        if (success && block->header.dataHash != mt->getRoot()) {
+        if (block->header.dataHash != mt->getRoot()) {
             LOG(WARNING) << "Validate merkle tree failed"
                          << ", expect: " << util::OpenSSLSHA256 ::toString(block->header.dataHash)
                          << ", got: " << util::OpenSSLSHA256 ::toString(mt->getRoot());
-            success = false;
-        }
-        countdown.wait();
-        if (!success) {
-            LOG(WARNING) << "Signature validate failed.";
             return;
         }
         // add block to cache

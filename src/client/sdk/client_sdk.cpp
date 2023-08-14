@@ -264,13 +264,36 @@ namespace client::sdk {
         return true;
     }
 
-    bool ReceiveInterface::ValidateMerkleProof(const ::proto::HashString &root, const ProofLikeStruct &proof,
-                                               const std::string &dataBlock) {
+    bool ReceiveInterface::ValidateUserRequestMerkleProof(const ::proto::HashString &root,
+                                                          const ProofLikeStruct &proof,
+                                                          const std::string &dataBlock) {
+        ::proto::Envelop envelop;
+        auto in = zpp::bits::in(dataBlock);
+        if(failure(in(envelop))) {
+            return false;
+        }
         pmt::Proof proofView;
         for (const auto& it: proof.Siblings) {
             proofView.Siblings.push_back(&it);
         }
         proofView.Path = proof.Path;
-        return util::ProofGenerator::ValidateProof(root, proofView, dataBlock);
+        return util::UserRequestMTGenerator::ValidateProof(root, proofView, envelop);
+    }
+
+    bool ReceiveInterface::ValidateExecResultMerkleProof(const ::proto::HashString &root,
+                                                         const ProofLikeStruct &proof,
+                                                         const std::string &dataBlock) {
+        ::proto::TxReadWriteSet rwSet;
+        std::byte filter;
+        auto in = zpp::bits::in(dataBlock);
+        if(failure(in(rwSet, filter))) {
+            return false;
+        }
+        pmt::Proof proofView;
+        for (const auto& it: proof.Siblings) {
+            proofView.Siblings.push_back(&it);
+        }
+        proofView.Path = proof.Path;
+        return util::ExecResultMTGenerator::ValidateProof(root, proofView, rwSet, filter);
     }
 }

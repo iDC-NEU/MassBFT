@@ -44,8 +44,8 @@ TEST_F(ClientSDKTest, BasicTest) {
     auto ret4 = receiver->getTransaction(block->body.userRequests[0]->getSignature().digest, 0, 0, 1000);
     ASSERT_TRUE(ret4);
 
-    util::ProofGenerator pg(block->body);
-    ASSERT_TRUE(receiver->ValidateMerkleProof(pg.generateMerkleTree()->getRoot(),
+    auto mt = util::UserRequestMTGenerator::GenerateMerkleTree(block->body.userRequests, nullptr);
+    ASSERT_TRUE(receiver->ValidateMerkleProof(mt->getRoot(),
                                               ret4->envelopProof,
                                               *ret4->envelop->getSerializedMessage()));
     auto header = receiver->getBlockHeader(0, 0, -1);

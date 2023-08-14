@@ -8,69 +8,36 @@
 #include "proto/block.h"
 
 namespace util {
-    class ProofGenerator {
+    class UserRequestMTGenerator {
     public:
-        explicit ProofGenerator(const proto::Block::Body& body) {
-            posList.resize(body.userRequests.size());
-            serializedBody.reserve(body.userRequests.size() * 256);
-            zpp::bits::out out(serializedBody);
-            for (int i=0; i<(int)body.userRequests.size(); i++) {
-                if(failure(out(body.userRequests[i]->getPayload()))) {
-                    CHECK(false) << "Serialize userRequests failed!";
-                }
-                posList[i] = (int)out.position();
-            }
-        }
-
-        explicit ProofGenerator(const proto::Block::ExecuteResult& executeResult) {
-            posList.resize(executeResult.txReadWriteSet.size());
-            serializedBody.reserve(executeResult.txReadWriteSet.size() * 384);
-            zpp::bits::out out(serializedBody);
-            for (int i=0; i<(int)executeResult.txReadWriteSet.size(); i++) {
-                // serialize std::unique_ptr<Envelop>
-                if(failure(out(*executeResult.txReadWriteSet[i], executeResult.transactionFilter[i]))) {
-                    CHECK(false) << "Serialize executeResult failed!";
-                }
-                posList[i] = (int)out.position();
-            }
-        }
-
-        [[nodiscard]] std::unique_ptr<pmt::MerkleTree> generateMerkleTree(
+        [[nodiscard]] static std::unique_ptr<pmt::MerkleTree> GenerateMerkleTree(
+                const std::vector<std::unique_ptr<proto::Envelop>>& userRequests,
+                const std::function<bool(const proto::Envelop& envelop)>& validateHandle,
                 pmt::ModeType nodeType = pmt::ModeType::ModeProofGenAndTreeBuild,
-                std::shared_ptr<util::thread_pool_light> wp = nullptr) const {
-            if (posList.empty()) {
-                return nullptr;
-            }
+                std::shared_ptr<util::thread_pool_light> wp = nullptr) {
             pmt::Config pmtConfig;
             pmtConfig.Mode = nodeType;
-            if (posList[0] > 1024) {
-                pmtConfig.LeafGenParallel = true;
-            }
-            if (posList.size() > 1024) {
+            if (userRequests.size() > 1024) {
                 pmtConfig.RunInParallel = true;
             }
-            std::string_view bodySV = serializedBody;
             std::vector<std::unique_ptr<pmt::DataBlock>> blocks;
-            for (int i=0; i<(int)posList.size(); i++) {
-                if (i == 0) {
-                    blocks.emplace_back(new UserRequestDataBlock(bodySV.substr(0, posList[i])));
-                    continue;
-                }
-                blocks.emplace_back(new UserRequestDataBlock(bodySV.substr(posList[i-1], posList[i])));
+            blocks.reserve(userRequests.size());
+            for (const auto & it : userRequests) {
+                blocks.emplace_back(new EnvelopDataBlock(*it, validateHandle));
             }
             if (blocks.size() == 1) {   // special case: block has only 1 user request
-                blocks.emplace_back(new UserRequestDataBlock(bodySV.substr(0, posList[0])));
+                blocks.emplace_back(new EnvelopDataBlock(*userRequests[0], nullptr));
             }
             return pmt::MerkleTree::New(pmtConfig, blocks, std::move(wp));
         }
 
-        static std::optional<pmt::Proof> GenerateProof(const pmt::MerkleTree& mt, const std::string& dataBlock) {
-            UserRequestDataBlock mdb(dataBlock);
+        static std::optional<pmt::Proof> GenerateProof(const pmt::MerkleTree& mt, const proto::Envelop& envelop) {
+            EnvelopDataBlock mdb(envelop, nullptr);
             return mt.GenerateProof(mdb);
         }
 
-        static bool ValidateProof(const proto::HashString &root, const pmt::Proof& proof, const std::string& dataBlock) {
-            UserRequestDataBlock mdb(dataBlock);
+        static bool ValidateProof(const proto::HashString &root, const pmt::Proof& proof, const proto::Envelop& envelop) {
+            EnvelopDataBlock mdb(envelop, nullptr);
             auto ret = pmt::MerkleTree::Verify(mdb, proof, root);
             if (ret == std::nullopt || !*ret) {
                 return false;
@@ -79,20 +46,113 @@ namespace util {
         }
 
     private:
-        std::vector<int> posList;
-        std::string serializedBody;
-
-    private:
-        class UserRequestDataBlock: public pmt::DataBlock {
+        class EnvelopDataBlock: public pmt::DataBlock {
         public:
-            explicit UserRequestDataBlock(std::string_view userRequest) : _userRequest(userRequest) { }
+            explicit EnvelopDataBlock(
+                    const proto::Envelop& envelop,
+                    std::function<bool(const proto::Envelop& envelop)> validateHandle)
+                    : _envelop(envelop), _validateHandle(std::move(validateHandle)) { }
 
-            [[nodiscard]] pmt::ByteString Serialize() const override {
-                return _userRequest;
+            [[nodiscard]] std::optional<pmt::HashString> Digest() const override {
+                // serialize envelop first
+                std::string str;
+                str.reserve(1024);
+                zpp::bits::out out(str);
+                if(failure(out(_envelop.getPayload()))) {
+                    LOG(ERROR) << "Serialize userRequests failed!";
+                    return std::nullopt;
+                }
+                auto digest = util::OpenSSLSHA256::generateDigest(str.data(), str.size());
+                if (digest == std::nullopt) {
+                    LOG(ERROR) << "Can not generate digest.";
+                    return std::nullopt;
+                }
+                if (_validateHandle && !_validateHandle(_envelop)) {
+                    LOG(ERROR) << "Validate userRequests failed!";
+                    return std::nullopt;
+                }
+                return digest;
             }
 
         private:
-            std::string_view _userRequest;
+            const proto::Envelop& _envelop;
+            std::function<bool(const proto::Envelop& envelop)> _validateHandle;
+        };
+    };
+
+    class ExecResultMTGenerator {
+    public:
+        [[nodiscard]] static std::unique_ptr<pmt::MerkleTree> GenerateMerkleTree(
+                const std::vector<std::unique_ptr<proto::TxReadWriteSet>>& txReadWriteSet,
+                const std::vector<std::byte>& transactionFilter,
+                pmt::ModeType nodeType = pmt::ModeType::ModeProofGenAndTreeBuild,
+                std::shared_ptr<util::thread_pool_light> wp = nullptr) {
+            if (txReadWriteSet.size() != transactionFilter.size()) {
+                return nullptr;
+            }
+            pmt::Config pmtConfig;
+            pmtConfig.Mode = nodeType;
+            if (txReadWriteSet.size() > 1024) {
+                pmtConfig.RunInParallel = true;
+            }
+            std::vector<std::unique_ptr<pmt::DataBlock>> blocks;
+            blocks.reserve(txReadWriteSet.size());
+            for (int i=0; i<(int)txReadWriteSet.size(); i++) {
+                blocks.emplace_back(new ExecResultBlock(*txReadWriteSet[i], transactionFilter[i]));
+            }
+            if (blocks.size() == 1) {
+                blocks.emplace_back(new ExecResultBlock(*txReadWriteSet[0], transactionFilter[0]));
+            }
+            return pmt::MerkleTree::New(pmtConfig, blocks, std::move(wp));
+        }
+
+        static std::optional<pmt::Proof> GenerateProof(const pmt::MerkleTree& mt,
+                                                       const proto::TxReadWriteSet& rwSet,
+                                                       const std::byte& filter) {
+            ExecResultBlock mdb(rwSet, filter);
+            return mt.GenerateProof(mdb);
+        }
+
+        static bool ValidateProof(const proto::HashString &root,
+                                  const pmt::Proof& proof,
+                                  const proto::TxReadWriteSet& rwSet,
+                                  const std::byte& filter) {
+            ExecResultBlock mdb(rwSet, filter);
+            auto ret = pmt::MerkleTree::Verify(mdb, proof, root);
+            if (ret == std::nullopt || !*ret) {
+                return false;
+            }
+            return true;
+        }
+
+    private:
+        class ExecResultBlock: public pmt::DataBlock {
+        public:
+            explicit ExecResultBlock(
+                    const proto::TxReadWriteSet& rwSet,
+                    const std::byte& filter)
+                    : rwSet(rwSet), filter(filter) { }
+
+            [[nodiscard]] std::optional<pmt::HashString> Digest() const override {
+                // serialize envelop first
+                std::string str;
+                str.reserve(1024);
+                zpp::bits::out out(str);
+                if(failure(out(rwSet, filter))) {
+                    LOG(ERROR) << "Serialize rwSet failed!";
+                    return std::nullopt;
+                }
+                auto digest = util::OpenSSLSHA256::generateDigest(str.data(), str.size());
+                if (digest == std::nullopt) {
+                    LOG(ERROR) << "Can not generate digest.";
+                    return std::nullopt;
+                }
+                return digest;
+            }
+
+        private:
+            const proto::TxReadWriteSet& rwSet;
+            const std::byte& filter;
         };
     };
 

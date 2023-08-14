@@ -28,7 +28,7 @@ namespace tests {
                 rwSets.push_back(std::move(rwSet));
             }
             b.executeResult.txReadWriteSet = std::move(rwSets);
-            b.executeResult.transactionFilter.resize(2);
+            b.executeResult.transactionFilter.resize(2000);
             b.executeResult.transactionFilter[1] = (std::byte)10;
             proto::SignatureString sig1 = {"ski", {"sig1"}};
             proto::SignatureString sig2 = {"ski", {"sig2"}};

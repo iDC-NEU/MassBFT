@@ -22,6 +22,7 @@ namespace client {
         std::string_view _ccNameSV;
         std::string_view _funcNameSV;
         std::string_view _argsSV;
+        int64_t _nonce;
     };
 
     struct EnvelopLikeStruct {

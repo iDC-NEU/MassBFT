@@ -37,23 +37,19 @@ namespace client {
         UserRequestLikeStruct u {
                 chaincodeName,
                 funcName,
-                args
+                args,
+                _nextNonce,
         };
+        _nextNonce += 1;
         if (failure(::proto::UserRequest::serialize(out, u))) {
             return core::ERROR;
         }
-        EnvelopLikeStruct e;
-        // append the nonce
-        e._signature.nonce = _nextNonce;
-        if (failure(out(e._signature.nonce))) {
-            return core::ERROR;
-        }
-        _nextNonce += 1;
         // sign the envelope
         auto ret = _priKey->Sign(data.data(), data.size());
         if (ret == std::nullopt) {
             return core::ERROR;
         }
+        EnvelopLikeStruct e;
         e._payloadSV = data;
         e._signature.digest = *ret;
         e._signature.ski = _serverConfig->ski;

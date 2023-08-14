@@ -32,9 +32,9 @@ TEST_F(ClientSDKTest, BasicTest) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
     ASSERT_TRUE(receiver->getChainHeight(0, 100) == -1);
     auto ret1 = sender->invokeChaincode("ycsb", "w", "args1");
-    ASSERT_TRUE(ret1);
+    ASSERT_TRUE(ret1.isOk());
     auto ret2 = sender->invokeChaincode("ycsb", "w", "args2");
-    ASSERT_TRUE(ret2);
+    ASSERT_TRUE(ret2.isOk());
     auto block = receiver->getBlock(0, 0, 1000);
     ASSERT_TRUE(block);
     ASSERT_TRUE(block->body.userRequests.size() == 2);
@@ -45,9 +45,9 @@ TEST_F(ClientSDKTest, BasicTest) {
     ASSERT_TRUE(ret4);
 
     auto mt = util::UserRequestMTGenerator::GenerateMerkleTree(block->body.userRequests, nullptr);
-    ASSERT_TRUE(receiver->ValidateMerkleProof(mt->getRoot(),
-                                              ret4->envelopProof,
-                                              *ret4->envelop->getSerializedMessage()));
+    ASSERT_TRUE(receiver->ValidateUserRequestMerkleProof(mt->getRoot(),
+                                                         ret4->envelopProof,
+                                                         *ret4->envelop));
     auto header = receiver->getBlockHeader(0, 0, -1);
     ASSERT_TRUE(header != nullptr && header->header.number == 0);
 }

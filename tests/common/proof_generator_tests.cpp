@@ -20,16 +20,15 @@ protected:
 
 TEST_F(ProofGeneratorTest, TestGenerateBodyProof) {
     auto block = tests::ProtoBlockUtils::CreateDemoBlock();
-    util::ProofGenerator pg(block->body);
-    auto mt = pg.generateMerkleTree();
+    auto mt = util::UserRequestMTGenerator::GenerateMerkleTree(block->body.userRequests, nullptr);
     ASSERT_TRUE(mt != nullptr);
     LOG(INFO) << "Root hash: " << util::OpenSSLSHA256::toString(mt->getRoot());
 }
 
 TEST_F(ProofGeneratorTest, TestGenerateExecResultProof) {
     auto block = tests::ProtoBlockUtils::CreateDemoBlock();
-    util::ProofGenerator pg(block->executeResult);
-    auto mt = pg.generateMerkleTree();
+    auto mt = util::ExecResultMTGenerator::GenerateMerkleTree(block->executeResult.txReadWriteSet,
+                                                              block->executeResult.transactionFilter);
     ASSERT_TRUE(mt != nullptr);
     LOG(INFO) << "Root hash: " << util::OpenSSLSHA256::toString(mt->getRoot());
 }

@@ -14,13 +14,12 @@ namespace proto {
     struct SignatureString {
     public:
         std::string ski;
-        int64_t nonce;
         DigestString digest{};
 
         friend zpp::bits::access;
 
         constexpr static auto serialize(auto &archive, SignatureString &s) {
-            return archive(s.ski, s.nonce, s.digest);
+            return archive(s.ski, s.digest);
         }
     };
 
@@ -58,13 +57,17 @@ namespace proto {
             _argsSV = _args;
         }
 
+        void setNonce(auto &&nonce) {
+            _nonce = std::forward<decltype(nonce)>(nonce);
+        }
+
         [[nodiscard]] const std::string_view &getArgs() const { return _argsSV; }
 
     public:
         friend zpp::bits::access;
 
         constexpr static auto serialize(auto &archive, auto &t) {
-            return archive(t._ccNameSV, t._funcNameSV, t._argsSV);
+            return archive(t._ccNameSV, t._funcNameSV, t._argsSV, t._nonce);
         }
 
     private:
@@ -74,6 +77,7 @@ namespace proto {
         std::string_view _funcNameSV;
         std::string _args;
         std::string_view _argsSV;
+        int64_t _nonce;
     };
 
     class DeserializeStorage {

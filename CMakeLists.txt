@@ -213,7 +213,7 @@ ADD_LIBRARY(${PROJECT_NAME}_proto ${PROTO_HDRS} ${PROTO_SRCS})
 
 find_library(gflags gflags PATHS ${PROJECT_BINARY_DIR}/lib)
 # NOTE: DO NOT LINK BRPC.SO AND BRAFT.SO TOGETHER
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft unordered_dense gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ${PROJECT_NAME}_proto leveldb rocksdb ssh curve25519x64)
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ${PROJECT_NAME}_proto leveldb rocksdb ssh curve25519x64)
 
 include_directories(SYSTEM ${CMAKE_BINARY_DIR}/include)
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib)

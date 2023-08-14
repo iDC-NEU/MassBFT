@@ -42,7 +42,6 @@ namespace pmt {
             return *digest;
         }
 
-    protected:
         [[nodiscard]] virtual ByteString Serialize() const = 0;
     };
 

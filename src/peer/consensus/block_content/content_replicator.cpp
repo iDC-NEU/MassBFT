@@ -90,9 +90,18 @@ namespace peer::consensus {
     bool ContentReplicator::pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>> &&batch, bool skipValidate) {
         std::shared_ptr<::proto::Block> block(new proto::Block);
         block->body.userRequests = std::move(batch);
+        std::function<bool(const proto::Envelop& envelop)> validateHandle = nullptr;
+        if (!skipValidate) {
+            validateHandle = [this](const proto::Envelop& envelop)->bool {
+                return this->validateUserRequest(envelop);
+            };
+        }
         auto updateDataHashAndSerializeBlock = [&]() -> bool {
             // generate merkle root
-            auto mt = util::UserRequestMTGenerator::GenerateMerkleTree(block->body.userRequests, nullptr);
+            auto mt = util::UserRequestMTGenerator::GenerateMerkleTree(block->body.userRequests,
+                                                                       validateHandle,
+                                                                       pmt::ModeType::ModeProofGenAndTreeBuild,
+                                                                       _threadPoolForBCCSP);
             if (mt == nullptr) {
                 LOG(WARNING) << "Generate merkle tree failed.";
                 return false;
@@ -109,41 +118,9 @@ namespace peer::consensus {
             return true;
         };
 
-        if (skipValidate) {
-            if (!updateDataHashAndSerializeBlock()) {
-                return false;
-            }
-            if (!_requestBatchQueue.enqueue(std::move(block))) {
-                CHECK(false) << "Queue max size achieve!";
-            }
-            return true;
-        }
-        // thread pool validate user requests
-        bool success = true;
-        auto numRoutines = (int) _threadPoolForBCCSP->get_thread_count();
-        bthread::CountdownEvent countdown(numRoutines);
-        for (auto i = 0; i < numRoutines; i++) {
-            _threadPoolForBCCSP->push_task([&, start = i] {
-                auto &userRequests = block->body.userRequests;
-                for (int j = start; j < (int) userRequests.size(); j += numRoutines) {
-                    if (!validateUserRequest(*userRequests[j])) {
-                        success = false;
-                        break;
-                    }
-                }
-                countdown.signal();
-            });
-        }
-        // main thread generate data hash
         if (!updateDataHashAndSerializeBlock()) {
-            success = false;
-        }
-        countdown.wait();
-        if (!success) {
-            LOG(WARNING) << "Validate block failed.";
             return false;
         }
-        // Block number and previous data hash are set in OnRequestProposal as leader
         if (!_requestBatchQueue.enqueue(std::move(block))) {
             CHECK(false) << "Queue max size achieve!";
         }

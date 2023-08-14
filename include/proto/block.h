@@ -70,21 +70,6 @@ namespace proto {
                 return archive(b.userRequests);
             }
 
-            [[nodiscard]] bool serializeForProofGen(std::vector<int>& posList, std::string& ret, int startPos = 0) const {
-                posList.resize(userRequests.size());
-                ret.reserve(userRequests.size() * 256);
-                zpp::bits::out out(ret);
-                out.reset(startPos);
-                for (int i=0; i<(int)userRequests.size(); i++) {
-                    // serialize std::unique_ptr<Envelop>
-                    if(failure(out(*userRequests[i]))) {
-                        return false;
-                    }
-                    posList[i] = (int)out.position();
-                }
-                return true;
-            }
-
             [[nodiscard]] Envelop* findEnvelop(const auto& digest) const {
                 for (auto& it: userRequests) {
                     if (proto::CompareDigest(it->getSignature().digest, digest) != 0) {
@@ -107,21 +92,6 @@ namespace proto {
 
             constexpr static auto serialize(auto &archive, ExecuteResult &e) {
                 return archive(e.txReadWriteSet, e.transactionFilter);
-            }
-
-            [[nodiscard]] bool serializeForProofGen(std::vector<int>& posList, std::string& ret, int startPos = 0) const {
-                posList.resize(txReadWriteSet.size());
-                ret.reserve(txReadWriteSet.size() * 384);
-                zpp::bits::out out(ret);
-                out.reset(startPos);
-                for (int i=0; i<(int)txReadWriteSet.size(); i++) {
-                    // serialize std::unique_ptr<Envelop>
-                    if(failure(out(*txReadWriteSet[i], transactionFilter[i]))) {
-                        return false;
-                    }
-                    posList[i] = (int)out.position();
-                }
-                return true;
             }
 
             [[nodiscard]] bool findRWSet(const auto& digest, TxReadWriteSet*& rwSet, std::byte& valid) const {

@@ -10,22 +10,34 @@
 namespace util {
     class ProofGenerator {
     public:
-        // std::make_unique<util::thread_pool_light>(std::min((int)std::thread::hardware_concurrency(), wpSize), "pr_gn_wk");
-        explicit ProofGenerator(const proto::Block::Body& body, util::thread_pool_light* tp=nullptr) {
-            wp = tp;
-            if (!body.serializeForProofGen(posList, serializedBody)) {
-                CHECK(false) << "Serialize proof failed!";
+        explicit ProofGenerator(const proto::Block::Body& body) {
+            posList.resize(body.userRequests.size());
+            serializedBody.reserve(body.userRequests.size() * 256);
+            zpp::bits::out out(serializedBody);
+            for (int i=0; i<(int)body.userRequests.size(); i++) {
+                if(failure(out(body.userRequests[i]->getPayload()))) {
+                    CHECK(false) << "Serialize userRequests failed!";
+                }
+                posList[i] = (int)out.position();
             }
         }
 
-        explicit ProofGenerator(const proto::Block::ExecuteResult& executeResult, util::thread_pool_light* tp=nullptr) {
-            wp = tp;
-            if (!executeResult.serializeForProofGen(posList, serializedBody)) {
-                CHECK(false) << "Serialize proof failed!";
+        explicit ProofGenerator(const proto::Block::ExecuteResult& executeResult) {
+            posList.resize(executeResult.txReadWriteSet.size());
+            serializedBody.reserve(executeResult.txReadWriteSet.size() * 384);
+            zpp::bits::out out(serializedBody);
+            for (int i=0; i<(int)executeResult.txReadWriteSet.size(); i++) {
+                // serialize std::unique_ptr<Envelop>
+                if(failure(out(*executeResult.txReadWriteSet[i], executeResult.transactionFilter[i]))) {
+                    CHECK(false) << "Serialize executeResult failed!";
+                }
+                posList[i] = (int)out.position();
             }
         }
 
-        [[nodiscard]] std::unique_ptr<pmt::MerkleTree> generateMerkleTree(pmt::ModeType nodeType = pmt::ModeType::ModeProofGenAndTreeBuild) const {
+        [[nodiscard]] std::unique_ptr<pmt::MerkleTree> generateMerkleTree(
+                pmt::ModeType nodeType = pmt::ModeType::ModeProofGenAndTreeBuild,
+                std::shared_ptr<util::thread_pool_light> wp = nullptr) const {
             if (posList.empty()) {
                 return nullptr;
             }
@@ -49,7 +61,7 @@ namespace util {
             if (blocks.size() == 1) {   // special case: block has only 1 user request
                 blocks.emplace_back(new UserRequestDataBlock(bodySV.substr(0, posList[0])));
             }
-            return pmt::MerkleTree::New(pmtConfig, blocks, wp);
+            return pmt::MerkleTree::New(pmtConfig, blocks, std::move(wp));
         }
 
         static std::optional<pmt::Proof> GenerateProof(const pmt::MerkleTree& mt, const std::string& dataBlock) {
@@ -69,7 +81,6 @@ namespace util {
     private:
         std::vector<int> posList;
         std::string serializedBody;
-        util::thread_pool_light* wp;
 
     private:
         class UserRequestDataBlock: public pmt::DataBlock {

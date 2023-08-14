@@ -78,14 +78,6 @@ find_package(zeromq_install
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor)
 
-### fast hashmap header only
-CPMAddPackage(
-        NAME unordered_dense  ## include the project name
-        GITHUB_REPOSITORY martinus/unordered_dense
-        VERSION v2.0.0
-        GIT_TAG bf7336568fce3993d0fdb136a9b8599f46d8fb40
-)
-
 ### greg7mdp/gtl gel template repo
 CPMAddPackage(
         NAME gtl  ## include the project name

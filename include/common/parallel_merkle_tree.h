@@ -6,7 +6,7 @@
 
 #include "common/thread_pool_light.h"
 #include "common/crypto.h"
-#include "ankerl/unordered_dense.h"
+#include "common/phmap.h"
 #include <functional>
 #include <vector>
 
@@ -35,7 +35,7 @@ namespace pmt {
     public:
         virtual ~DataBlock() = default;
 
-        [[nodiscard]] virtual ByteString Serialize() const = 0;
+        [[nodiscard]] virtual std::optional<HashString> Digest() const = 0;
     };
 
 
@@ -43,11 +43,7 @@ namespace pmt {
     struct Config {
         // HashFuncType is the signature of the hash functions used for Merkle Tree generation.
         // Customizable hash function used for tree generation.
-        static std::optional<HashString> HashFunc(const HashString& h1, const HashString& h2);
-
-        // HashFuncType is the signature of the hash functions used for Merkle Tree generation.
-        // Customizable hash function used for tree generation.
-        static std::optional<HashString> HashFunc(const ByteString& str);
+        static HashString HashFunc(const HashString& h1, const HashString& h2);
 
         // Number of goroutines run in parallel.
         // If RunInParallel is true and NumRoutine is set to 0, use number of CPU as the number of goroutines.
@@ -84,7 +80,7 @@ namespace pmt {
         Config config;
         // leafMap is the map of the leaf hash to the index in the Tree slice,
         // only available when config mode is ModeTreeBuild or ModeProofGenAndTreeBuild
-        ankerl::unordered_dense::map<std::string, int> leafMap;
+        util::MyFlatHashMap<std::string, int> leafMap;
         // tree is the Merkle Tree structure, only available when config mode is ModeTreeBuild or ModeProofGenAndTreeBuild
         std::vector<std::vector<HashString>> tree;
         // Root is the Merkle root hash
@@ -96,7 +92,7 @@ namespace pmt {
         // Depth is the Merkle Tree depth
         uint32_t Depth{};
         // thread pool
-        util::thread_pool_light* wp = nullptr;
+        std::shared_ptr<util::thread_pool_light> wp = nullptr;
         // if wp is created locally, free wp when destruct
         std::unique_ptr<util::thread_pool_light> wpGuard = nullptr;
 
@@ -118,7 +114,7 @@ namespace pmt {
         // New generates a new Merkle Tree with specified configuration.
         static std::unique_ptr<MerkleTree> New(const Config &c,
                                                const std::vector<std::unique_ptr<DataBlock>> &blocks,
-                                               util::thread_pool_light* wpPtr=nullptr);
+                                               std::shared_ptr<util::thread_pool_light> wpPtr=nullptr);
 
     protected:
         template <typename F, typename... A>
@@ -142,7 +138,7 @@ namespace pmt {
             }
         }
 
-        bool proofGen();
+        void proofGen();
 
         // if the length of the buffer calculating the Merkle Tree is odd, then append a node to the buffer
         // if AllowDuplicates is true, append a node by duplicating the previous node
@@ -175,11 +171,11 @@ namespace pmt {
 
         bool leafGenParallel(const std::vector<std::unique_ptr<DataBlock>> &blocks);
 
-        bool proofGenParallel();
+        void proofGenParallel();
 
         void updateProofsParallel(const std::vector<HashString> &buf, int bufLen, int step);
 
-        bool treeBuild();
+        void treeBuild();
 
     public:
         // Verify verifies the data block with the Merkle Tree proof

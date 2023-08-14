@@ -4,6 +4,7 @@
 
 #include "client/sdk/client_sdk.h"
 #include "client/neuchain_dbc.h"
+#include "client/neuchain_db.h"
 #include "common/crypto.h"
 #include "common/property.h"
 #include "common/proof_generator.h"
@@ -17,11 +18,10 @@
 namespace client::sdk {
     struct ClientSDKImpl {
         std::unique_ptr<util::BCCSP> _bccsp;
-        std::shared_ptr<const util::Key> _priKey;
         std::shared_ptr<util::NodeConfig> _targetLocalNode;
         int _sendPort = -1;
         int _receivePort = -1;
-        std::shared_ptr<client::NeuChainDBConnection> _dbc;
+        std::unique_ptr<client::NeuChainDB> _db;
         std::unique_ptr<::client::proto::UserService_Stub> _receiveStub;
         int64_t _nextNonce = 0;
     };
@@ -42,13 +42,7 @@ namespace client::sdk {
         // 2
         auto bcs = prop.getCustomPropertiesOrPanic("bccsp");
         auto bccsp = std::make_unique<util::BCCSP>(std::make_unique<util::YAMLKeyStorage>(bcs));
-        auto priKey = bccsp->GetKey(localNode->ski);
-        if (!priKey || !priKey->Private()) {
-            LOG(ERROR) << "Load private key failed!";
-            return nullptr;
-        }
         sdk->_impl->_bccsp = std::move(bccsp);
-        sdk->_impl->_priKey = std::move(priKey);
         // 3
         auto portConfig = util::ZMQPortUtil::InitLocalPortsConfig(prop);
         sdk->_impl->_sendPort = portConfig->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[localNode->nodeId];
@@ -70,11 +64,20 @@ namespace client::sdk {
         options.timeout_ms = 200 /*milliseconds*/;
         options.max_retry = 0;
         auto channel = std::make_unique<brpc::Channel>();
+        auto initNeuChainDB = [&](auto&& dbc) {
+            auto priKey = _impl->_bccsp->GetKey(_impl->_targetLocalNode->ski);
+            if (!priKey || !priKey->Private()) {
+                LOG(ERROR) << "Load private key failed!";
+                return false;
+            }
+            _impl->_db = std::make_unique<client::NeuChainDB>(_impl->_targetLocalNode, std::forward<decltype(dbc)>(dbc), std::move(priKey));
+            return true;
+        };
         while(true) {
             if (channel->Init(server->priIp.data(), _impl->_receivePort, &options) == 0) {
                 auto dbc = ::client::NeuChainDBConnection::NewNeuChainDBConnection(server->priIp, _impl->_sendPort);
                 if (dbc != nullptr) {
-                    _impl->_dbc = std::move(dbc);
+                    initNeuChainDB(std::move(dbc));
                     break;  //success
                 }
             }
@@ -83,7 +86,7 @@ namespace client::sdk {
             if (channel->Init(server->pubIp.data(), _impl->_receivePort, &options) == 0) {
                 auto dbc = ::client::NeuChainDBConnection::NewNeuChainDBConnection(server->pubIp, _impl->_sendPort);
                 if (dbc != nullptr) {
-                    _impl->_dbc = std::move(dbc);
+                    initNeuChainDB(std::move(dbc));
                     break;  //success
                 }
             }
@@ -94,44 +97,8 @@ namespace client::sdk {
         return true;
     }
 
-    std::unique_ptr<::proto::Envelop> ClientSDK::invokeChaincode(std::string ccName, std::string funcName, std::string args) const {
-        // archive manually
-        std::string data;
-        zpp::bits::out out(data);
-        ::proto::UserRequest u;
-        u.setCCName(std::move(ccName));
-        u.setFuncName(std::move(funcName));
-        u.setArgs(std::move(args));
-
-        if (failure(::proto::UserRequest::serialize(out, u))) {
-            return nullptr;
-        }
-        ::proto::SignatureString signature;
-        signature.nonce = _impl->_nextNonce++;
-        if (failure(out(signature.nonce))) {
-            return nullptr;
-        }
-        auto ret = _impl->_priKey->Sign(data.data(), data.size());
-        if (ret == std::nullopt) {
-            return nullptr;
-        }
-        signature.digest = *ret;
-        signature.ski = _impl->_targetLocalNode->ski;
-
-        auto envelop = std::make_unique<::proto::Envelop>();
-        envelop->setSignature(std::move(signature));
-        envelop->setPayload(std::move(data));
-
-        // serialize the envelop
-        std::string dataEnvelop;
-        zpp::bits::out outEnvelop(dataEnvelop);
-        if (failure(outEnvelop(envelop))) {
-            return nullptr;
-        }
-        if (!_impl->_dbc->send(std::move(dataEnvelop))) {
-            return nullptr;
-        }
-        return envelop;
+    core::Status ClientSDK::invokeChaincode(std::string ccName, std::string funcName, std::string args) const {
+        return static_cast<core::DB*>(_impl->_db.get())->sendInvokeRequest(ccName, funcName, args);
     }
 
     std::unique_ptr<::proto::Block> ClientSDK::getBlock(int chainId, int blockId, int timeoutMs) const {
@@ -264,13 +231,26 @@ namespace client::sdk {
         return true;
     }
 
-    bool ReceiveInterface::ValidateMerkleProof(const ::proto::HashString &root, const ProofLikeStruct &proof,
-                                               const std::string &dataBlock) {
+    bool ReceiveInterface::ValidateUserRequestMerkleProof(const ::proto::HashString &root,
+                                                          const ProofLikeStruct &proof,
+                                                          const ::proto::Envelop &envelop) {
         pmt::Proof proofView;
         for (const auto& it: proof.Siblings) {
             proofView.Siblings.push_back(&it);
         }
         proofView.Path = proof.Path;
-        return util::ProofGenerator::ValidateProof(root, proofView, dataBlock);
+        return util::UserRequestMTGenerator::ValidateProof(root, proofView, envelop);
+    }
+
+    bool ReceiveInterface::ValidateExecResultMerkleProof(const ::proto::HashString &root,
+                                                         const ProofLikeStruct &proof,
+                                                         const ::proto::TxReadWriteSet &rwSet,
+                                                         std::byte filter) {
+        pmt::Proof proofView;
+        for (const auto& it: proof.Siblings) {
+            proofView.Siblings.push_back(&it);
+        }
+        proofView.Path = proof.Path;
+        return util::ExecResultMTGenerator::ValidateProof(root, proofView, rwSet, filter);
     }
 }

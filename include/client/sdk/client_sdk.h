@@ -5,6 +5,7 @@
 #pragma once
 
 #include "proto/block.h"
+#include "client/core/status.h"
 #include <memory>
 
 namespace util {
@@ -42,7 +43,7 @@ namespace client::sdk {
     public:
         virtual ~SendInterface() = default;
 
-        [[nodiscard]] virtual std::unique_ptr<proto::Envelop> invokeChaincode(std::string ccName, std::string funcName, std::string args) const = 0;
+        [[nodiscard]] virtual core::Status invokeChaincode(std::string ccName, std::string funcName, std::string args) const = 0;
 
     protected:
         SendInterface() = default;
@@ -66,7 +67,14 @@ namespace client::sdk {
 
         [[nodiscard]] virtual std::unique_ptr<proto::Block> getBlock(int chainId, int blockId, int timeoutMs) const = 0;
 
-        static bool ValidateMerkleProof(const proto::HashString &root, const ProofLikeStruct& proof, const std::string& dataBlock);
+        static bool ValidateUserRequestMerkleProof(const proto::HashString &root,
+                                                   const ProofLikeStruct& proof,
+                                                   const ::proto::Envelop& envelop);
+
+        static bool ValidateExecResultMerkleProof(const proto::HashString &root,
+                                                  const ProofLikeStruct& proof,
+                                                  const ::proto::TxReadWriteSet &rwSet,
+                                                  std::byte filter);
 
     protected:
         ReceiveInterface() = default;
@@ -83,7 +91,7 @@ namespace client::sdk {
         bool connect();
 
     protected:
-        [[nodiscard]] std::unique_ptr<proto::Envelop> invokeChaincode(std::string ccName, std::string funcName, std::string args) const override;
+        [[nodiscard]] core::Status invokeChaincode(std::string ccName, std::string funcName, std::string args) const override;
 
         [[nodiscard]] int getChainHeight(int chainId, int timeoutMs) const override;
 

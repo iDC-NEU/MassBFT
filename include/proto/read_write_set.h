@@ -103,7 +103,7 @@ namespace proto {
     public:
         friend zpp::bits::access;
 
-        constexpr static auto serialize(auto &archive, TxReadWriteSet &t) {
+        constexpr static auto serialize(auto &archive, auto &t) {
             return archive(t._requestDigest, t._retValueSV, t._retCode, t._reads, t._writes);
         }
 

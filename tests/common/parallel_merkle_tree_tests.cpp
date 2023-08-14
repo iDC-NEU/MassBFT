@@ -25,12 +25,12 @@ protected:
     public:
         std::string data;
 
-        [[nodiscard]] byteString Serialize() const override {
-            return data;
+        [[nodiscard]] std::optional<pmt::HashString> Digest() const override {
+            return util::OpenSSLSHA256::generateDigest(data.data(), data.size());
         }
     };
 
-    std::unique_ptr<util::thread_pool_light> wp = std::make_unique<util::thread_pool_light>((int) sysconf(_SC_NPROCESSORS_ONLN));
+    std::shared_ptr<util::thread_pool_light> wp = std::make_shared<util::thread_pool_light>();
 
     using DataBlockPtr = std::unique_ptr<pmt::DataBlock>;
 
@@ -826,7 +826,7 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeNew) {
     pmt::Config config;
     util::Timer timer;
     for(int i=0; i<100; i++) {
-        pmt::MerkleTree::New(config, *testCases, wp.get());
+        pmt::MerkleTree::New(config, *testCases, wp);
     }
     LOG(INFO) << "BenchmarkMerkleTreeNew 100 run costs: " << timer.end();
 }
@@ -838,7 +838,7 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeNewParallel) {
     config.RunInParallel = true;
     util::Timer timer;
     for(int i=0; i<100; i++) {
-        pmt::MerkleTree::New(config, *testCases, wp.get());
+        pmt::MerkleTree::New(config, *testCases, wp);
     }
     LOG(INFO) << "BenchmarkMerkleTreeNewParallel 100 run costs: " << timer.end();
 }
@@ -850,7 +850,7 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuild) {
     config.Mode = pmt::ModeType::ModeTreeBuild;
     util::Timer timer;
     for(int i=0; i<100; i++) {
-        pmt::MerkleTree::New(config, *testCases, wp.get());
+        pmt::MerkleTree::New(config, *testCases, wp);
     }
     LOG(INFO) << "BenchmarkMerkleTreeBuild 100 run costs: " << timer.end();
 }
@@ -863,7 +863,7 @@ TEST_F(PMTreeTest, BenchmarkMerkleTreeBuildParallel) {
     config.RunInParallel = true;
     util::Timer timer;
     for(int i=0; i<100; i++) {
-        pmt::MerkleTree::New(config, *testCases, wp.get());
+        pmt::MerkleTree::New(config, *testCases, wp);
     }
     LOG(INFO) << "BenchmarkMerkleTreeBuildParallel 100 run costs: " << timer.end();
 }
@@ -875,7 +875,7 @@ TEST_F(PMTreeTest, BenchmarkModeProofGenAndTreeBuild) {
     config.Mode = pmt::ModeType::ModeProofGenAndTreeBuild;
     util::Timer timer;
     for(int i=0; i<100; i++) {
-        pmt::MerkleTree::New(config, *testCases, wp.get());
+        pmt::MerkleTree::New(config, *testCases, wp);
     }
     LOG(INFO) << "BenchmarkModeProofGenAndTreeBuild 100 run costs: " << timer.end();
 }
@@ -888,7 +888,7 @@ TEST_F(PMTreeTest, BenchmarkModeProofGenAndTreeBuildParallel) {
     config.RunInParallel = true;
     util::Timer timer;
     for(int i=0; i<100; i++) {
-        pmt::MerkleTree::New(config, *testCases, wp.get());
+        pmt::MerkleTree::New(config, *testCases, wp);
     }
     LOG(INFO) << "BenchmarkModeProofGenAndTreeBuildParallel 100 run costs: " << timer.end();
 }
@@ -908,7 +908,7 @@ TEST_F(PMTreeTest, SimpleTest) {
     pmt::Config config;
     config.Mode = pmt::ModeType::ModeProofGenAndTreeBuild;
     config.RunInParallel = true;
-    auto mt = pmt::MerkleTree::New(config, *testCases, wp.get());
+    auto mt = pmt::MerkleTree::New(config, *testCases, wp);
     for (auto i = 0; i < (int)testCases->size(); i++) {
         auto got = mt->Verify(*(*testCases)[i], mt->getProofs()[i]);
         if (got == std::nullopt) {
@@ -919,21 +919,12 @@ TEST_F(PMTreeTest, SimpleTest) {
         }
     }
     const auto& proofs = mt->getProofs();
+    auto res00 = *(*testCases)[0]->Digest();
+    auto res01 = *(*testCases)[1]->Digest();
+    auto res10 = *(*testCases)[2]->Digest();
+    auto res11 = *(*testCases)[3]->Digest();
+
     util::OpenSSLSHA256 sha256;
-    auto leaf00 = (*testCases)[0]->Serialize();
-    sha256.update(leaf00.data(), leaf00.size());
-    auto res00 = sha256.final().value();
-    auto leaf01 = (*testCases)[1]->Serialize();
-    sha256.update(leaf01.data(), leaf01.size());
-    auto res01 = sha256.final().value();
-
-    auto leaf10 = (*testCases)[2]->Serialize();
-    sha256.update(leaf10.data(), leaf10.size());
-    auto res10 = sha256.final().value();
-    auto leaf11 = (*testCases)[3]->Serialize();
-    sha256.update(leaf11.data(), leaf11.size());
-    auto res11 = sha256.final().value();
-
     sha256.update(res00.data(), res00.size());
     sha256.update(res01.data(), res01.size());
     auto res0 = sha256.final().value();

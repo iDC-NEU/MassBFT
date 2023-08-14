@@ -67,18 +67,37 @@ namespace util {
         // Note that when a signature of a hash of a larger message is needed,
         // the caller is responsible for hashing the larger message and passing
         // the hash (as digest).
-        inline auto Sign(const void *d, size_t cnt) const -> std::optional<util::OpenSSLED25519::digestType> {
+        inline auto SignRaw(const void *d, size_t cnt) const -> std::optional<util::OpenSSLED25519::digestType> {
             if (!isPrivate) {
                 return std::nullopt;
             }
             return _privateKey.sign(d, cnt);
         }
 
+        inline auto Sign(const void *d, size_t cnt) const -> std::optional<util::OpenSSLED25519::digestType> {
+            if (!isPrivate) {
+                return std::nullopt;
+            }
+            auto digest = OpenSSLSHA256::generateDigest(d, cnt);
+            if (digest == std::nullopt) {
+                return std::nullopt;
+            }
+            return _privateKey.sign(digest->data(), digest->size());
+        }
+
         // Verify verifies signature against key k and digest
         // The opts argument should be appropriate for the algorithm used.
         // md is the signature, and d is the digest
-        inline bool Verify(const util::OpenSSLED25519::digestType &md, const void *d, size_t cnt) const {
+        inline bool VerifyRaw(const util::OpenSSLED25519::digestType &md, const void *d, size_t cnt) const {
             return _publicKey.verify(md, d, cnt);
+        }
+
+        inline bool Verify(const util::OpenSSLED25519::digestType &md, const void *d, size_t cnt) const {
+            auto digest = OpenSSLSHA256::generateDigest(d, cnt);
+            if (digest == std::nullopt) {
+                return false;
+            }
+            return _publicKey.verify(md, digest->data(), digest->size());
         }
 
     private:

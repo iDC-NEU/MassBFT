@@ -34,9 +34,10 @@ namespace peer {
             public:
                 explicit ContextDataBlock(pmt::ByteString dataView) : _dataView(dataView) {}
 
-                [[nodiscard]] pmt::ByteString Serialize() const override {
-                    return _dataView;
+                [[nodiscard]] std::optional<pmt::HashString> Digest() const override {
+                    return util::OpenSSLSHA256::generateDigest(_dataView.data(), _dataView.size());
                 }
+
             private:
                 // this is not the actual data!
                 pmt::ByteString _dataView;

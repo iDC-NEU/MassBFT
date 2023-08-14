@@ -25,8 +25,8 @@ protected:
     public:
         std::string data;
 
-        [[nodiscard]] byteString Serialize() const override {
-            return data;
+        [[nodiscard]] std::optional<pmt::HashString> Digest() const override {
+            return util::OpenSSLSHA256::generateDigest(data.data(), data.size());
         }
     };
 
@@ -920,17 +920,17 @@ TEST_F(PMTreeTest, SimpleTest) {
     }
     const auto& proofs = mt->getProofs();
     util::OpenSSLSHA256 sha256;
-    auto leaf00 = (*testCases)[0]->Serialize();
+    auto leaf00 = *(*testCases)[0]->Digest();
     sha256.update(leaf00.data(), leaf00.size());
     auto res00 = sha256.final().value();
-    auto leaf01 = (*testCases)[1]->Serialize();
+    auto leaf01 = *(*testCases)[1]->Digest();
     sha256.update(leaf01.data(), leaf01.size());
     auto res01 = sha256.final().value();
 
-    auto leaf10 = (*testCases)[2]->Serialize();
+    auto leaf10 = *(*testCases)[2]->Digest();
     sha256.update(leaf10.data(), leaf10.size());
     auto res10 = sha256.final().value();
-    auto leaf11 = (*testCases)[3]->Serialize();
+    auto leaf11 = *(*testCases)[3]->Digest();
     sha256.update(leaf11.data(), leaf11.size());
     auto res11 = sha256.final().value();
 

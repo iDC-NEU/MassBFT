@@ -35,14 +35,7 @@ namespace pmt {
     public:
         virtual ~DataBlock() = default;
 
-        [[nodiscard]] virtual HashString Digest() const {
-            auto str = Serialize();
-            auto digest = util::OpenSSLSHA256::generateDigest(str.data(), str.size());
-            CHECK(digest != std::nullopt) << "Can not generate digest.";
-            return *digest;
-        }
-
-        [[nodiscard]] virtual ByteString Serialize() const = 0;
+        [[nodiscard]] virtual std::optional<HashString> Digest() const = 0;
     };
 
 
@@ -162,7 +155,7 @@ namespace pmt {
 
         void updatePairProof(const std::vector<HashString> &buf, int idx, int batch, int step);
 
-        void leafGen(const std::vector<std::unique_ptr<DataBlock>> &blocks);
+        bool leafGen(const std::vector<std::unique_ptr<DataBlock>> &blocks);
 
         // If there is too little data to calculate, lower the count of worker threads.
         // factor >= 1
@@ -176,7 +169,7 @@ namespace pmt {
             return numRoutines;
         }
 
-        void leafGenParallel(const std::vector<std::unique_ptr<DataBlock>> &blocks);
+        bool leafGenParallel(const std::vector<std::unique_ptr<DataBlock>> &blocks);
 
         void proofGenParallel();
 

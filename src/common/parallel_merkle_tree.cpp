@@ -48,9 +48,15 @@ namespace pmt {
         // If NumRoutines is unset, then set NumRoutines to the thread pool count.
         mt->Depth = calTreeDepth((int) blocks.size());
         if (mt->config.RunInParallel || mt->config.LeafGenParallel) {
-            mt->leafGenParallel(blocks);
+            if (!mt->leafGenParallel(blocks)) {
+                LOG(ERROR) << "generate merkle tree failed";
+                return nullptr;
+            }
         } else {
-            mt->leafGen(blocks);
+            if (!mt->leafGen(blocks)) {
+                LOG(ERROR) << "generate merkle tree failed";
+                return nullptr;
+            }
         }
         if (mt->config.Mode == ModeType::ModeProofGen) {
             if (mt->config.RunInParallel) {
@@ -140,30 +146,42 @@ namespace pmt {
         }
     }
 
-    void MerkleTree::leafGen(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
+    bool MerkleTree::leafGen(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
         auto lenLeaves = blocks.size();
         this->Leaves.resize(lenLeaves);
 
         for (auto i = 0; i < (int) lenLeaves; i++) {
-            this->Leaves[i] = blocks[i]->Digest();
+            auto hash = blocks[i]->Digest();
+            if (!hash) {
+                return false;
+            }
+            this->Leaves[i] = *hash;
         }
+        return true;
     }
 
-    void MerkleTree::leafGenParallel(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
+    bool MerkleTree::leafGenParallel(const std::vector<std::unique_ptr<DataBlock>> &blocks) {
         int lenLeaves = (int) blocks.size();
         this->Leaves.resize(lenLeaves);
 
         auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, lenLeaves);
         bthread::CountdownEvent countdown(numRoutines);
+        bool ret = true;
         for (auto i = 0; i < numRoutines; i++) {
             push_task([&, start=i]{
                 for (int j = start; j < lenLeaves; j += numRoutines) {
-                    this->Leaves[j] = blocks[j]->Digest();
+                    auto hash = blocks[j]->Digest();
+                    if (!hash) {
+                        ret = false;
+                        break;  // error
+                    }
+                    this->Leaves[j] = *hash;
                 }
                 countdown.signal();
             });
         }
         countdown.wait();
+        return ret;
     }
 
     void MerkleTree::proofGenParallel() {
@@ -259,7 +277,11 @@ namespace pmt {
     }
 
     std::optional<bool> MerkleTree::Verify(const DataBlock &dataBlock, const Proof &proof, const HashString &root) {
-        auto hash = dataBlock.Digest();
+        auto ret = dataBlock.Digest();
+        if (!ret) {
+            return std::nullopt;
+        }
+        auto hash = *ret;
         auto path = proof.Path;
         for (const auto &n: proof.Siblings) {
             if ((path & 1) == 1) {  // hash leaf 1 before leaf 0
@@ -277,8 +299,11 @@ namespace pmt {
             LOG(WARNING) << "merkle Tree is not in built, could not generate proof by this method";
             return std::nullopt;
         }
-        auto blockHash = dataBlock.Digest();
-        auto it = leafMap.find(std::string_view(reinterpret_cast<const char *>(blockHash.data()), blockHash.size()));
+        auto ret = dataBlock.Digest();
+        if (!ret) {
+            return std::nullopt;
+        }
+        auto it = leafMap.find(std::string_view(reinterpret_cast<const char *>(ret->data()), ret->size()));
         if (it == leafMap.end()) {
             LOG(WARNING) << "data block is not a member of the Merkle Tree";
             return std::nullopt;

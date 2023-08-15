@@ -48,7 +48,7 @@ namespace client::core {
         void startTestNoWait() {
             LOG(INFO) << "Running test.";
             auto status = factory->newDBStatus();
-            statusThread = std::make_unique<core::StatusThread>(measurements, std::move(status));
+            statusThread = std::make_unique<core::StatusThread>(measurements, std::move(status), properties->getWarmupSeconds());
             LOG(INFO) << "Run worker thread";
             for(auto &client :clients) {
                 client->run();

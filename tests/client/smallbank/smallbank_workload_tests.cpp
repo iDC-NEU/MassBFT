@@ -2,64 +2,13 @@
 // Created by user on 23-8-13.
 //
 
-#include "client/core/default_engine.h"
-#include "client/core/write_through_db.h"
+#include "tests/client/client_utils.h"
 #include "client/small_bank/small_bank_property.h"
 #include "client/small_bank/small_bank_engine.h"
-#include "peer/chaincode/small_bank_chaincode.h"
 
-#include "tests/mock_property_generator.h"
 #include "gtest/gtest.h"
 
 using namespace client::small_bank;
-
-class MockStatus: public client::core::DBStatus {
-public:
-    std::unique_ptr<::proto::Block> getBlock(int) override { return nullptr; }
-
-    bool connect(int, int) override  { return true; }
-
-    bool getTop(int& blockNumber, int, int) override  {
-        blockNumber = -1;
-        return true;
-    }
-};
-
-class MockSmallBankDBFactory : public client::core::DBFactory {
-public:
-    explicit MockSmallBankDBFactory(const util::Properties &n)
-            : client::core::DBFactory(n) {
-        db = peer::db::DBConnection::NewConnection("ChaincodeTestDB");
-        CHECK(db != nullptr) << "failed to init db!";
-        auto orm = peer::chaincode::ORM::NewORMFromDBInterface(db);
-        chaincode = peer::chaincode::NewChaincodeByName("sb", std::move(orm));
-        CHECK(chaincode != nullptr) << "failed to init chaincode!";
-    }
-
-    [[nodiscard]] std::unique_ptr<client::core::DB> newDB() const override {
-        initDatabase();
-        return std::make_unique<client::core::WriteThroughDB>(chaincode.get());
-    }
-
-    [[nodiscard]] std::unique_ptr<client::core::DBStatus> newDBStatus() const override {
-        return std::make_unique<MockStatus>();
-    }
-
-    void initDatabase() const {
-        CHECK(chaincode->InitDatabase() == 0);
-        ::proto::KVList reads, writes;
-        chaincode->reset(reads, writes);
-        CHECK(db->syncWriteBatch([&](auto* batch) ->bool {
-            for (const auto& it: writes) {
-                batch->Put({it->getKeySV().data(), it->getKeySV().size()}, {it->getValueSV().data(), it->getValueSV().size()});
-            }
-            return true;
-        }));
-    }
-
-    std::shared_ptr<peer::db::DBConnection> db;
-    std::unique_ptr<peer::chaincode::Chaincode> chaincode;
-};
 
 struct MockSmallBankFactory {
     static std::shared_ptr<client::core::Workload> CreateWorkload(const util::Properties &) {
@@ -71,11 +20,11 @@ struct MockSmallBankFactory {
     }
 
     static std::unique_ptr<client::core::DBFactory> CreateDBFactory(const util::Properties &n) {
-        mockDBFactory = new MockSmallBankDBFactory(n);
+        mockDBFactory = new tests::MockDBFactory(n, "sb");
         return std::unique_ptr<client::core::DBFactory>(mockDBFactory);
     }
 
-    inline static MockSmallBankDBFactory* mockDBFactory = nullptr;
+    inline static tests::MockDBFactory* mockDBFactory = nullptr;
 };
 
 using MockSmallBankEngine = client::core::DefaultEngine<MockSmallBankFactory, SmallBankProperties>;

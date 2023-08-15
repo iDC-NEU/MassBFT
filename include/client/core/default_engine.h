@@ -46,16 +46,20 @@ namespace client::core {
 
         // not thread safe, called by ths same manager
         void startTestNoWait() {
+            auto warmupSeconds = properties->getWarmupSeconds();
+            auto benchmarkSeconds = properties->getBenchmarkSeconds();
             LOG(INFO) << "Running test.";
             auto status = factory->newDBStatus();
-            statusThread = std::make_unique<core::StatusThread>(measurements, std::move(status), properties->getWarmupSeconds());
+            statusThread = std::make_unique<core::StatusThread>(measurements, std::move(status), warmupSeconds);
             LOG(INFO) << "Run worker thread";
             for(auto &client :clients) {
                 client->run();
             }
             LOG(INFO) << "Run status thread";
             statusThread->run();
-            benchmarkUntil = std::chrono::system_clock::now() + std::chrono::seconds(properties->getBenchmarkSeconds());
+            benchmarkUntil = std::chrono::system_clock::now()
+                    + std::chrono::seconds(warmupSeconds + benchmarkSeconds)
+                    + std::chrono::milliseconds(100);
         }
 
         // not thread safe, called by ths same manager

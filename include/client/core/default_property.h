@@ -56,7 +56,7 @@ namespace client::core {
         }
 
         inline auto getBenchmarkSeconds() const {
-            return n[BENCHMARK_SECONDS_PROPERTY].as<uint64_t>(40);
+            return n[BENCHMARK_SECONDS_PROPERTY].as<uint64_t>(30);
         }
 
         inline auto getWarmupSeconds() const {

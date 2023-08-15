@@ -43,20 +43,14 @@ namespace client::tpcc {
         return false;
     }
 
-    void TPCCWorkload::initOperationGenerator(const TPCCProperties::Proportion &p) {
-        operationChooser = std::make_unique<TPCCDiscreteGenerator>();
-        if (p.newOrderProportion > 0) {
-            operationChooser->addValue(p.newOrderProportion, Operation::NEW_ORDER);
-        }
-        if (p.paymentProportion > 0) {
-            operationChooser->addValue(p.paymentProportion, Operation::PAYMENT);
-        }
-    }
-
     bool TPCCWorkload::doNewOrderRand(DB *db, int warehouseId) const {
+        // The number of items in the order (ol_cnt) is randomly selected within [5 ... 15] (an average of 10)
         proto::NewOrder newOrderProto(orderLineCountChooser->nextValue());
+        // For any given terminal, the home warehouse number (W_ID) is constant over the whole measurement interval (see Clause 5.5).
         newOrderProto.warehouseId = (Integer)warehouseId;
+        // The district number (D_ID) is randomly selected within [1 ... 10]
         newOrderProto.districtId = (Integer)districtIdChooser->nextValue();
+        // The non-uniform random customer number (C_ID) is selected using the NURand (1023,1,3000) function
         newOrderProto.customerId = (Integer)helper->getCustomerID();
 
         // init generators

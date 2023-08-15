@@ -12,8 +12,8 @@
 namespace client::core {
     class StatusThread {
     public:
-        StatusThread(std::shared_ptr<Measurements> m, std::unique_ptr<DBStatus> dbStatus)
-                : measurements(std::move(m)), dbStatus(std::move(dbStatus)) { }
+        StatusThread(std::shared_ptr<Measurements> m, std::unique_ptr<DBStatus> dbStatus, int warmupSeconds)
+                : measurements(std::move(m)), dbStatus(std::move(dbStatus)), warmupSeconds(warmupSeconds) { }
 
         ~StatusThread() {
             running = false;
@@ -39,7 +39,7 @@ namespace client::core {
             size_t lastTimePending = 0;
             auto sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
             bool warmedUp = false;
-            auto warmedUpTime = std::chrono::system_clock::now() + std::chrono::seconds(5);
+            auto warmedUpTime = std::chrono::system_clock::now() + std::chrono::milliseconds(warmupSeconds * 1000);
 
             while(running.load(std::memory_order_relaxed)) {
                 if (!warmedUp && sleepUntil > warmedUpTime) {
@@ -111,8 +111,9 @@ namespace client::core {
 
     private:
         std::atomic<bool> running = true;
-        std::shared_ptr<Measurements> measurements;
-        std::unique_ptr<DBStatus> dbStatus;
+        const std::shared_ptr<Measurements> measurements;
+        const std::unique_ptr<DBStatus> dbStatus;
+        const int warmupSeconds;
 
         int blockHeight = 0;
         uint64_t txCountCommit = 0;

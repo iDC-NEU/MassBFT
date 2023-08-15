@@ -46,16 +46,18 @@ namespace client::core {
 
         // not thread safe, called by ths same manager
         void startTestNoWait() {
+            auto warmupSeconds = properties->getWarmupSeconds();
+            auto benchmarkSeconds = properties->getBenchmarkSeconds();
             LOG(INFO) << "Running test.";
             auto status = factory->newDBStatus();
-            statusThread = std::make_unique<core::StatusThread>(measurements, std::move(status));
+            statusThread = std::make_unique<core::StatusThread>(measurements, std::move(status), warmupSeconds);
             LOG(INFO) << "Run worker thread";
             for(auto &client :clients) {
                 client->run();
             }
             LOG(INFO) << "Run status thread";
             statusThread->run();
-            benchmarkUntil = std::chrono::system_clock::now() + std::chrono::seconds(properties->getBenchmarkSeconds());
+            benchmarkUntil = std::chrono::system_clock::now() + std::chrono::seconds(warmupSeconds + benchmarkSeconds);
         }
 
         // not thread safe, called by ths same manager
@@ -72,7 +74,10 @@ namespace client::core {
 
     protected:
         void initClients() {
-            auto operationCount = properties->getTargetThroughput() * properties->getBenchmarkSeconds();
+            auto warmupSeconds = properties->getWarmupSeconds();
+            auto benchmarkSeconds = properties->getBenchmarkSeconds();
+            // the total operation to perform
+            auto operationCount = properties->getTargetThroughput() * (warmupSeconds + benchmarkSeconds);
             auto threadCount = std::min(properties->getThreadCount(), (int)operationCount);
             auto threadOpCount = std::max(static_cast<double>(operationCount) / threadCount, 1.0);
             auto tpsPerThread = static_cast<double>(properties->getTargetThroughput()) / threadCount;

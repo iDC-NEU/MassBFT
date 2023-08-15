@@ -16,7 +16,10 @@ namespace client::core {
 
         constexpr static const auto TARGET_THROUGHPUT_PROPERTY = "target_throughput";
 
+        // How long the system is tested after warmup
         constexpr static const auto BENCHMARK_SECONDS_PROPERTY = "benchmark_seconds";
+
+        constexpr static const auto WARMUP_SECONDS_PROPERTY = "warmup_seconds";
 
         // Use random seed to init client
         constexpr static const auto USE_RANDOM_SEED = "use_random_seed";
@@ -55,6 +58,10 @@ namespace client::core {
 
         inline auto getBenchmarkSeconds() const {
             return n[BENCHMARK_SECONDS_PROPERTY].as<uint64_t>(30);
+        }
+
+        inline auto getWarmupSeconds() const {
+            return n[WARMUP_SECONDS_PROPERTY].as<uint64_t>(10);
         }
 
         inline bool getUseRandomSeed() const {

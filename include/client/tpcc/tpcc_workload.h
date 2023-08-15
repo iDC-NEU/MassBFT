@@ -28,7 +28,16 @@ namespace client::tpcc {
         bool doInsert(core::DB*) const override { return false; }
 
     protected:
-        void initOperationGenerator(const TPCCProperties::Proportion& p);
+        void initOperationGenerator(const TPCCProperties::Proportion& p) {
+            auto op = std::make_unique<TPCCDiscreteGenerator>();
+            if (p.newOrderProportion > 0) {
+                op->addValue(p.newOrderProportion, Operation::NEW_ORDER);
+            }
+            if (p.paymentProportion > 0) {
+                op->addValue(p.paymentProportion, Operation::PAYMENT);
+            }
+            this->operationChooser = std::move(op);
+        }
 
         bool doNewOrderRand(core::DB* db, int warehouseId) const;
 
@@ -38,12 +47,12 @@ namespace client::tpcc {
         int warehouseCount{};
         // look up C_ID on secondary index.
         bool paymentLookup{};
-        std::unique_ptr<core::NumberGenerator> warehouseChooser;
-        std::unique_ptr<core::NumberGenerator> districtIdChooser;
-        std::unique_ptr<core::NumberGenerator> orderLineCountChooser;
-        std::unique_ptr<core::DoubleGenerator> percentChooser;
-        std::unique_ptr<core::DoubleGenerator> amountChooser;
-        std::unique_ptr<TPCCDiscreteGenerator> operationChooser;
-        std::unique_ptr<TPCCHelper> helper;
+        std::unique_ptr<core::NumberGenerator> warehouseChooser{};
+        std::unique_ptr<core::NumberGenerator> districtIdChooser{};
+        std::unique_ptr<core::NumberGenerator> orderLineCountChooser{};
+        std::unique_ptr<core::DoubleGenerator> percentChooser{};
+        std::unique_ptr<core::DoubleGenerator> amountChooser{};
+        std::unique_ptr<TPCCDiscreteGenerator> operationChooser{};
+        std::unique_ptr<TPCCHelper> helper{};
     };
 }

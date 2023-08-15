@@ -107,7 +107,7 @@ namespace peer::chaincode {
                 value.s_data.resize(posUL.nextValue());
                 value.s_data = value.s_data + TPCCHelper::ORIGINAL_STR;
             }
-            if (!insertIntoTable(TableNamesPrefix::STOCK, key, value)) {
+            if (!this->insertIntoTable(TableNamesPrefix::STOCK, key, value)) {
                 return false;
             }
         }
@@ -145,7 +145,7 @@ namespace peer::chaincode {
                 value.i_data.resize(posUL.nextValue());
                 value.i_data = value.i_data + TPCCHelper::ORIGINAL_STR;
             }
-            if (!insertIntoTable(TableNamesPrefix::ITEM, key, value)) {
+            if (!this->insertIntoTable(TableNamesPrefix::ITEM, key, value)) {
                 return false;
             }
         }
@@ -190,7 +190,7 @@ namespace peer::chaincode {
 
                 value.o_ol_cnt = (Numeric)oOlCntUL.nextValue();
                 value.o_all_local = true;
-                if (!insertIntoTable(TableNamesPrefix::ORDER, key, value)) {
+                if (!this->insertIntoTable(TableNamesPrefix::ORDER, key, value)) {
                     return false;
                 }
 
@@ -200,7 +200,7 @@ namespace peer::chaincode {
                 wdcKey.o_d_id = key.o_d_id;
                 wdcKey.o_c_id = value.o_c_id;
                 wdcKey.o_id = key.o_id;
-                if (!insertIntoTable(TableNamesPrefix::ORDER_WDC, wdcKey, schema::order_wdc_t{})) {
+                if (!this->insertIntoTable(TableNamesPrefix::ORDER_WDC, wdcKey, schema::order_wdc_t{})) {
                     return false;
                 }
             }
@@ -210,7 +210,7 @@ namespace peer::chaincode {
                 key.no_w_id = partitionID + 1;
                 key.no_d_id = i;
                 key.no_o_id = j;
-                if (!insertIntoTable(TableNamesPrefix::NEW_ORDER, key, schema::new_order_t{})) {
+                if (!this->insertIntoTable(TableNamesPrefix::NEW_ORDER, key, schema::new_order_t{})) {
                     return false;
                 }
             }
@@ -273,7 +273,7 @@ namespace peer::chaincode {
                     value.c_credit.append('G');
                     value.c_credit.append('C');
                 }
-                if (!insertIntoTable(TableNamesPrefix::CUSTOMER, key, value)) {
+                if (!this->insertIntoTable(TableNamesPrefix::CUSTOMER, key, value)) {
                     return false;
                 }
                 // add customer to map
@@ -291,7 +291,7 @@ namespace peer::chaincode {
                 schema::history_t historyValue{};
                 historyValue.h_amount = 10;
                 client::utils::RandomString(historyValue.h_data, (int)ul4.nextValue());
-                if (!insertIntoTable(TableNamesPrefix::HISTORY, historyKey, historyValue)) {
+                if (!this->insertIntoTable(TableNamesPrefix::HISTORY, historyKey, historyValue)) {
                     return false;
                 }
             }
@@ -309,7 +309,7 @@ namespace peer::chaincode {
                 cniValue.c_id = list[(list.size() - 1) / 2].second;
                 DCHECK(cniValue.c_id > 0) << "C_ID is not valid.";
 
-                if (!insertIntoTable(TableNamesPrefix::CUSTOMER_WDL, cniKey, cniValue)) {
+                if (!this->insertIntoTable(TableNamesPrefix::CUSTOMER_WDL, cniKey, cniValue)) {
                     return false;
                 }
             }
@@ -342,7 +342,7 @@ namespace peer::chaincode {
             value.d_tax = rd.nextValue();
             value.d_ytd = 3000000;
             value.d_next_o_id = 3001;
-            if (!insertIntoTable(TableNamesPrefix::DISTRICT, key, value)) {
+            if (!this->insertIntoTable(TableNamesPrefix::DISTRICT, key, value)) {
                 return false;
             }
         }
@@ -366,7 +366,7 @@ namespace peer::chaincode {
             value.w_zip = helper.randomZipCode();
             value.w_tax = rd.nextValue();
             value.w_ytd = 3000000;
-            if (!insertIntoTable(TableNamesPrefix::WAREHOUSE, key, value)) {
+            if (!this->insertIntoTable(TableNamesPrefix::WAREHOUSE, key, value)) {
                 return false;
             }
         }
@@ -386,7 +386,7 @@ namespace peer::chaincode {
             // the warehouse tax rate, is retrieved.
             schema::warehouse_t::key_t wKey { .w_id = newOrder.warehouseId };
             schema::warehouse_t wValue;
-            if (!getValue(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
+            if (!this->getValue(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
                 return false;
             }
             w_tax = wValue.w_tax;
@@ -403,12 +403,12 @@ namespace peer::chaincode {
                     .d_id = newOrder.districtId,
             };
             schema::district_t dValue;
-            if (!getValue(TableNamesPrefix::DISTRICT, dKey, dValue)) {
+            if (!this->getValue(TableNamesPrefix::DISTRICT, dKey, dValue)) {
                 return false;
             }
             d_tax = dValue.d_tax;
             o_id = dValue.d_next_o_id++;
-            if (!insertIntoTable(TableNamesPrefix::DISTRICT, dKey, dValue)) {
+            if (!this->insertIntoTable(TableNamesPrefix::DISTRICT, dKey, dValue)) {
                 return false;
             }
         }
@@ -424,19 +424,21 @@ namespace peer::chaincode {
                     .c_id = newOrder.customerId,
             };
             schema::customer_t cValue;
-            if (!getValue(TableNamesPrefix::CUSTOMER, cKey, cValue)) {
+            if (!this->getValue(TableNamesPrefix::CUSTOMER, cKey, cValue)) {
                 return false;
             }
             c_discount = cValue.c_discount;
         }
 
+        // If the order includes only home order-lines, then O_ALL_LOCAL is set to 1, otherwise O_ALL_LOCAL is set to 0.
         Numeric all_local = 1;
         for (const auto& sw : newOrder.supplierWarehouse) {
             if (sw != newOrder.warehouseId) {
                 all_local = 0;
             }
         }
-        // order insert
+        // A new row is inserted into both the NEW-ORDER table and the ORDER table
+        // to reflect the creation of the new order. O_CARRIER_ID is set to a null value.
         {
             schema::order_t::key_t key {
                     .o_w_id = newOrder.warehouseId,
@@ -450,7 +452,7 @@ namespace peer::chaincode {
                     .o_ol_cnt = (Numeric)newOrder.orderLineCount,
                     .o_all_local = all_local,
             };
-            if (!insertIntoTable(TableNamesPrefix::ORDER, key, value)) {
+            if (!this->insertIntoTable(TableNamesPrefix::ORDER, key, value)) {
                 return false;
             }
         }
@@ -462,22 +464,24 @@ namespace peer::chaincode {
                     .o_c_id = newOrder.customerId,
                     .o_id = o_id,
             };
-            if (!insertIntoTable(TableNamesPrefix::ORDER_WDC, key, schema::order_wdc_t{})) {
+            if (!this->insertIntoTable(TableNamesPrefix::ORDER_WDC, key, schema::order_wdc_t{})) {
                 return false;
             }
         }
         // new order insert
         {
             schema::new_order_t::key_t key {
-                .no_w_id = newOrder.warehouseId,
-                .no_d_id = newOrder.districtId,
-                .no_o_id = o_id,
+                    .no_w_id = newOrder.warehouseId,
+                    .no_d_id = newOrder.districtId,
+                    .no_o_id = o_id,
             };
-            if (!insertIntoTable(TableNamesPrefix::NEW_ORDER, key, schema::new_order_t{})) {
+            if (!this->insertIntoTable(TableNamesPrefix::NEW_ORDER, key, schema::new_order_t{})) {
                 return false;
             }
         }
 
+        // The number of items, O_OL_CNT, is computed to match ol_cnt
+        // For each O_OL_CNT item on the order:
         for (auto i = 0; i < newOrder.orderLineCount; i++) {
             const auto& ol_i_id = newOrder.itemIds[i];
             const auto& ol_quantity = newOrder.quantities[i];
@@ -485,10 +489,13 @@ namespace peer::chaincode {
             const auto& line_number = newOrder.orderLineNumbers[i];
             Numeric i_price;
             {
-                // find the item
+                // The row in the ITEM table with matching I_ID (equals OL_I_ID) is selected
+                // and I_PRICE, the price of the item, I_NAME, the name of the item, and I_DATA are retrieved.
                 schema::item_t::key_t itemKey{.i_id = ol_i_id};
                 schema::item_t itemValue;
-                if (!getValue(TableNamesPrefix::ITEM, itemKey, itemValue)) {
+                // If I_ID has an unused value (see Clause 2.4.1.5), a "not-found" condition is signaled,
+                // resulting in a rollback of the database transaction (see Clause 2.4.2.3).
+                if (!this->getValue(TableNamesPrefix::ITEM, itemKey, itemValue)) {
                     DLOG(INFO) << "Item search miss, rollback.";
                     return false;
                 }
@@ -503,27 +510,32 @@ namespace peer::chaincode {
                         .s_i_id = ol_i_id,
                 };
                 schema::stock_t stockValue;
-                if (!getValue(TableNamesPrefix::STOCK, stockKey, stockValue)) {
+                if (!this->getValue(TableNamesPrefix::STOCK, stockKey, stockValue)) {
                     return false;
                 }
+                // If the retrieved value for S_QUANTITY exceeds OL_QUANTITY by 10 or more,
+                // then S_QUANTITY is decreased by OL_QUANTITY;
                 if (stockValue.s_quantity >= ol_quantity + 10) {
                     stockValue.s_quantity -= ol_quantity;
                 } else {
+                    // otherwise S_QUANTITY is updated to (S_QUANTITY - OL_QUANTITY)+91
                     stockValue.s_quantity += 91 - ol_quantity;
                 }
+                // If the ord er-line is remote, then S_REMOTE_CNT is incremented by 1.
                 if (ol_supply_w_id != newOrder.warehouseId) {
                     stockValue.s_remote_cnt += 1;
                 }
+                // S_YTD is increased by OL_QUANTITY and S_ORDER_CNT is incremented by 1.
                 stockValue.s_order_cnt += 1;
                 stockValue.s_ytd += ol_quantity;
-                if (!insertIntoTable(TableNamesPrefix::STOCK, stockKey, stockValue)) {
+                if (!this->insertIntoTable(TableNamesPrefix::STOCK, stockKey, stockValue)) {
                     return false;
                 }
                 // search another stock
                 if (stockKey.s_w_id != newOrder.warehouseId) {
                     // find the other stock with new warehouse id
                     stockKey.s_w_id = newOrder.warehouseId;
-                    if (!getValue(TableNamesPrefix::STOCK, stockKey, stockValue)) {
+                    if (!this->getValue(TableNamesPrefix::STOCK, stockKey, stockValue)) {
                         return false;
                     }
                 }
@@ -580,7 +592,7 @@ namespace peer::chaincode {
                         .ol_amount = ol_amount,
                         .ol_dist_info = s_dist,
                 };
-                if (!insertIntoTable(TableNamesPrefix::ORDER_LINE, key, value)) {
+                if (!this->insertIntoTable(TableNamesPrefix::ORDER_LINE, key, value)) {
                     return false;
                 }
             }
@@ -598,14 +610,14 @@ namespace peer::chaincode {
         schema::warehouse_t wValue;
         {
             schema::warehouse_t::key_t wKey{.w_id = payment.warehouseId};
-            if (!getValue(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
+            if (!this->getValue(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
                 return false;
             }
             // cache the old value
             Numeric w_ytd = wValue.w_ytd;
             wValue.w_ytd += payment.homeOrderTotalAmount;
             // the warehouse's year-to-date balance, is increased by H_ AMOUNT.
-            if (!insertIntoTable(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
+            if (!this->insertIntoTable(TableNamesPrefix::WAREHOUSE, wKey, wValue)) {
                 return false;
             }
             // restore the original value
@@ -617,14 +629,14 @@ namespace peer::chaincode {
                     .d_w_id = payment.warehouseId,
                     .d_id = payment.districtId,
             };
-            if (!getValue(TableNamesPrefix::DISTRICT, dKey, dValue)) {
+            if (!this->getValue(TableNamesPrefix::DISTRICT, dKey, dValue)) {
                 return false;
             }
             // cache the old value
             Numeric d_ytd = dValue.d_ytd;
             dValue.d_ytd += payment.homeOrderTotalAmount;
             // the district's year-to-date balance, is increased by H_AMOUNT.
-            if (!insertIntoTable(TableNamesPrefix::DISTRICT, dKey, dValue)) {
+            if (!this->insertIntoTable(TableNamesPrefix::DISTRICT, dKey, dValue)) {
                 return false;
             }
             // restore the original value
@@ -641,7 +653,7 @@ namespace peer::chaincode {
                     .c_last = payment.customerLastName,
             };
             schema::customer_wdl_t wdlValue {};
-            if (!getValue(TableNamesPrefix::CUSTOMER_WDL, wdlKey, wdlValue)) {
+            if (!this->getValue(TableNamesPrefix::CUSTOMER_WDL, wdlKey, wdlValue)) {
                 DLOG(INFO) << "Can not find customer id: " << wdlKey.c_w_id << " " << wdlKey.c_d_id << " " << wdlKey.c_last.toString();
                 return false;
             }
@@ -655,7 +667,7 @@ namespace peer::chaincode {
                     .c_id = c_id,
             };
             schema::customer_t cValue;
-            if (!getValue(TableNamesPrefix::CUSTOMER, cKey, cValue)) {
+            if (!this->getValue(TableNamesPrefix::CUSTOMER, cKey, cValue)) {
                 return false;
             }
 
@@ -678,7 +690,7 @@ namespace peer::chaincode {
             cValue.c_ytd_payment += payment.homeOrderTotalAmount;
             cValue.c_payment_cnt += 1;
 
-            if (!insertIntoTable(TableNamesPrefix::CUSTOMER, cKey, cValue)) {
+            if (!this->insertIntoTable(TableNamesPrefix::CUSTOMER, cKey, cValue)) {
                 return false;
             }
         }
@@ -696,11 +708,11 @@ namespace peer::chaincode {
                     .h_date = payment.timestamp,
             };
             schema::history_t hValue {
-                .h_amount = payment.homeOrderTotalAmount,
-                .h_data = Varchar<24>(h_new_data),
+                    .h_amount = payment.homeOrderTotalAmount,
+                    .h_data = Varchar<24>(h_new_data),
             };
 
-            if (!insertIntoTable(TableNamesPrefix::HISTORY, hKey, hValue)) {
+            if (!this->insertIntoTable(TableNamesPrefix::HISTORY, hKey, hValue)) {
                 return false;
             }
         }

@@ -4,9 +4,9 @@
 
 #pragma once
 
-#include "client/tpcc/tpcc_types.h"
 #include "client/core/generator/uniform_long_generator.h"
-#include "client/core/generator/non_uniform_generator.h"
+#include "client/tpcc/tpcc_types.h"
+#include "client/tpcc/non_uniform_generator.h"
 
 namespace client::tpcc {
     struct TableNamesPrefix {

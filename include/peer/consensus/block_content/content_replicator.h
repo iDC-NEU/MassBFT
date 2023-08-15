@@ -52,14 +52,14 @@ namespace peer::consensus {
 
         // If the user request has been verified before (pessimistic verification),
         // there is no need to re-verify here, otherwise the user signature needs to be verified
-        bool pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>>&& batch, bool skipValidate);
+        bool pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>>&& batch, bool validateOnReceive);
 
     protected:
         // As a slave node, need to verify the block before can endorse the block.
         void validateUnorderedBlock(zmq::message_t&& raw);
 
     public:
-        [[nodiscard]] bool validateUserRequest(const proto::Envelop& envelop) const {
+        [[nodiscard]] inline bool validateUserRequest(const proto::Envelop& envelop) const {
             auto& payload = envelop.getPayload();
             auto& signature = envelop.getSignature();
             const auto key = _bccsp->GetKey(signature.ski);
@@ -68,6 +68,15 @@ namespace peer::consensus {
                 return false;
             }
             return key->Verify(signature.digest, payload.data(), payload.size());
+        }
+
+        [[nodiscard]] inline bool validateUserRequestHash(const proto::SignatureString& signature, const util::OpenSSLSHA256::digestType& hash) const {
+            const auto key = _bccsp->GetKey(signature.ski);
+            if (key == nullptr) {
+                LOG(WARNING) << "Can not load key, ski: " << signature.ski;
+                return false;
+            }
+            return key->VerifyRaw(signature.digest, hash.data(), hash.size());
         }
 
     protected:

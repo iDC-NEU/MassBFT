@@ -38,12 +38,13 @@ protected:
     auto createSignedEnvelop(int nodeId) {
         auto& ski = localNodes[nodeId]->nodeConfig->ski;
         std::unique_ptr<proto::Envelop> envelop(new proto::Envelop());
-        proto::SignatureString sig = { ski, 0 };
+        proto::SignatureString sig { };
         auto key = bccsp->GetKey(ski);
         CHECK(key->Private());
         std::string payload("payload for an envelop" + std::to_string(rand()));
         auto ret = key->Sign(payload.data(), payload.size());
         CHECK(ret != std::nullopt);
+        sig.ski = ski;
         sig.digest = *ret;
         envelop->setPayload(std::move(payload));
         envelop->setSignature(std::move(sig));

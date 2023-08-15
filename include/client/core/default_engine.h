@@ -57,9 +57,7 @@ namespace client::core {
             }
             LOG(INFO) << "Run status thread";
             statusThread->run();
-            benchmarkUntil = std::chrono::system_clock::now()
-                    + std::chrono::seconds(warmupSeconds + benchmarkSeconds)
-                    + std::chrono::milliseconds(100);
+            benchmarkUntil = std::chrono::system_clock::now() + std::chrono::seconds(warmupSeconds + benchmarkSeconds);
         }
 
         // not thread safe, called by ths same manager
@@ -76,7 +74,10 @@ namespace client::core {
 
     protected:
         void initClients() {
-            auto operationCount = properties->getTargetThroughput() * properties->getBenchmarkSeconds();
+            auto warmupSeconds = properties->getWarmupSeconds();
+            auto benchmarkSeconds = properties->getBenchmarkSeconds();
+            // the total operation to perform
+            auto operationCount = properties->getTargetThroughput() * (warmupSeconds + benchmarkSeconds);
             auto threadCount = std::min(properties->getThreadCount(), (int)operationCount);
             auto threadOpCount = std::max(static_cast<double>(operationCount) / threadCount, 1.0);
             auto tpsPerThread = static_cast<double>(properties->getTargetThroughput()) / threadCount;

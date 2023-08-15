@@ -39,8 +39,7 @@ namespace client::core {
             size_t lastTimePending = 0;
             auto sleepUntil = std::chrono::system_clock::now() + std::chrono::seconds(1);
             bool warmedUp = false;
-            // 100 ms is the wakeup window
-            auto warmedUpTime = std::chrono::system_clock::now() + std::chrono::milliseconds(warmupSeconds * 1000 + 100);
+            auto warmedUpTime = std::chrono::system_clock::now() + std::chrono::milliseconds(warmupSeconds * 1000);
 
             while(running.load(std::memory_order_relaxed)) {
                 if (!warmedUp && sleepUntil > warmedUpTime) {

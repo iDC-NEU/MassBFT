@@ -180,9 +180,6 @@ namespace demo::pension {
         server->_server->Post("/block/put_data", [&](const httplib::Request &req, httplib::Response &res) {
             server->_controller->putData(req, res);
         });
-        server->_server->Get("/block/put_data", [&](const httplib::Request &req, httplib::Response &res) {
-            server->_controller->putData(req, res);
-        });
 
         server->_server->Post("/block/put_digest", [&](const httplib::Request &req, httplib::Response &res) {
             server->_controller->putDigest(req, res);

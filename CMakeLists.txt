@@ -169,13 +169,6 @@ find_package(zppbits_install
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
 
-### Erasure code support, must link erasurecode dl
-find_package(erasurecode_install
-        CONFIG
-        REQUIRED
-        PATHS ${PROJECT_SOURCE_DIR}/vendor
-        )
-
 ### Gtest support
 find_package(gtest_install
         CONFIG
@@ -203,6 +196,13 @@ find_package(cpp-httplib_install
         REQUIRED
         PATHS ${PROJECT_SOURCE_DIR}/vendor
         )
+
+### Erasure code support, must link erasurecode dl
+find_package(erasurecode_install
+        CONFIG
+        REQUIRED
+        PATHS ${PROJECT_SOURCE_DIR}/vendor
+)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/vendor/tools.cmake)
 ### compile protobuf

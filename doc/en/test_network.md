@@ -53,11 +53,17 @@ distributed: false
 ssh_username: user
 ssh_password: 123456
 replicator_lowest_port: 19990
-ycsb:
-  record_count: 10000
-  benchmark_seconds: 6000
-  target_throughput: 200
+small_bank:
+  target_throughput: 2000
   thread_count: 1
+tpcc:
+  target_throughput: 2000
+  thread_count: 1
+  warehouse_count: 5
+ycsb:
+  target_throughput: 2000
+  thread_count: 1
+  record_count: 1000000
   read_proportion: 0.5
   update_proportion: 0.5
 ```

@@ -224,29 +224,38 @@ bool util::SFTPSession::putFile(const std::string &remoteFilePath, bool override
     if (!override) {
         accessType |= O_EXCL;   // if file exists, return false
     }
-    std::shared_ptr<sftp_file_struct> file(sftp_open(this->_sftp, remoteFilePath.data(), accessType, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH),
-                                           [](auto* p) { if (p != nullptr) { sftp_close(p); } });
-    if (file == nullptr) {
-        LOG(ERROR) << "Can't open file for writing: " << ssh_get_error(this->_session);
-        return false;
-    }
+    auto uploadFileAtRate = [&](int rate=65535) -> bool {
+        std::shared_ptr<sftp_file_struct> file(sftp_open(this->_sftp, remoteFilePath.data(), accessType, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH),
+                                               [](auto* p) { if (p != nullptr) { sftp_close(p); } });
+        if (file == nullptr) {
+            LOG(ERROR) << "Can't open file for writing: " << ssh_get_error(this->_session);
+            return false;
+        }
+        for (int i=0; i<size; i+=rate) {
+            auto* ptr =  reinterpret_cast<unsigned char *>(data) + i;
+            auto bufSize = std::min(rate, size-i);
+            do {
+                /* write data in a loop until we block */
+                auto rc = (int) sftp_write(file.get(), ptr, bufSize);
+                if(rc <= 0) {
+                    LOG(ERROR) << "Can't send file: " << ssh_get_error(this->_session);
+                    return false;
+                }
+                ptr += rc;
+                bufSize -= rc;
+            } while (bufSize);
+        }
+        return true;
+    };
     // finally, write the file to sftp remote endpoint
     // write buffer to remote file
-    for (int i=0; i<size; i+=65535) {
-        auto* ptr =  reinterpret_cast<unsigned char *>(data) + i;
-        auto bufSize = std::min(65535, size-i);
-        do {
-            /* write data in a loop until we block */
-            auto rc = (int) sftp_write(file.get(), ptr, bufSize);
-            if(rc <= 0) {
-                LOG(ERROR) << "Can't send file: " << ssh_get_error(this->_session);
-                return false;
-            }
-            ptr += rc;
-            bufSize -= rc;
-        } while (bufSize);
+    for (int i=100000; i>=30000; i-=20000) {
+        if (uploadFileAtRate(i)) {
+            return true;
+        }
+        LOG(WARNING) << "Upload file failed, retry at a different rate: " << i-20000;
     }
-    return true;
+    return false;
 }
 
 bool util::SFTPSession::getFileToDisk(const std::string& remoteFilePath, const std::string &localFilePath, bool override) {
@@ -393,21 +402,20 @@ bool util::SSHSession::verifyKnownHost() {
             /* OK */
             break;
         case SSH_KNOWN_HOSTS_CHANGED:
-            LOG(ERROR) << "Host key for server changed: " << _ip << "\n"
-                       << "For security reasons, connection will be stopped.";
-            return false;
+            LOG(WARNING) << "Host key for server changed: " << _ip;
+            break;
         case SSH_KNOWN_HOSTS_OTHER:
-            LOG(ERROR) << "The host key for this server was not found but an other type of key exists: " << _ip << "\n"
+            LOG(ERROR) << "The host key for this server was not found but an other type of key exists: " << _ip
                        << "An attacker might change the default server key to confuse your client into thinking the key does not exist.";
             return false;
         case SSH_KNOWN_HOSTS_NOT_FOUND:
-            LOG(ERROR) << "Could not find known host file: " << _ip << "\n"
+            LOG(ERROR) << "Could not find known host file: " << _ip
                        << "If you accept the host key here, the file will be automatically created.";
             /* FALL THROUGH to SSH_SERVER_NOT_KNOWN behavior */
         case SSH_KNOWN_HOSTS_UNKNOWN:
         {
             auto hexA = ssh_get_hexa(hash, hashLen);
-            LOG(ERROR) << "The server is unknown. Auto add the host key into dictionary: " << _ip << "\n"
+            LOG(ERROR) << "The server is unknown. Auto add the host key into dictionary: " << _ip
                        << "Public key hash:" << hexA;
             ssh_string_free_char(hexA);
             if (ssh_session_update_known_hosts(_session) < 0) {

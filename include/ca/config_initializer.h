@@ -47,9 +47,11 @@ namespace ca {
 
         [[nodiscard]] bool generateDatabase(const std::string &ip, const std::string& chaincodeName) const;
 
-        [[nodiscard]] std::unique_ptr<util::SSHChannel> startPeer(const std::string &ip) const;
+        [[nodiscard]] bool startPeer(const std::string &ip) const;
 
-        [[nodiscard]] std::unique_ptr<util::SSHChannel> startUser(const std::string &ip) const;
+        [[nodiscard]] bool stopPeer(const std::string &ip) const;
+
+        [[nodiscard]] bool startUser(const std::string &ip, const std::string &dbName) const;
 
         [[nodiscard]] bool updateRemoteSourcecode(const std::string &ip) const;
 
@@ -59,12 +61,8 @@ namespace ca {
 
         [[nodiscard]] bool restoreRemoteDatabase(const std::string &ip) const;
 
-        bool stopAll(const std::string& ip) const;
-
     public:
         void overrideProperties();
-
-        void setUserExecName(auto&& rhs) { _userExecName = std::forward<decltype(rhs)>(rhs); }
 
         void setPeerExecName(auto&& rhs) { _peerExecName = std::forward<decltype(rhs)>(rhs); }
 
@@ -97,7 +95,6 @@ namespace ca {
         std::string _ncFolderName;
 
         std::string _peerExecName = "peer";
-        std::string _userExecName = "ycsb";
 
         mutable std::mutex createMutex;
         mutable util::MyFlatHashMap<std::string, std::unique_ptr<util::SSHSession>> sessionPool;

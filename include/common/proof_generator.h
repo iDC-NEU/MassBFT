@@ -18,6 +18,7 @@ namespace util {
                 std::shared_ptr<util::thread_pool_light> wp = nullptr) {
             pmt::Config pmtConfig;
             pmtConfig.Mode = nodeType;
+            pmtConfig.LeafGenParallel = true;
             if (userRequests.size() > 1024) {
                 pmtConfig.RunInParallel = true;
             }

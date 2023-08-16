@@ -2,7 +2,7 @@
 // Created by user on 23-8-8.
 //
 
-#include <memory>
+#include "nlohmann/json.hpp"
 
 namespace httplib {
     class Server;
@@ -22,6 +22,8 @@ namespace ca {
         ServerBackend() = default;
 
         void initRoutes();
+
+        bool addNode(const nlohmann::json& json);
 
     private:
         std::shared_ptr<httplib::Server> _server;

@@ -62,17 +62,27 @@ namespace ca {
 
         bool restoreDatabase() { return processParallelPeerOnly(&ca::Dispatcher::restoreRemoteDatabase); }
 
+        bool startPeer() { return processParallelPeerOnly(&ca::Dispatcher::startPeer); }
+
+        bool stopPeer() { return processParallelPeerOnly(&ca::Dispatcher::stopPeer); }
+
+        bool startUser(const std::string& dbName) {
+            return processParallelClientOnly(&ca::Dispatcher::startUser, dbName);
+        }
+
     protected:
         ServiceBackend() = default;
 
         template <typename F, typename... A>
         bool processParallel(F&& task, const std::vector<std::string>& ips, A&&... args) {
-            for (int i=0; i<3; i++) {
-                if (_dispatcher->processParallel(std::forward<decltype(task)>(task), ips, std::forward<decltype(args)>(args)...)) {
-                    return true;
-                }
+            std::stringstream ss;
+            std::for_each(ips.begin(), ips.end(), [&](const auto& t) { ss << t << ", "; });
+            LOG(INFO) << "Apply tasks to remote nodes: " << "{" << ss.str() << "}";
+            if (!_dispatcher->processParallel(std::forward<decltype(task)>(task), ips, std::forward<decltype(args)>(args)...)) {
+                LOG(INFO) << "Apply tasks failed, please retry later.";
+                return false;
             }
-            return false;
+            return true;
         }
 
         bool processParallel(auto&& func) {
@@ -88,6 +98,18 @@ namespace ca {
             std::vector<std::string> ipList;
             for (const auto& it: _nodesList) {
                 if (it.second.isClient) {
+                    continue;
+                }
+                ipList.push_back(it.first);
+            }
+            return processParallel(std::forward<decltype(task)>(task), ipList, std::forward<decltype(args)>(args)...);
+        }
+
+        template <typename F, typename... A>
+        bool processParallelClientOnly(F&& task, A&&... args) {
+            std::vector<std::string> ipList;
+            for (const auto& it: _nodesList) {
+                if (!it.second.isClient) {
                     continue;
                 }
                 ipList.push_back(it.first);

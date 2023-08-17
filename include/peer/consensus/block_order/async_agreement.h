@@ -182,7 +182,7 @@ namespace peer::consensus {
             auto numRoutines = (int)_threadPoolForBCCSP->get_thread_count();
             bthread::CountdownEvent countdown(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
-                _threadPoolForBCCSP->push_task([&, start=i] {
+                _threadPoolForBCCSP->push_emergency_task([&, start=i] {
                     auto& payload = sb.serializedBlockOrder;
                     for (int j = start; j < (int)sb.signatures.size(); j += numRoutines) {
                         auto& signature = sb.signatures[j];

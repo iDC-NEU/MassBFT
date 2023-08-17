@@ -117,15 +117,6 @@ namespace pmt {
                                                std::shared_ptr<util::thread_pool_light> wpPtr=nullptr);
 
     protected:
-        template <typename F, typename... A>
-        void push_task(F&& task, A&&... args) {
-            if (wp != nullptr) {
-                wp->push_task(std::forward<F>(task), std::forward<A>(args)...);
-            } else {
-                task(std::forward<A>(args)...);
-            }
-        }
-
         // calTreeDepth calculates the tree depth,
         // the tree depth is then used to declare the capacity of the proof slices.
         static uint32_t calTreeDepth(int blockLen);

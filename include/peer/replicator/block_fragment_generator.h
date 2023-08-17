@@ -89,9 +89,9 @@ namespace peer {
                       wpForMTAndEC(wpForMTAndEC_), decodeStorageList(fragmentCnt) { }
 
             template <typename F, typename... A>
-            void push_task(F&& task, A&&... args) {
+            inline void push_task(F&& task, A&&... args) {
                 if (_ecConfig.instanceCount > 1) {
-                    wpForMTAndEC->push_task(std::forward<F>(task), std::forward<A>(args)...);
+                    wpForMTAndEC->push_emergency_task(std::forward<F>(task), std::forward<A>(args)...);
                 } else {
                     task(std::forward<A>(args)...);
                 }

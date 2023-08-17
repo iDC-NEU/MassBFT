@@ -52,7 +52,7 @@ namespace ca {
         // init properties
         SetLocalId(0, 0);
         util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 2000);
-        util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 35);
+        util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 30);
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, true);
         util::Properties::SetProperties(util::Properties::SSH_USERNAME, "root");
         util::Properties::SetProperties(util::Properties::SSH_PASSWORD, "neu1234.");
@@ -123,7 +123,7 @@ namespace ca {
               _ncFolderName(std::move(ncZipFolderName)) { }
 
     bool Dispatcher::transmitFileToRemote(const std::string &ip) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -176,7 +176,7 @@ namespace ca {
     }
 
     bool Dispatcher::compileRemoteSourcecode(const std::string &ip) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -222,7 +222,7 @@ namespace ca {
     }
 
     bool Dispatcher::transmitPropertiesToRemote(const std::string &ip) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -240,7 +240,7 @@ namespace ca {
     }
 
     bool Dispatcher::generateDatabase(const std::string &ip, const std::string &chaincodeName) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -261,36 +261,9 @@ namespace ca {
         return true;
     }
 
-    util::SSHSession * Dispatcher::connect(const std::string &ip) const {
-        if (sessionPool.contains(ip)) {
-            return sessionPool[ip].get();
-        }
-        auto* properties = util::Properties::GetProperties();
-        // create session
-        createMutex.lock();
-        auto session = util::SSHSession::NewSSHSession(ip);
-        createMutex.unlock();
-        if (session == nullptr) {
-            return nullptr;
-        }
-        auto [userName, password, success] = properties->getSSHInfo();
-        if (!success) {
-            return nullptr;
-        }
-        success = session->connect(userName, password);
-        if (!success) {
-            return nullptr;
-        }
-        sessionPool[ip] = std::move(session);
-        return sessionPool[ip].get();
-    }
-
     bool Dispatcher::startPeer(const std::string &ip) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
-            return false;
-        }
-        if (!session->executeCommand({ "kill -9 $(pidof " + _peerExecName + ")" }, true)) {
             return false;
         }
         LOG(INFO) << "Starting peer.";
@@ -307,7 +280,7 @@ namespace ca {
     }
 
     bool Dispatcher::stopPeer(const std::string &ip) const {
-        auto session = connect(ip);
+        auto session = destroyPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -316,11 +289,12 @@ namespace ca {
             return false;
         }
         LOG(INFO) << "Kill peer successfully: " << ip;
-        return restoreRemoteDatabase(ip);
+        defaultPool.reset();
+        return true;
     }
 
     bool Dispatcher::startUser(const std::string &ip, const std::string &dbName) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -338,7 +312,7 @@ namespace ca {
     }
 
     bool Dispatcher::updateRemoteSourcecode(const std::string &ip) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -364,7 +338,7 @@ namespace ca {
     }
 
     bool Dispatcher::updateRemoteBFTPack(const std::string &ip) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -390,7 +364,7 @@ namespace ca {
     }
 
     bool Dispatcher::backupRemoteDatabase(const std::string &ip) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -406,7 +380,7 @@ namespace ca {
     }
 
     bool Dispatcher::restoreRemoteDatabase(const std::string &ip) const {
-        auto session = connect(ip);
+        auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
         }
@@ -428,4 +402,28 @@ namespace ca {
     }
 
     Dispatcher::~Dispatcher() = default;
+
+    util::SSHSession *SessionPool::connect(const std::string &ip) {
+        if (sessionPool.contains(ip)) {
+            return sessionPool[ip].get();
+        }
+        auto* properties = util::Properties::GetProperties();
+        // create session
+        createMutex.lock();
+        auto session = util::SSHSession::NewSSHSession(ip);
+        createMutex.unlock();
+        if (session == nullptr) {
+            return nullptr;
+        }
+        auto [userName, password, success] = properties->getSSHInfo();
+        if (!success) {
+            return nullptr;
+        }
+        success = session->connect(userName, password);
+        if (!success) {
+            return nullptr;
+        }
+        sessionPool[ip] = std::move(session);
+        return sessionPool[ip].get();
+    }
 }

@@ -12,6 +12,22 @@
 #include <thread>
 
 namespace ca {
+    class SessionPool {
+    public:
+        virtual ~SessionPool() = default;
+
+        util::SSHSession* connect(const std::string &ip);
+
+        void reset() {
+            std::unique_lock lock(createMutex);
+            sessionPool.clear();
+        }
+
+    private:
+        std::mutex createMutex;
+        util::MyFlatHashMap<std::string, std::unique_ptr<util::SSHSession>> sessionPool;
+    };
+
     /* The initializer is responsible for initializing the public and private keys of the node
      * and generating the default configuration file.
      * In subsequent versions, the initializer will also be responsible for tasks
@@ -85,9 +101,6 @@ namespace ca {
             return success;
         }
 
-    protected:
-        util::SSHSession * connect(const std::string &ip) const;
-
     private:
         // The local and remote node share the same running path
         std::filesystem::path _runningPath;
@@ -96,7 +109,7 @@ namespace ca {
 
         std::string _peerExecName = "peer";
 
-        mutable std::mutex createMutex;
-        mutable util::MyFlatHashMap<std::string, std::unique_ptr<util::SSHSession>> sessionPool;
+        mutable SessionPool defaultPool;
+        mutable SessionPool destroyPool;
     };
 }

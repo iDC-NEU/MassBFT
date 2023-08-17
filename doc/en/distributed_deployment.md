@@ -141,3 +141,29 @@ URL: `${ca_server_ip}:8081/user/start`
 ```json
 []
 ```
+
+#### Other workload
+
+If you want to use `${ca_server_ip}:8081/peer/generate` to generate TPC-C database,
+please use the following request body:
+```json
+{ "name": "tpcc" }
+```
+
+For small bank:
+
+```json
+{ "name": "sb" }
+```
+
+To start the user with `${ca_server_ip}:8081/user/start`, if you are using TPC-C chaincode:
+
+```json
+{ "name": "tpcc" }
+```
+
+For small bank:
+
+```json
+{ "name": "small_bank" }
+```

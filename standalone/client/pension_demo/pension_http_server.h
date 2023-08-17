@@ -5,8 +5,9 @@
 #pragma once
 
 #include "common/crypto.h"
+#include "client/core/status.h"
 
-namespace ycsb::sdk {
+namespace client::sdk {
     class ClientSDK;
 }
 
@@ -18,7 +19,7 @@ namespace httplib {
     class Server;
 }
 
-namespace ycsb::sdk {
+namespace client::sdk {
     class ReceiveInterface;
 }
 
@@ -34,13 +35,13 @@ namespace demo::pension {
         ~ServiceBackend();
 
     public:
-        std::unique_ptr<proto::Envelop> put(const std::string& key, const std::string& value);
+        client::core::Status put(const std::string& key, const std::string& value);
 
-        std::unique_ptr<proto::Envelop> putDigest(const std::string& key, const util::OpenSSLSHA256::digestType& digest);
+        client::core::Status putDigest(const std::string& key, const util::OpenSSLSHA256::digestType& digest);
 
-        std::unique_ptr<proto::Envelop> getDigest(const std::string& key);
+        client::core::Status getDigest(const std::string& key);
 
-        ycsb::sdk::ReceiveInterface* getReceiver();
+        client::sdk::ReceiveInterface* getReceiver();
 
         const util::Properties& getProperties() { return *_prop; }
 
@@ -48,7 +49,7 @@ namespace demo::pension {
         ServiceBackend() = default;
 
     private:
-        std::unique_ptr<ycsb::sdk::ClientSDK> _sdk;
+        std::unique_ptr<client::sdk::ClientSDK> _sdk;
         std::shared_ptr<util::Properties> _prop;
     };
 

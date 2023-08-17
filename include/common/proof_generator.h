@@ -87,6 +87,7 @@ namespace util {
             }
             pmt::Config pmtConfig;
             pmtConfig.Mode = nodeType;
+            pmtConfig.LeafGenParallel = true;
             if (txReadWriteSet.size() > 1024) {
                 pmtConfig.RunInParallel = true;
             }

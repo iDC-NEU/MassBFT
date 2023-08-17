@@ -43,8 +43,8 @@ namespace peer::core {
 
         std::shared_ptr<::peer::BlockLRUCache> initUserRPCController();
 
-        std::pair<std::shared_ptr<::util::BCCSP>,
-                std::shared_ptr<::util::thread_pool_light>> getOrInitBCCSPAndThreadPool();
+        // this function never return nil value
+        std::pair<std::shared_ptr<::util::BCCSP>, std::shared_ptr<::util::thread_pool_light>> getOrInitBCCSPAndThreadPool();
 
         std::shared_ptr<::peer::MRBlockStorage> getOrInitContentStorage();
 

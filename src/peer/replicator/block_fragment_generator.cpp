@@ -207,10 +207,8 @@ namespace peer {
 
         pmt::Config pmtConfig;
         pmtConfig.Mode=pmt::ModeType::ModeProofGenAndTreeBuild;
-        // leaf size is too big (all leaves have the equal size)
-        if (ecEncodeResult[0].size() > 1024) {
-            pmtConfig.LeafGenParallel = true;
-        }
+        // hash leaves parallel
+        pmtConfig.LeafGenParallel = true;
         // too many leaves
         if (ecEncodeResult.size() > 1024) {
             pmtConfig.RunInParallel = true;

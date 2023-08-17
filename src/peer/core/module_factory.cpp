@@ -58,9 +58,6 @@ namespace peer::core {
         }
         auto replicator = std::make_shared<peer::Replicator>(nodes, localNode);
         auto [bccsp, tp] = getOrInitBCCSPAndThreadPool();
-        if (!bccsp || !tp) {
-            return nullptr;
-        }
         replicator->setBCCSPWithThreadPool(std::move(bccsp), std::move(tp));
         auto cs = getOrInitContentStorage();
         if (!cs) {
@@ -131,10 +128,7 @@ namespace peer::core {
         }
         ic->prepareConfigurationFile(hostList);
         // ----- init LocalPBFTController ----
-        auto [bccsp, tp] = getOrInitBCCSPAndThreadPool();
-        if (!bccsp || !tp) {
-            return nullptr;
-        }
+        auto [bccsp, tp] = this->getOrInitBCCSPAndThreadPool();
         auto cs = getOrInitContentStorage();
         if (!cs) {
             return nullptr;

@@ -341,6 +341,8 @@ std::unique_ptr<util::SSHSession> util::SSHSession::NewSSHSession(std::string ip
     ssh_options_set(session, SSH_OPTIONS_HOST, ip.data());
     ssh_options_set(session, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
     ssh_options_set(session, SSH_OPTIONS_PORT, &port);
+    int timeoutUs = 1000*1500;  // 1.5 sec
+    ssh_options_set(session, SSH_OPTIONS_TIMEOUT_USEC, &timeoutUs);
 
     // Assign value
     std::unique_ptr<util::SSHSession> sshSession(new util::SSHSession());

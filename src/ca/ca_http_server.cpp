@@ -5,6 +5,7 @@
 #include "ca/ca_http_server.h"
 #include "ca/ca_http_service.h"
 #include "common/http_util.h"
+#include "common/property.h"
 #include "glog/logging.h"
 
 namespace ca {
@@ -230,6 +231,58 @@ namespace ca {
                 return;
             }
             util::setSuccessWithMessage(res, "Operation complete successfully.");
+        });
+
+        _server->Post("/peer/config", [&](const httplib::Request &req, httplib::Response &res) {
+            auto [success, json] = util::parseJson(req.body);
+            if (!success) {
+                util::setErrorWithMessage(res, "Body deserialize failed!");
+                return;
+            }
+            try {
+                std::string parent = json["parent"];
+                std::string key = json["key"];
+                auto value = json["value"];
+                util::setSuccessWithMessage(res, "Operation complete successfully.");
+                if (parent.empty()) {
+                    if (value.is_number_integer()) {
+                        util::Properties::SetProperties(key, int(value));
+                        return;
+                    }
+                    if (value.is_number_float()) {
+                        util::Properties::SetProperties(key, double(value));
+                        return;
+                    }
+                    if (value.is_string()) {
+                        util::Properties::SetProperties(key, std::string(value));
+                        return;
+                    }
+                    if (value.is_boolean()) {
+                        util::Properties::SetProperties(key, bool(value));
+                        return;
+                    }
+                } else {
+                    auto* properties = util::Properties::GetProperties();
+                    auto node = properties->getCustomProperties(parent);
+                    if (value.is_number_integer()) {
+                        node[key] = int(value);
+                        return;
+                    }
+                    if (value.is_number_float()) {
+                        node[key] = double(value);
+                        return;
+                    }
+                    if (value.is_string()) {
+                        node[key] = std::string(value);
+                        return;
+                    }
+                    if (value.is_boolean()) {
+                        node[key] = bool(value);
+                        return;
+                    }
+                }
+            } catch (...) { }
+            util::setErrorWithMessage(res, "Body deserialize failed!");
         });
     }
 

@@ -111,6 +111,15 @@ namespace peer::consensus {
                 signature[back++%10] = std::move(sig);
             }
 
+            void reset() {
+                std::unique_lock lock(mutex);
+                for (int i=0; i< 10; i++) {
+                    signature[i] = nullptr;
+                }
+                front = 0;
+                back = 0;
+            }
+
         private:
             std::mutex mutex;
             int front = 0;

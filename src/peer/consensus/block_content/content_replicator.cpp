@@ -231,6 +231,7 @@ namespace peer::consensus {
     void ContentReplicator::OnLeaderStart(::util::NodeConfigPtr localNode, int sequence) {
         std::unique_lock lock(_isLeaderMutex);
         _blockCache->setBlockProposed(_blockCache->getBlockDelivered());
+        _signatureCache.reset();
         _isLeader = true;
         if (_leaderChangeCallback) {
             _leaderChangeCallback(std::move(localNode), nullptr, sequence);
@@ -240,6 +241,7 @@ namespace peer::consensus {
     void ContentReplicator::OnLeaderChange(::util::NodeConfigPtr localNode, ::util::NodeConfigPtr newLeaderNode, int sequence) {
         std::unique_lock lock(_isLeaderMutex);
         _blockCache->setBlockProposed(nullptr); // clear the state
+        _signatureCache.reset();
         _isLeader = false;
         if (_leaderChangeCallback) {
             _leaderChangeCallback(std::move(localNode), std::move(newLeaderNode), sequence);

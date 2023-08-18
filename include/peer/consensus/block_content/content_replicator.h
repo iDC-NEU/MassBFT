@@ -113,8 +113,8 @@ namespace peer::consensus {
 
             void reset() {
                 std::unique_lock lock(mutex);
-                for (int i=0; i< 10; i++) {
-                    signature[i] = nullptr;
+                for (auto & i : signature) {
+                    i = nullptr;
                 }
                 front = 0;
                 back = 0;

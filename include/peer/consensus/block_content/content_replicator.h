@@ -80,10 +80,10 @@ namespace peer::consensus {
         }
 
     protected:
-        [[nodiscard]] std::optional<::util::OpenSSLED25519::digestType> OnSignMessage(const ::util::NodeConfigPtr& localNode, const std::string& message) const override;
+        [[nodiscard]] std::unique_ptr<::proto::Block::SignaturePair> OnSignProposal(const ::util::NodeConfigPtr& localNode, const std::string& message) override;
 
         // The following functions are called by state machine
-        bool OnVerifyProposal(::util::NodeConfigPtr localNode, const std::string& serializedHeader) override;
+        bool OnVerifyProposal(const ::util::NodeConfigPtr& localNode, const std::string& serializedHeader) override;
 
         bool OnDeliver(::util::NodeConfigPtr localNode, const std::string& context,
                        std::vector<::proto::Block::SignaturePair>&& signatures) override;
@@ -96,6 +96,28 @@ namespace peer::consensus {
         std::optional<std::string> OnRequestProposal(::util::NodeConfigPtr localNode, int sequence, const std::string& context) override;
 
     protected:
+        class SignatureCache {
+        public:
+            std::unique_ptr<::proto::Block::SignaturePair> pop() {
+                std::unique_lock lock(mutex);
+                if (signature[front%10] == nullptr) {
+                    return nullptr;
+                }
+                return std::move(signature[front++%10]);
+            }
+
+            void push(std::unique_ptr<::proto::Block::SignaturePair> sig) {
+                std::unique_lock lock(mutex);
+                signature[back++%10] = std::move(sig);
+            }
+
+        private:
+            std::mutex mutex;
+            int front = 0;
+            int back = 0;
+            std::unique_ptr<::proto::Block::SignaturePair> signature[10];
+        };
+        SignatureCache _signatureCache{};
 
     private:
         std::atomic<bool> _running;

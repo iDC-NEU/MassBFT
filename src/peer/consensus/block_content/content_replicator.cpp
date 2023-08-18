@@ -2,6 +2,8 @@
 // Created by user on 23-7-24.
 //
 
+#include <memory>
+
 #include "peer/consensus/block_content/content_replicator.h"
 #include "peer/consensus/block_content/pbft_block_cache.h"
 #include "common/proof_generator.h"
@@ -158,18 +160,13 @@ namespace peer::consensus {
         _blockCache->storeCachedBlock(std::move(block));
     }
 
-    auto ContentReplicator::OnSignMessage(const util::NodeConfigPtr &localNode, const std::string &message) const -> std::optional<::util::OpenSSLED25519::digestType> {
-        // Get the private key of this node
-        const auto key = _bccsp->GetKey(localNode->ski);
-        if (key == nullptr || !key->Private()) {
-            LOG(WARNING) << "Can not load key.";
-            return std::nullopt;
-        }
-        // sign the message with the private key
-        return key->Sign(message.data(), message.size());
+    std::unique_ptr<::proto::Block::SignaturePair> ContentReplicator::OnSignProposal(const util::NodeConfigPtr &, const std::string &) {
+        auto sig = _signatureCache.pop();
+        // sig->first = message;
+        return sig;
     }
 
-    bool ContentReplicator::OnVerifyProposal(::util::NodeConfigPtr, const std::string &serializedHeader) {
+    bool ContentReplicator::OnVerifyProposal(const ::util::NodeConfigPtr& localNode, const std::string &serializedHeader) {
         proto::Block::Header header;
         if (!header.deserializeFromString(serializedHeader)) {
             return false;
@@ -177,6 +174,24 @@ namespace peer::consensus {
         if (!_blockCache->isDeliveredBlockHeaderValid(header)) {
             return false;
         }
+        // create signed message
+        const auto key = _bccsp->GetKey(localNode->ski);
+        if (key == nullptr || !key->Private()) {
+            LOG(WARNING) << "Can not load key.";
+            return false;
+        }
+        // sign the message with the private key
+        auto signature = key->Sign(serializedHeader.data(), serializedHeader.size());
+        if (signature == std::nullopt) {
+            LOG(WARNING) << "Sign message failed.";
+            return false;
+        }
+
+        auto pair = std::make_unique<::proto::Block::SignaturePair>();
+        pair->second.ski = localNode->ski;
+        pair->second.digest = *signature;
+        _signatureCache.push(std::move(pair));
+
         // Find the target block in block pool (wait timed),
         // the other thread will validate the block,
         // so if we find the block, we can return safely.
@@ -197,6 +212,13 @@ namespace peer::consensus {
         auto block = _blockCache->eraseCachedBlock(header.dataHash);
         CHECK(block != nullptr) << "Block mut be not null!" << util::OpenSSLSHA256::toString(header.dataHash);
         block->metadata.consensusSignatures = std::move(signatures);
+
+        // validate the block signature
+        // for (const auto& it: block->metadata.consensusSignatures) {
+        //     const auto key = _bccsp->GetKey(it.second.ski);
+        //     CHECK(key->Verify(it.second.digest, context.data(), context.size()));
+        // }
+
         DLOG(INFO) << "Block delivered by BFT, groupId: " << localNode->groupId << " blk number:" << block->header.number;
         // local consensus complete
         if (_deliverCallback != nullptr) {
@@ -262,7 +284,25 @@ namespace peer::consensus {
         // LOG(INFO) << "Leader store a block, hash: " << util::OpenSSLSHA256::toString(block->header.dataHash);
         _blockCache->storeCachedBlock(std::move(block));
         // Sign the serialized block header is enough, return the header only
-        return serializedBlock->substr(pos.headerPos, pos.bodyPos-pos.headerPos);
+        auto serializedHeader = serializedBlock->substr(pos.headerPos, pos.bodyPos-pos.headerPos);
+        const auto key = _bccsp->GetKey(localNode->ski);
+        if (key == nullptr || !key->Private()) {
+            LOG(WARNING) << "Can not load key.";
+            return std::nullopt;
+        }
+        // sign the message with the private key
+        auto signature = key->Sign(serializedHeader.data(), serializedHeader.size());
+        if (signature == std::nullopt) {
+            LOG(WARNING) << "Sign message failed.";
+            return std::nullopt;
+        }
+
+        auto pair = std::make_unique<::proto::Block::SignaturePair>();
+        pair->second.ski = localNode->ski;
+        pair->second.digest = *signature;
+        _signatureCache.push(std::move(pair));
+
+        return serializedHeader;
     }
 
 }

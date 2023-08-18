@@ -10,14 +10,15 @@
 #include "glog/logging.h"
 #include <iostream>
 
-std::unique_ptr<util::SSHChannel> util::SSHChannel::NewSSHChannel(ssh_session_struct *session) {
-    auto channel = ssh_channel_new(session);
+std::unique_ptr<util::SSHChannel> util::SSHChannel::NewSSHChannel(std::shared_ptr<ssh_session_struct> session) {
+    auto channel = ssh_channel_new(session.get());
     if (channel == nullptr) {
         return nullptr;
     }
     // Assign value
     std::unique_ptr<util::SSHChannel> sshChannel(new util::SSHChannel());
     sshChannel->_channel = channel;
+    sshChannel->_session = std::move(session);
     if (ssh_channel_open_session(sshChannel->_channel) != SSH_OK) {
         LOG(ERROR) << "ssh channel open session error.";
         return nullptr;
@@ -127,14 +128,14 @@ bool util::SSHChannel::isChannelClosed() const {
     return true;
 }
 
-std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(ssh_session_struct* session) {
-    auto sftp = sftp_new(session);
+std::unique_ptr<util::SFTPSession> util::SFTPSession::NewSFTPSession(std::shared_ptr<ssh_session_struct> session) {
+    auto sftp = sftp_new(session.get());
     if(sftp == nullptr) {
-        LOG(ERROR) << "Error allocating SFTP session: " << ssh_get_error(session);
+        LOG(ERROR) << "Error allocating SFTP session: " << ssh_get_error(session.get());
         return nullptr;
     }
     std::unique_ptr<util::SFTPSession> sftpSession(new util::SFTPSession);
-    sftpSession->_session = session;
+    sftpSession->_session = std::move(session);
     sftpSession->_sftp = sftp;
     // SFTP protocol initialization
     if (sftp_init(sftpSession->_sftp) != SSH_OK) {
@@ -224,29 +225,38 @@ bool util::SFTPSession::putFile(const std::string &remoteFilePath, bool override
     if (!override) {
         accessType |= O_EXCL;   // if file exists, return false
     }
-    std::shared_ptr<sftp_file_struct> file(sftp_open(this->_sftp, remoteFilePath.data(), accessType, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH),
-                                           [](auto* p) { if (p != nullptr) { sftp_close(p); } });
-    if (file == nullptr) {
-        LOG(ERROR) << "Can't open file for writing: " << ssh_get_error(this->_session);
-        return false;
-    }
+    auto uploadFileAtRate = [&](int rate=65535) -> bool {
+        std::shared_ptr<sftp_file_struct> file(sftp_open(this->_sftp, remoteFilePath.data(), accessType, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH),
+                                               [](auto* p) { if (p != nullptr) { sftp_close(p); } });
+        if (file == nullptr) {
+            LOG(ERROR) << "Can't open file for writing: " << ssh_get_error(this->_session.get());
+            return false;
+        }
+        for (int i=0; i<size; i+=rate) {
+            auto* ptr =  reinterpret_cast<unsigned char *>(data) + i;
+            auto bufSize = std::min(rate, size-i);
+            do {
+                /* write data in a loop until we block */
+                auto rc = (int) sftp_write(file.get(), ptr, bufSize);
+                if(rc <= 0) {
+                    LOG(ERROR) << "Can't send file: " << ssh_get_error(this->_session.get());
+                    return false;
+                }
+                ptr += rc;
+                bufSize -= rc;
+            } while (bufSize);
+        }
+        return true;
+    };
     // finally, write the file to sftp remote endpoint
     // write buffer to remote file
-    for (int i=0; i<size; i+=65535) {
-        auto* ptr =  reinterpret_cast<unsigned char *>(data) + i;
-        auto bufSize = std::min(65535, size-i);
-        do {
-            /* write data in a loop until we block */
-            auto rc = (int) sftp_write(file.get(), ptr, bufSize);
-            if(rc <= 0) {
-                LOG(ERROR) << "Can't send file: " << ssh_get_error(this->_session);
-                return false;
-            }
-            ptr += rc;
-            bufSize -= rc;
-        } while (bufSize);
+    for (int i=100000; i>=30000; i-=20000) {
+        if (uploadFileAtRate(i)) {
+            return true;
+        }
+        LOG(WARNING) << "Upload file failed, retry at a different rate: " << i-20000;
     }
-    return true;
+    return false;
 }
 
 bool util::SFTPSession::getFileToDisk(const std::string& remoteFilePath, const std::string &localFilePath, bool override) {
@@ -296,7 +306,7 @@ bool util::SFTPSession::getFileWithCallback(const std::string &remoteFilePath,
                                                }
                                            });
     if (file == nullptr) {
-        LOG(ERROR) << " Can't open file for reading: " << ssh_get_error(this->_session);
+        LOG(ERROR) << " Can't open file for reading: " << ssh_get_error(this->_session.get());
         return false;
     }
     // read the remote file into buffer
@@ -308,7 +318,7 @@ bool util::SFTPSession::getFileWithCallback(const std::string &remoteFilePath,
             break;
         }
         if (size < 0) {
-            LOG(ERROR) << "Error while reading file: " << ssh_get_error(this->_session);
+            LOG(ERROR) << "Error while reading file: " << ssh_get_error(this->_session.get());
             return false;
         }
         if (!callback(buffer.data(), (int)size)) {
@@ -331,18 +341,26 @@ std::unique_ptr<util::SSHSession> util::SSHSession::NewSSHSession(std::string ip
     ssh_options_set(session, SSH_OPTIONS_HOST, ip.data());
     ssh_options_set(session, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
     ssh_options_set(session, SSH_OPTIONS_PORT, &port);
+    int timeoutUs = 1000*1500;  // 1.5 sec
+    ssh_options_set(session, SSH_OPTIONS_TIMEOUT_USEC, &timeoutUs);
 
     // Assign value
     std::unique_ptr<util::SSHSession> sshSession(new util::SSHSession());
-    sshSession->_session = session;
-    auto ret = ssh_connect(sshSession->_session);
+    sshSession->_session.reset(session, [](auto* ptr) {
+        if (ssh_is_connected(ptr) == 1) {
+            ssh_disconnect(ptr);
+        }
+        ssh_free(ptr);
+        DLOG(INFO) << "Free a ssh session.";
+    });
+    auto ret = ssh_connect(session);
     int i=0;
     while (ret != SSH_OK) {
         if (i++ == 3) {
-            LOG(ERROR) << "Error connecting to " << ip << " : " << ssh_get_error(sshSession->_session);
+            LOG(ERROR) << "Error connecting to " << ip << " : " << ssh_get_error(session);
             return nullptr;
         }
-        ret = ssh_connect(sshSession->_session);
+        ret = ssh_connect(session);
     }
     sshSession->_ip = std::move(ip);
     sshSession->_port = port;
@@ -352,15 +370,7 @@ std::unique_ptr<util::SSHSession> util::SSHSession::NewSSHSession(std::string ip
     return sshSession;
 }
 
-util::SSHSession::~SSHSession() {
-    if (!_session) {
-        return;
-    }
-    if (ssh_is_connected(_session) == 1) {
-        ssh_disconnect(_session);
-    }
-    ssh_free(_session);
-}
+util::SSHSession::~SSHSession() = default;
 
 bool util::SSHSession::verifyKnownHost() {
     struct DeferDelete {
@@ -370,7 +380,7 @@ bool util::SSHSession::verifyKnownHost() {
     };
     // validate server cert
     ssh_key pub = nullptr;
-    if (ssh_get_server_publickey(_session, &pub) < 0) {
+    if (ssh_get_server_publickey(_session.get(), &pub) < 0) {
         LOG(ERROR) << "Error get ssh remote server public key: " << _ip;
         return false;
     }
@@ -387,46 +397,45 @@ bool util::SSHSession::verifyKnownHost() {
     if (ret < 0) {
         return false;
     }
-    auto state = ssh_session_is_known_server(_session);
+    auto state = ssh_session_is_known_server(_session.get());
     switch (state) {
         case SSH_KNOWN_HOSTS_OK:
             /* OK */
             break;
         case SSH_KNOWN_HOSTS_CHANGED:
-            LOG(ERROR) << "Host key for server changed: " << _ip << "\n"
-                       << "For security reasons, connection will be stopped.";
-            return false;
+            LOG(WARNING) << "Host key for server changed: " << _ip;
+            break;
         case SSH_KNOWN_HOSTS_OTHER:
-            LOG(ERROR) << "The host key for this server was not found but an other type of key exists: " << _ip << "\n"
+            LOG(ERROR) << "The host key for this server was not found but an other type of key exists: " << _ip
                        << "An attacker might change the default server key to confuse your client into thinking the key does not exist.";
             return false;
         case SSH_KNOWN_HOSTS_NOT_FOUND:
-            LOG(ERROR) << "Could not find known host file: " << _ip << "\n"
+            LOG(ERROR) << "Could not find known host file: " << _ip
                        << "If you accept the host key here, the file will be automatically created.";
             /* FALL THROUGH to SSH_SERVER_NOT_KNOWN behavior */
         case SSH_KNOWN_HOSTS_UNKNOWN:
         {
             auto hexA = ssh_get_hexa(hash, hashLen);
-            LOG(ERROR) << "The server is unknown. Auto add the host key into dictionary: " << _ip << "\n"
+            LOG(ERROR) << "The server is unknown. Auto add the host key into dictionary: " << _ip
                        << "Public key hash:" << hexA;
             ssh_string_free_char(hexA);
-            if (ssh_session_update_known_hosts(_session) < 0) {
+            if (ssh_session_update_known_hosts(_session.get()) < 0) {
                 LOG(ERROR) << "Error " << strerror(errno);
                 return false;
             }
             break;
         }
         case SSH_KNOWN_HOSTS_ERROR:
-            LOG(ERROR) << "Error " << ssh_get_error(_session);
+            LOG(ERROR) << "Error " << ssh_get_error(_session.get());
             return false;
     }
     return true;
 }
 
 bool util::SSHSession::connect(const std::string& user, const std::string &password) {
-    auto ret = ssh_userauth_password(_session, user.data(), password.data());
+    auto ret = ssh_userauth_password(_session.get(), user.data(), password.data());
     if (ret != SSH_AUTH_SUCCESS) {
-        LOG(ERROR) << "Error authenticating with password " << ssh_get_error(_session);
+        LOG(ERROR) << "Error authenticating with password " << ssh_get_error(_session.get());
         return false;
     }
     return true;

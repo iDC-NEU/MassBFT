@@ -307,6 +307,8 @@ namespace util {
                 stub.hello(&ctl, &request, &response, nullptr);
                 if (ctl.Failed()) {
                     LOG(WARNING) << "RPC failed, reason:" << ctl.ErrorText();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(timeout_ms));
+                    timeout_ms = std::max(timeout_ms*2, 1000);
                     continue;
                 }
                 // DLOG(INFO) << "Received response from " << ctl.remote_side() << " to " << ctl.local_side() << " latency=" << ctl.latency_us() << "us";

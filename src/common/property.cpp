@@ -89,7 +89,7 @@ namespace util {
     }
 
     int Properties::getAriaWorkerCount() const {
-        auto workerCount = std::max((int)std::thread::hardware_concurrency() * 7 / 8, 1);
+        auto workerCount = std::max((int)std::thread::hardware_concurrency() * 4 / 8, 1);
         try {
             return _node[ARIA_WORKER_COUNT].as<int>();
         } catch (const YAML::Exception &e) {
@@ -99,7 +99,8 @@ namespace util {
     }
 
     int Properties::getBCCSPWorkerCount() const {
-        auto workerCount = std::max((int)std::thread::hardware_concurrency() * 7 / 8, 1);
+        // Use all threads can maximize performance
+        auto workerCount = std::max((int)std::thread::hardware_concurrency(), 1);
         try {
             return _node[BCCSP_WORKER_COUNT].as<int>();
         } catch (const YAML::Exception &e) {

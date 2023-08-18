@@ -16,7 +16,7 @@ struct sftp_session_struct;
 namespace util {
     class SSHChannel {
     public:
-        static std::unique_ptr<SSHChannel> NewSSHChannel(ssh_session_struct* session);
+        static std::unique_ptr<SSHChannel> NewSSHChannel(std::shared_ptr<ssh_session_struct> session);
 
         ~SSHChannel();
 
@@ -44,11 +44,12 @@ namespace util {
     private:
         ssh_channel_struct* _channel{};
         int _timeout = 1000;
+        std::shared_ptr<ssh_session_struct> _session{};
     };
 
     class SFTPSession {
     public:
-        static std::unique_ptr<SFTPSession> NewSFTPSession(ssh_session_struct* session);
+        static std::unique_ptr<SFTPSession> NewSFTPSession(std::shared_ptr<ssh_session_struct> session);
 
         ~SFTPSession();
 
@@ -76,7 +77,7 @@ namespace util {
 
     private:
         sftp_session_struct* _sftp{};
-        ssh_session_struct* _session{};
+        std::shared_ptr<ssh_session_struct> _session{};
     };
 
     class SSHSession {
@@ -109,7 +110,7 @@ namespace util {
         bool verifyKnownHost();
 
     private:
-        ssh_session_struct* _session{};
+        std::shared_ptr<ssh_session_struct> _session{};
         std::string _ip;
         int _port = -1;
     };

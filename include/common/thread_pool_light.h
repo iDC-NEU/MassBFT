@@ -107,7 +107,7 @@ namespace util {
          * @param num_blocks The maximum number of blocks to split the loop into. The default is to use the number of threads in the pool.
          */
         template <typename F, typename T>
-        void push_loop(const T index_after_last, F&& loop, const size_t num_blocks = 0) {
+        inline void push_loop(const T index_after_last, F&& loop, const size_t num_blocks = 0) {
             push_loop(0, index_after_last, std::forward<F>(loop), num_blocks);
         }
 
@@ -120,9 +120,16 @@ namespace util {
          * @param args The zero or more arguments to pass to the function. Note that if the task is a class member function, the first argument must be a pointer to the object, i.e. &object (or this), followed by the actual arguments.
          */
         template <typename F, typename... A>
-        void push_task(F&& task, A&&... args) {
+        inline void push_task(F&& task, A&&... args) {
             std::function<void()> task_function = std::bind(std::forward<F>(task), std::forward<A>(args)...);
             tasks.enqueue(task_function);
+            sema.signal();
+        }
+
+        template <typename F, typename... A>
+        inline void push_emergency_task(F&& task, A&&... args) {
+            std::function<void()> task_function = std::bind(std::forward<F>(task), std::forward<A>(args)...);
+            priTasks.enqueue(task_function);
             sema.signal();
         }
 
@@ -186,13 +193,19 @@ namespace util {
 
         void worker() {
             pthread_setname_np(pthread_self(), worker_name.c_str());
+            std::function<void()> task;
             while (running.load(std::memory_order_relaxed)) {
-                std::function<void()> task;
-                while(!sema.wait());    // wait a task
-                while(running.load(std::memory_order_relaxed) && !tasks.try_dequeue(task));
+                // wait a task
+                while (!sema.wait());
+                // get the task
+                while (running.load(std::memory_order_relaxed)
+                       && !priTasks.try_dequeue(task)
+                       && !tasks.try_dequeue(task));
+                // if sema is emitted by destructor
                 if (!running.load(std::memory_order_acquire)) {
                     return;
                 }
+                // apply the task
                 task();
             }
         }
@@ -207,7 +220,27 @@ namespace util {
 
         moodycamel::ConcurrentQueue<std::function<void()>> tasks;
 
+        moodycamel::ConcurrentQueue<std::function<void()>> priTasks;
+
         std::unique_ptr<std::thread[]> threads = nullptr;
     };
 
+
+    template <typename F, typename... A>
+    inline static void PushTask(thread_pool_light* tp, F&& task, A&&... args) {
+        if (tp != nullptr) {
+            tp->push_task(std::forward<F>(task), std::forward<A>(args)...);
+        } else {
+            task(std::forward<A>(args)...);
+        }
+    }
+
+    template <typename F, typename... A>
+    inline static void PushEmergencyTask(thread_pool_light* tp, F&& task, A&&... args) {
+        if (tp != nullptr) {
+            tp->push_emergency_task(std::forward<F>(task), std::forward<A>(args)...);
+        } else {
+            task(std::forward<A>(args)...);
+        }
+    }
 }

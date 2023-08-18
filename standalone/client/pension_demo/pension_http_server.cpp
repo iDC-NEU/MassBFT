@@ -3,7 +3,7 @@
 //
 
 #include "pension_http_server.h"
-#include "ycsb/sdk/client_sdk.h"
+#include "client/sdk/client_sdk.h"
 #include "common/property.h"
 #include "common/http_util.h"
 
@@ -15,16 +15,16 @@ namespace demo::pension {
         }
 
         void putData(const httplib::Request &req, httplib::Response &res) {
-            processDataInner(req, res, [&](const nlohmann::json& requestBody) -> std::unique_ptr<proto::Envelop> {
+            processDataInner(req, res, [&](const nlohmann::json& requestBody) {
                 if (!requestBody.contains("key") || !requestBody.contains("value")) {
                     util::setErrorWithMessage(res, "Invalid request. Missing key or value.");
-                    return nullptr;
+                    return client::core::ERROR;
                 }
                 const auto& key = requestBody["key"];
                 const auto& value = requestBody["value"];
                 auto ret = _service->put(key, value);
                 return ret;
-            }, [&] (const proto::Envelop& requestBody, const ycsb::sdk::TxMerkleProof& responseBody) {
+            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody) {
                 // TODO
                 std::stringstream ss;
                 ss << "Operation success complete!";
@@ -33,16 +33,16 @@ namespace demo::pension {
         }
 
         void putDigest(const httplib::Request &req, httplib::Response &res) {
-            processDataInner(req, res, [&](const nlohmann::json& requestBody) -> std::unique_ptr<proto::Envelop> {
+            processDataInner(req, res, [&](const nlohmann::json& requestBody) {
                 if (!requestBody.contains("key") || !requestBody.contains("value")) {
                     util::setErrorWithMessage(res, "Invalid request. Missing key or value.");
-                    return nullptr;
+                    return client::core::ERROR;
                 }
                 const auto& key = requestBody["key"];
                 const auto& value = requestBody["value"];
                 auto ret = _service->putDigest(key, value);
                 return ret;
-            }, [&] (const proto::Envelop& requestBody, const ycsb::sdk::TxMerkleProof& responseBody) {
+            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody) {
                 // TODO
                 std::stringstream ss;
                 ss << "Operation success complete!";
@@ -51,15 +51,15 @@ namespace demo::pension {
         }
 
         void getDigest(const httplib::Request &req, httplib::Response &res) {
-            processDataInner(req, res, [&](const nlohmann::json& requestBody) -> std::unique_ptr<proto::Envelop> {
+            processDataInner(req, res, [&](const nlohmann::json& requestBody) {
                 if (!requestBody.contains("key")) {
                     util::setErrorWithMessage(res, "Invalid request. Missing key.");
-                    return nullptr;
+                    return client::core::ERROR;
                 }
                 const auto& key = requestBody["key"];
                 auto ret = _service->getDigest(key);
                 return ret;
-            }, [&] (const proto::Envelop& requestBody, const ycsb::sdk::TxMerkleProof& responseBody) {
+            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody) {
                 // TODO
                 std::stringstream ss;
                 ss << "Operation success complete!";
@@ -69,9 +69,9 @@ namespace demo::pension {
 
     protected:
         void processDataInner(const httplib::Request &req, httplib::Response &res,
-                                     const std::function<std::unique_ptr<proto::Envelop>(const nlohmann::json& requestBody)>& fStart,
-                                     const std::function<std::string(const proto::Envelop& requestBody,
-                                                                     const ycsb::sdk::TxMerkleProof& responseBody)>& fFinish) {
+                                     const std::function<client::core::Status(const nlohmann::json& requestBody)>& fStart,
+                                     const std::function<std::string(const proto::DigestString& digest,
+                                                                     const client::sdk::TxMerkleProof& responseBody)>& fFinish) {
             auto [success, body] = util::parseJson(req.body);
             if (!success) {
                 util::setErrorWithMessage(res, "Invalid JSON data");
@@ -82,18 +82,25 @@ namespace demo::pension {
             // get height first
             auto startHeight = _service->getReceiver()->getChainHeight(localNodeInfo->groupId, 1000);
             auto request = fStart(body);
-            if (request == nullptr) {
+            if (!request.isOk()) {
                 util::setErrorWithMessage(res, "Failed to invoke chaincode.");
                 return;
             }
+            proto::DigestString txId;
+            const auto& txIdStr = request.getDigest();
+            if (txId.size() != txIdStr.size()) {
+                util::setErrorWithMessage(res, "Error fStart return value");
+                return;
+            }
+            std::copy(txIdStr.begin(), txIdStr.end(), txId.begin());
             for (int i=0; i<5; i++) {   // retry 5 times
-                auto result = _service->getReceiver()->getTransaction(request->getSignature().digest, localNodeInfo->groupId, startHeight, 2000);
+                auto result = _service->getReceiver()->getTransaction(txId, localNodeInfo->groupId, startHeight, 2000);
                 if (result == nullptr) {
                     LOG(WARNING) << "failed to get execute result, retrying.";
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     continue;
                 }
-                util::setSuccessWithMessage(res, fFinish(*request, *result));
+                util::setSuccessWithMessage(res, fFinish(txId, *result));
                 return;
             }
             util::setErrorWithMessage(res, "Failed to get response in time.");
@@ -105,9 +112,9 @@ namespace demo::pension {
     };
 
     std::unique_ptr<ServiceBackend> ServiceBackend::NewServiceBackend(std::shared_ptr<util::Properties> prop) {
-        ycsb::sdk::ClientSDK::InitSDKDependencies();
+        client::sdk::ClientSDK::InitSDKDependencies();
         auto backend = std::unique_ptr<ServiceBackend>(new ServiceBackend);
-        backend->_sdk = ycsb::sdk::ClientSDK::NewSDK(*prop);
+        backend->_sdk = client::sdk::ClientSDK::NewSDK(*prop);
         if (backend->_sdk == nullptr) {
             LOG(ERROR) << "Create sdk failed!";
             return nullptr;
@@ -120,53 +127,45 @@ namespace demo::pension {
         return backend;
     }
 
-    std::unique_ptr<proto::Envelop> ServiceBackend::put(const std::string &key, const std::string &value) {
+    client::core::Status ServiceBackend::put(const std::string &key, const std::string &value) {
         auto digest = util::OpenSSLSHA256::generateDigest(value.data(), value.size());
         if (digest == std::nullopt) {
             LOG(ERROR) << "Calculate hash failed!";
-            return nullptr;
+            return client::core::ERROR;
         }
         return putDigest(key, *digest);
     }
 
-    std::unique_ptr<proto::Envelop> ServiceBackend::putDigest(const std::string &key, const util::OpenSSLSHA256::digestType &digest) {
+    client::core::Status ServiceBackend::putDigest(const std::string &key, const util::OpenSSLSHA256::digestType &digest) {
         std::string raw;
         zpp::bits::out out(raw);
         if (failure(out(key, std::string(std::begin(digest), std::end(digest))))) {
             LOG(ERROR) << "serialize data failed!";
-            return nullptr;
+            return client::core::ERROR;
         }
-        ycsb::sdk::SendInterface* sender = _sdk.get();
+        client::sdk::SendInterface* sender = _sdk.get();
         auto ret = sender->invokeChaincode("hash_chaincode", "Set", raw);
-        if (!ret) {
-            LOG(ERROR) << "Failed to put data!";
-            return nullptr;
-        }
-        DLOG(INFO) << "Put data to blockchain, key: " << key
-                   << ", valueHash: " << util::OpenSSLSHA256::toString(digest)
-                   << ", request Digest: " << util::OpenSSLED25519::toString(ret->getSignature().digest);
+        DLOG_IF(INFO, ret.isOk()) << "Put data to blockchain, key: " << key
+                                  << ", valueHash: " << util::OpenSSLSHA256::toString(digest)
+                                  << ", request Digest: " << util::OpenSSLED25519::toString(ret.getDigest());
         return ret;
     }
 
-    std::unique_ptr<proto::Envelop> ServiceBackend::getDigest(const std::string &key) {
+    client::core::Status ServiceBackend::getDigest(const std::string &key) {
         std::string raw;
         zpp::bits::out out(raw);
         if (failure(out(key))) {
             LOG(ERROR) << "serialize data failed!";
-            return nullptr;
+            return client::core::ERROR;
         }
-        ycsb::sdk::SendInterface* sender = _sdk.get();
+        client::sdk::SendInterface* sender = _sdk.get();
         auto ret = sender->invokeChaincode("hash_chaincode", "Get", raw);
-        if (!ret) {
-            LOG(ERROR) << "Failed to put data!";
-            return nullptr;
-        }
-        DLOG(INFO) << "Get data from blockchain, key: " << key
-                   << ", request Digest: " << util::OpenSSLED25519::toString(ret->getSignature().digest);
+        DLOG_IF(INFO, ret.isOk()) << "Get data from blockchain, key: " << key
+                                  << ", request Digest: " << util::OpenSSLED25519::toString(ret.getDigest());
         return ret;
     }
 
-    ycsb::sdk::ReceiveInterface *ServiceBackend::getReceiver() {
+    client::sdk::ReceiveInterface *ServiceBackend::getReceiver() {
         return _sdk.get();
     }
 
@@ -178,9 +177,6 @@ namespace demo::pension {
         server->_controller = std::make_unique<ServerController>(std::move(service));
         server->_server = std::move(httpServer);
         server->_server->Post("/block/put_data", [&](const httplib::Request &req, httplib::Response &res) {
-            server->_controller->putData(req, res);
-        });
-        server->_server->Get("/block/put_data", [&](const httplib::Request &req, httplib::Response &res) {
             server->_controller->putData(req, res);
         });
 

@@ -18,9 +18,8 @@ namespace util {
                 std::shared_ptr<util::thread_pool_light> wp = nullptr) {
             pmt::Config pmtConfig;
             pmtConfig.Mode = nodeType;
-            if (userRequests.size() > 1024) {
-                pmtConfig.RunInParallel = true;
-            }
+            pmtConfig.LeafGenParallel = true;
+            pmtConfig.RunInParallel = true;
             std::vector<std::unique_ptr<pmt::DataBlock>> blocks;
             blocks.reserve(userRequests.size());
             for (const auto & it : userRequests) {
@@ -86,9 +85,8 @@ namespace util {
             }
             pmt::Config pmtConfig;
             pmtConfig.Mode = nodeType;
-            if (txReadWriteSet.size() > 1024) {
-                pmtConfig.RunInParallel = true;
-            }
+            pmtConfig.LeafGenParallel = true;
+            pmtConfig.RunInParallel = true;
             std::vector<std::unique_ptr<pmt::DataBlock>> blocks;
             blocks.reserve(txReadWriteSet.size());
             for (int i=0; i<(int)txReadWriteSet.size(); i++) {

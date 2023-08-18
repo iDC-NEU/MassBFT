@@ -168,7 +168,7 @@ namespace pmt {
         bthread::CountdownEvent countdown(numRoutines);
         bool ret = true;
         for (auto i = 0; i < numRoutines; i++) {
-            push_task([&, start=i]{
+            util::PushTask(wp.get(), [&, start=i]{
                 for (int j = start; j < lenLeaves; j += numRoutines) {
                     auto hash = blocks[j]->Digest();
                     if (!hash) {
@@ -199,7 +199,7 @@ namespace pmt {
             auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, prevLen);
             bthread::CountdownEvent countdown(numRoutines);
             for (auto i = 0; i < numRoutines; i++) {
-                push_task([&, start=i << 1] {
+                util::PushEmergencyTask(wp.get(), [&, start=i << 1] {
                     for (auto j = start; j < prevLen; j += (numRoutines << 1)) {
                         (*buf2)[j >> 1] = Config::HashFunc((*buf1)[j], (*buf1)[j + 1]);
                     }
@@ -224,7 +224,7 @@ namespace pmt {
         auto numRoutines = MerkleTree::calculateNumRoutine(config.NumRoutines, bufLen);
         bthread::CountdownEvent countdown(numRoutines);
         for (auto i = 0; i < numRoutines; i++) {
-            push_task([&, start=i << 1] {
+            util::PushEmergencyTask(wp.get(), [&, start=i << 1] {
                 for (auto j = start; j < bufLen; j += (numRoutines << 1)) {
                     this->updatePairProof(buf, j, batch, step);
                 }
@@ -237,7 +237,7 @@ namespace pmt {
     void MerkleTree::treeBuild() {
         const auto numLeaves = Leaves.size();
         bthread::CountdownEvent future(1);
-        push_task([&]() {
+        util::PushEmergencyTask(wp.get(), [&]() {
             for (auto i = 0; i < (int) Leaves.size(); i++) {
                 leafMap[std::string(Leaves[i].begin(), Leaves[i].end())] = i;
             }
@@ -255,7 +255,7 @@ namespace pmt {
                 bthread::CountdownEvent countdown(numRoutines);
                 for (auto j = 0; j < numRoutines; j++) {
                     // ----in the original version, numRoutines==config::NumRoutines----
-                    push_task([this, start=j << 1, prevLen=prevLen, numRoutines=numRoutines, depth=i, &countdown]{
+                    util::PushEmergencyTask(wp.get(), [this, start=j << 1, prevLen=prevLen, numRoutines=numRoutines, depth=i, &countdown] {
                         for (auto k = start; k < prevLen; k += (numRoutines << 1)) {
                             this->tree[depth + 1][k >> 1] = Config::HashFunc(this->tree[depth][k], this->tree[depth][k + 1]);
                         }

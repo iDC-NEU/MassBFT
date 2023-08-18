@@ -12,6 +12,22 @@
 #include <thread>
 
 namespace ca {
+    class SessionPool {
+    public:
+        virtual ~SessionPool() = default;
+
+        util::SSHSession* connect(const std::string &ip);
+
+        void reset() {
+            std::unique_lock lock(createMutex);
+            sessionPool.clear();
+        }
+
+    private:
+        std::mutex createMutex;
+        util::MyFlatHashMap<std::string, std::unique_ptr<util::SSHSession>> sessionPool;
+    };
+
     /* The initializer is responsible for initializing the public and private keys of the node
      * and generating the default configuration file.
      * In subsequent versions, the initializer will also be responsible for tasks
@@ -47,9 +63,11 @@ namespace ca {
 
         [[nodiscard]] bool generateDatabase(const std::string &ip, const std::string& chaincodeName) const;
 
-        [[nodiscard]] std::unique_ptr<util::SSHChannel> startPeer(const std::string &ip) const;
+        [[nodiscard]] bool startPeer(const std::string &ip) const;
 
-        [[nodiscard]] std::unique_ptr<util::SSHChannel> startUser(const std::string &ip) const;
+        [[nodiscard]] bool stopPeer(const std::string &ip) const;
+
+        [[nodiscard]] bool startUser(const std::string &ip, const std::string &dbName) const;
 
         [[nodiscard]] bool updateRemoteSourcecode(const std::string &ip) const;
 
@@ -59,12 +77,8 @@ namespace ca {
 
         [[nodiscard]] bool restoreRemoteDatabase(const std::string &ip) const;
 
-        bool stopAll(const std::string& ip) const;
-
     public:
         void overrideProperties();
-
-        void setUserExecName(auto&& rhs) { _userExecName = std::forward<decltype(rhs)>(rhs); }
 
         void setPeerExecName(auto&& rhs) { _peerExecName = std::forward<decltype(rhs)>(rhs); }
 
@@ -87,9 +101,6 @@ namespace ca {
             return success;
         }
 
-    protected:
-        util::SSHSession * connect(const std::string &ip) const;
-
     private:
         // The local and remote node share the same running path
         std::filesystem::path _runningPath;
@@ -97,9 +108,8 @@ namespace ca {
         std::string _ncFolderName;
 
         std::string _peerExecName = "peer";
-        std::string _userExecName = "ycsb";
 
-        mutable std::mutex createMutex;
-        mutable util::MyFlatHashMap<std::string, std::unique_ptr<util::SSHSession>> sessionPool;
+        mutable SessionPool defaultPool;
+        mutable SessionPool destroyPool;
     };
 }

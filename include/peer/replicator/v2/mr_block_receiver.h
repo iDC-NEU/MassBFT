@@ -55,11 +55,7 @@ namespace peer::v2 {
                     } while (false);
                     countdown.signal();
                 };
-                if (tp != nullptr) {
-                    tp->push_task(task);
-                } else {
-                    task();
-                }
+                util::PushEmergencyTask(tp.get(), task);
             }
             countdown.wait();
             // TODO: thresh hold is enough

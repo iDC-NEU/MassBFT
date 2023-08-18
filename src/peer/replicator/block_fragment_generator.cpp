@@ -207,14 +207,9 @@ namespace peer {
 
         pmt::Config pmtConfig;
         pmtConfig.Mode=pmt::ModeType::ModeProofGenAndTreeBuild;
-        // leaf size is too big (all leaves have the equal size)
-        if (ecEncodeResult[0].size() > 1024) {
-            pmtConfig.LeafGenParallel = true;
-        }
-        // too many leaves
-        if (ecEncodeResult.size() > 1024) {
-            pmtConfig.RunInParallel = true;
-        }
+        // hash leaves parallel
+        pmtConfig.LeafGenParallel = true;
+        pmtConfig.RunInParallel = true;
         // _ecConfig.instanceCount indicate the number of parallel running instance
         // pmtConfig.NumRoutines = (int)wpForMTAndEC->get_thread_count() / _ecConfig.instanceCount;
         std::vector<std::unique_ptr<pmt::DataBlock>> blocks;

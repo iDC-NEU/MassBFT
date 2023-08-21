@@ -60,12 +60,13 @@ protected:
         for(int j=0; j<maxNodeId; j++) {
             auto ski = std::to_string(regionId) + "_" + std::to_string(j);
             auto key = bccsp->GetKey(ski);
-            std::string_view serHBody(blockRaw.data()+pos.headerPos, pos.execResultPos-pos.headerPos);
-            auto ret = key->Sign(serHBody.data(), serHBody.size());
+            std::string_view serHeader = std::string_view(blockRaw).substr(pos.headerPos, pos.bodyPos-pos.headerPos);
+            auto ret = key->Sign(serHeader.data(), serHeader.size());
             CHECK(ret) << "Sig validate failed, ski: " << ski;
             block->metadata.consensusSignatures.emplace_back("", ::proto::SignatureString{ ski, *ret });
         }
-        proto::Block::AppendSerializedMetadata(block->metadata, &blockRaw, (int)pos.metadataPos);
+        // Keep the serialized metadata empty!
+        // proto::Block::AppendSerializedMetadata(block->metadata, &blockRaw, (int)pos.metadataPos);
         block->setSerializedMessage(std::move(blockRaw));
         return block;
     }

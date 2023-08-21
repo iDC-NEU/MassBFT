@@ -6,6 +6,7 @@
 #define NBP_FRAGMENT_H
 
 #include "common/parallel_merkle_tree.h"
+#include "proto/block.h"
 #include "zpp_bits.h"
 
 namespace proto {
@@ -18,7 +19,7 @@ namespace proto {
         bool serializeToString(std::string* rawEncodeMessage, int offset, bool withBody) {
             zpp::bits::out out(*rawEncodeMessage);
             out.reset(offset);
-            if(failure(out(blockNumber, root, size, start, end))) {
+            if(failure(out(blockNumber, root, size, start, end, blockSignatures))) {
                 return false;
             }
             if (!withBody) {
@@ -32,13 +33,15 @@ namespace proto {
         bool deserializeFromString(std::string_view raw, int offset=0) {
             zpp::bits::in in(raw);
             in.reset(offset);
-            if(failure(in(blockNumber, root, size, start, end))) {
+            if(failure(in(blockNumber, root, size, start, end, blockSignatures))) {
                 return false;
             }
             // encodeMessage may be larger than expected
-            encodeMessage = std::string_view(raw.data()+in.position(), raw.size()-in.position());
+            encodeMessage = raw.substr(in.position());
             return true;
         }
+        // block consensus signatures
+        std::vector<proto::Block::SignaturePair> blockSignatures;
 
         // block number must be equal to the actual block number
         BlockNumber blockNumber;

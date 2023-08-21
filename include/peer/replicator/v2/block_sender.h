@@ -32,20 +32,26 @@ namespace peer::v2 {
         // listening to different remote server address.
         bool encodeAndSendFragment(const BlockFragmentGenerator::Context &fragmentContext,
                                    proto::BlockNumber blockNumber,
-                                   size_t blockSize) {
+                                   size_t blockSize,
+                                   const std::vector<proto::Block::SignaturePair>& blockSignatures) {
             DCHECK(checkContextValidity(fragmentContext.getConfig()));
+            // performance optimize, serialize signatures first
+            std::string localRawFragment;
+            // the serialize block body
             proto::EncodeBlockFragment localFragment;
             localFragment.blockNumber = blockNumber;
             localFragment.size = blockSize;
             localFragment.start = _start;
             localFragment.end = _end;
             localFragment.root = fragmentContext.getRoot();
-            std::string localRawFragment;
+            localFragment.blockSignatures = blockSignatures;
             // serialize to string
             if (!localFragment.serializeToString(&localRawFragment, 0, false)) {
                 LOG(ERROR) << "Serialize localFragment failed!";
                 return false;
             }
+            // sign the localFragment is not necessary, since the serialized fragment is deterministic,
+            // and the peer is responsible for the corresponding fragments.
             // append the actual encodeMessage to the back
             if (!fragmentContext.serializeFragments((int) localFragment.start,
                                                     (int) localFragment.end,
@@ -122,13 +128,14 @@ namespace peer::v2 {
         bool encodeAndSendBlock(const proto::Block& block) {
             auto context = _bfg->getEmptyContext(_remoteFragmentConfig);
             DCHECK(block.haveSerializedMessage());
+            // the metadata field in blockRaw must be empty
             auto blockRaw = block.getSerializedMessage();
             if (!context->initWithMessage(*blockRaw)) {
                 return false;
             }
             // Using a thread pool is not necessary, since there are multiple regions process concurrently
             for(auto & _sender : _senders) {
-                auto ret = _sender->encodeAndSendFragment(*context, block.header.number, blockRaw->size());
+                auto ret = _sender->encodeAndSendFragment(*context, block.header.number, blockRaw->size(), block.metadata.consensusSignatures);
                 if (!ret) {
                     LOG(ERROR) << "encodeAndSendFragment failed!";
                     return false;

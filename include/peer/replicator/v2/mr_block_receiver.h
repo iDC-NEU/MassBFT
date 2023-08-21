@@ -25,30 +25,49 @@ namespace peer::v2 {
     protected:
         // input serialized block, return deserialized block if validated
         // thread safe
-        [[nodiscard]] std::shared_ptr<proto::Block> getBlockFromRawString(std::unique_ptr<std::string> raw) const {
+        [[nodiscard]] std::shared_ptr<proto::Block> getBlockFromRawString(
+                std::unique_ptr<std::string> raw,
+                const std::vector<BlockReceiver::BufferBlock>& peerList) const {
             std::shared_ptr<proto::Block> block(new proto::Block);
             auto ret = block->deserializeFromString(std::move(raw));
             if (!ret.valid) {
                 LOG(ERROR) << "Decode block failed!";
                 return nullptr;
             }
+
+            DCHECK(block->metadata.consensusSignatures.empty());
+            // fill back consensus signatures
+            // std::vector<proto::Block::SignaturePair> signatures;
+            // {
+            //     std::set<std::string_view> skiSet;
+            //     for (const auto& it: peerList) {
+            //         for (const auto& sig: it.fragment->ebf.blockSignatures) {
+            //             if(!skiSet.insert(sig.second.ski).second) {
+            //                 // item already exist
+            //                 continue;
+            //             }
+            //             signatures.push_back(sig);
+            //         }
+            //     }
+            // }
             // validate block body signatures.
-            auto signatureCnt = (int)block->metadata.consensusSignatures.size();
+            // TODO: aggregate peer signatures
+            std::vector<proto::Block::SignaturePair> signatures = peerList[0].fragment->ebf.blockSignatures;
+            auto signatureCnt = (int)signatures.size();
             bthread::CountdownEvent countdown(signatureCnt);
             std::atomic<int> verifiedSigCnt = 0;
             for (int i=0; i<signatureCnt; i++) {
                 auto task = [&, i=i] {
                     do {
-                        auto& sig = block->metadata.consensusSignatures[i].second;
+                        auto& sig = signatures[i].second;
                         auto key = bccsp->GetKey(sig.ski);
                         if (key == nullptr) {
-                            LOG(ERROR) << "Failed to found key, ski: " << sig.ski;
+                            DLOG(ERROR) << "Failed to found key, ski: " << sig.ski;
                             break;
                         }
-                        // header + body serialized data
-                        std::string_view serBody(block->getSerializedMessage()->data()+ret.headerPos, ret.execResultPos-ret.headerPos);
-                        if (!key->Verify(sig.digest, serBody.data(), serBody.size())) {
-                            LOG(ERROR) << "Sig validate failed, ski: " << sig.ski;
+                        std::string_view serHeader(block->getSerializedMessage()->data(), ret.bodyPos);
+                        if (!key->Verify(sig.digest, serHeader.data(), serHeader.size())) {
+                            DLOG(ERROR) << "Sig validate failed, ski: " << sig.ski;
                             break;
                         }
                         verifiedSigCnt.fetch_add(1, std::memory_order_relaxed);
@@ -58,11 +77,12 @@ namespace peer::v2 {
                 util::PushEmergencyTask(tp.get(), task);
             }
             countdown.wait();
-            // TODO: thresh hold is enough
-            if (verifiedSigCnt != signatureCnt) {
+            // thresh hold is enough (f + 1)
+            if (verifiedSigCnt < (signatureCnt + 1) / 2) {
                 LOG(ERROR) << "Signatures validate failed!";
                 return nullptr;
             }
+            block->metadata.consensusSignatures = std::move(signatures);
             // block is valid, return it.
             return block;
         }
@@ -97,7 +117,7 @@ namespace peer::v2 {
                             // TODO: BLOCK SIZE BYZANTINE ERROR HANDLING
                         }
                     }
-                    auto block = getBlockFromRawString(std::make_unique<std::string>(std::move(raw)));
+                    auto block = getBlockFromRawString(std::make_unique<std::string>(std::move(raw)), peerList);
                     if (block == nullptr) {
                         LOG(ERROR) << "Can not generate block!";
                         return false;

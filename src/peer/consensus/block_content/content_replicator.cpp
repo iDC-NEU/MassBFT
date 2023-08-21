@@ -155,8 +155,9 @@ namespace peer::consensus {
                          << ", got: " << util::OpenSSLSHA256 ::toString(mt->getRoot());
             return;
         }
-        // add block to cache
         // LOG(INFO) << "Follower store a block, hash: " << util::OpenSSLSHA256::toString(*digest);
+        DCHECK(block->metadata.consensusSignatures.empty());
+        DCHECK(block->metadata.validateSignatures.empty());
         _blockCache->storeCachedBlock(std::move(block));
     }
 
@@ -282,8 +283,10 @@ namespace peer::consensus {
             }
         }
         _sender->send(*serializedBlock);
-        // add block to cache (as leader)
         // LOG(INFO) << "Leader store a block, hash: " << util::OpenSSLSHA256::toString(block->header.dataHash);
+        DCHECK(block->metadata.consensusSignatures.empty());
+        DCHECK(block->metadata.validateSignatures.empty());
+        // add block to cache (as leader)
         _blockCache->storeCachedBlock(std::move(block));
         // Sign the serialized block header is enough, return the header only
         auto serializedHeader = serializedBlock->substr(pos.headerPos, pos.bodyPos-pos.headerPos);

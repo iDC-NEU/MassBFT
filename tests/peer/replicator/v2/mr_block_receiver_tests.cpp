@@ -103,17 +103,19 @@ TEST_F(MRBlockReceiverTestV2, TestBlockSignValidate) {
     // sign the body and write back
     std::vector<std::string> regionBlockRaw(3);
     for (int i=0; i<3; i++) {
+        // serialize the block first, then set the signatures
+        block->metadata.consensusSignatures.clear();
+        block->serializeToString(&regionBlockRaw[i]);
         for(int j=0; j<4; j++) {
             auto ski = std::to_string(i) + "_" + std::to_string(j);
             auto key = bccsp->GetKey(ski);
-            std::string_view serHBody(blockRaw.data()+pos.headerPos, pos.execResultPos-pos.headerPos);
-            ASSERT_TRUE(key->Private()) << "Can not sign header+body!";
-            auto ret = key->Sign(serHBody.data(), serHBody.size());
+            std::string_view serHeader = std::string_view(blockRaw).substr(pos.headerPos, pos.bodyPos-pos.headerPos);
+            ASSERT_TRUE(key->Private()) << "Can not sign header!";
+            auto ret = key->Sign(serHeader.data(), serHeader.size());
             ASSERT_TRUE(ret) << "Sig validate failed, ski: " << ski;
             // push back the signature
             block->metadata.consensusSignatures.emplace_back("", ::proto::SignatureString{ ski, *ret });
         }
-        block->serializeToString(&regionBlockRaw[i]);
     }
 
     std::unordered_map<int, proto::BlockNumber> startAt;
@@ -139,12 +141,13 @@ TEST_F(MRBlockReceiverTestV2, TestBlockSignValidate) {
         context->initWithMessage(regionBlockRaw[i]);
         std::vector<std::string> serializedFragment(4);
         for (int j = 0; j < 2; j++) {   // two byzantine servers
-            proto::EncodeBlockFragment fragment{0, {}, {}, static_cast<uint32_t>(j * 1), static_cast<uint32_t>((j + 1) * 1), {}};
+            proto::EncodeBlockFragment fragment{{}, 0, {}, {}, static_cast<uint32_t>(j * 1), static_cast<uint32_t>((j + 1) * 1), {}};
             fragment.size = regionBlockRaw[i].size();
             std::string msgBuf;
             CHECK(context->serializeFragments(fragment.start, fragment.end, msgBuf)) << "create fragment failed!";
             fragment.encodeMessage = msgBuf;    // string view
             fragment.root = context->getRoot();
+            fragment.blockSignatures = block->metadata.consensusSignatures;
             // serialize to string
             if(!fragment.serializeToString(&serializedFragment[j], 0, true)) {
                 CHECK(false) << "Encode message fragment failed!";

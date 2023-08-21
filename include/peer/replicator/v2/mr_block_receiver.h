@@ -62,12 +62,12 @@ namespace peer::v2 {
                         auto& sig = signatures[i].second;
                         auto key = bccsp->GetKey(sig.ski);
                         if (key == nullptr) {
-                            DLOG(ERROR) << "Failed to found key, ski: " << sig.ski;
+                            LOG(ERROR) << "Failed to found key, ski: " << sig.ski;
                             break;
                         }
                         std::string_view serHeader(block->getSerializedMessage()->data(), ret.bodyPos);
                         if (!key->Verify(sig.digest, serHeader.data(), serHeader.size())) {
-                            DLOG(ERROR) << "Sig validate failed, ski: " << sig.ski;
+                            LOG(ERROR) << "Sig validate failed, ski: " << sig.ski;
                             break;
                         }
                         verifiedSigCnt.fetch_add(1, std::memory_order_relaxed);

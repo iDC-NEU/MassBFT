@@ -71,9 +71,8 @@ namespace peer::v2 {
 
         bool addMessageToCache(zmq::message_t&& raw) {
             std::unique_ptr<FragmentBlock> fragmentBlock(new FragmentBlock{{}, std::move(raw)});
-            std::string_view message(reinterpret_cast<const char*>(fragmentBlock->data.data()), fragmentBlock->data.size());
             // get the actual block fragment
-            if(!fragmentBlock->ebf.deserializeFromString(message)) {
+            if(!fragmentBlock->ebf.deserializeFromString(fragmentBlock->data.to_string_view())) {
                 LOG(ERROR) << "Decode message fragment failed!";
                 return false;
             }

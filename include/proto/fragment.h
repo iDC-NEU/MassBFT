@@ -19,7 +19,7 @@ namespace proto {
         bool serializeToString(std::string* rawEncodeMessage, int offset, bool withBody) {
             zpp::bits::out out(*rawEncodeMessage);
             out.reset(offset);
-            if(failure(out(blockNumber, root, size, start, end, blockSignatures))) {
+            if(failure(out(blockSignatures, blockNumber, root, size, start, end))) {
                 return false;
             }
             if (!withBody) {
@@ -33,7 +33,7 @@ namespace proto {
         bool deserializeFromString(std::string_view raw, int offset=0) {
             zpp::bits::in in(raw);
             in.reset(offset);
-            if(failure(in(blockNumber, root, size, start, end, blockSignatures))) {
+            if(failure(in(blockSignatures, blockNumber, root, size, start, end))) {
                 return false;
             }
             // encodeMessage may be larger than expected

@@ -16,14 +16,16 @@ namespace client::core {
         }
 
         // If latency not found, it is set to 0.
-        std::vector<uint64_t> getTxnLatency(const ::proto::Block& block) {
-            auto now = util::Timer::time_now_ms();
+        std::vector<uint64_t> getTxnLatency(const ::proto::Block& block, int64_t timeMsWhenReturn) {
+            if (timeMsWhenReturn <= 0) {    // not inited
+                timeMsWhenReturn = util::Timer::time_now_ms();
+            }
             std::vector<uint64_t> spanList;
             spanList.reserve(block.body.userRequests.size());
             for (auto& it: block.body.userRequests) {
                 auto& digest = it->getSignature().digest;
                 auto ret = map.erase_if(std::string_view(reinterpret_cast<const char *>(digest.data()), digest.size()), [&](auto& v) {
-                    spanList.push_back(now - v.second);
+                    spanList.push_back(timeMsWhenReturn - v.second);
                     return true;
                 });
                 if (!ret) {

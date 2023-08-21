@@ -103,15 +103,15 @@ namespace client::sdk {
 
     std::unique_ptr<::proto::Block> ClientSDK::getBlock(int chainId, int blockId, int timeoutMs) const {
         // We will receive response synchronously, safe to put variables on stack.
-        client::proto::PullBlockRequest request;
+        client::proto::GetBlockRequest request;
         request.set_ski(_impl->_targetLocalNode->ski);
         request.set_chainid(chainId);
         request.set_blockid(blockId);
         request.set_timeoutms(timeoutMs);
-        client::proto::PullBlockResponse response;
+        client::proto::GetBlockResponse response;
         brpc::Controller ctl;
         ctl.set_timeout_ms(5 * 1000);
-        _impl->_receiveStub->pullBlock(&ctl, &request, &response, nullptr);
+        _impl->_receiveStub->getBlock(&ctl, &request, &response, nullptr);
         if (ctl.Failed()) {
             // RMessage is too big
             LOG(ERROR) << "Failed to get block: " << blockId << ", Text: " << ctl.ErrorText() << ", Code: " << berror(ctl.ErrorCode());

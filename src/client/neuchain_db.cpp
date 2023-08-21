@@ -92,14 +92,14 @@ namespace client {
 
     std::unique_ptr<::proto::Block> NeuChainStatus::getBlock(int blockNumber) {
         // We will receive response synchronously, safe to put variables on stack.
-        proto::PullBlockRequest request;
+        proto::GetBlockRequest request;
         request.set_ski(_serverConfig->ski);
         request.set_chainid(_serverConfig->groupId);
         request.set_blockid(blockNumber);
-        proto::PullBlockResponse response;
+        proto::GetBlockResponse response;
         brpc::Controller ctl;
         ctl.set_timeout_ms(5 * 1000);
-        _stub->pullBlock(&ctl, &request, &response, nullptr);
+        _stub->getBlock(&ctl, &request, &response, nullptr);
         if (ctl.Failed()) {
             // RMessage is too big
             LOG(ERROR) << "Failed to get block: " << blockNumber << ", Text: " << ctl.ErrorText() << ", Code: " << berror(ctl.ErrorCode());
@@ -155,6 +155,34 @@ namespace client {
             std::this_thread::sleep_for(std::chrono::milliseconds(retryTimeoutMs));
         }
         return false;
+    }
+
+    std::unique_ptr<::proto::Block> NeuChainStatus::getLightBlock(int blockNumber, int64_t& timeMsWhenReturn) {
+        proto::GetBlockRequest request;
+        request.set_ski(_serverConfig->ski);
+        request.set_chainid(_serverConfig->groupId);
+        request.set_blockid(blockNumber);
+        proto::GetBlockResponse response;
+        brpc::Controller ctl;
+        ctl.set_timeout_ms(5 * 1000);
+        _stub->getLightBlock(&ctl, &request, &response, nullptr);
+        timeMsWhenReturn = util::Timer::time_now_ms();
+        if (ctl.Failed()) {
+            // RMessage is too big
+            LOG(ERROR) << "Failed to get block: " << blockNumber << ", Text: " << ctl.ErrorText() << ", Code: " << berror(ctl.ErrorCode());
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            return nullptr;
+        }
+        if (!response.success()) {
+            LOG(ERROR) << "Failed to get block: " << blockNumber << ", " << response.payload();
+            return nullptr;
+        }
+        auto block = std::make_unique<::proto::Block>();
+        auto in = zpp::bits::in(response.payload());
+        if(failure(in(block->header, block->body, block->executeResult.transactionFilter))) {
+            return nullptr;
+        }
+        return block;
     }
 
     NeuChainStatus::~NeuChainStatus() = default;

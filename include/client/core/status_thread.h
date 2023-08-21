@@ -82,12 +82,13 @@ namespace client::core {
             }
             blockHeight += 1;   // The next block.
             while(running.load(std::memory_order_relaxed)) {
-                std::unique_ptr<proto::Block> block = dbStatus->getBlock(blockHeight);
+                int64_t timeMsWhenReturn = 0;
+                std::unique_ptr<proto::Block> block = dbStatus->getLightBlock(blockHeight, timeMsWhenReturn);
                 if (block == nullptr) {
                     continue;
                 }
                 auto txnCount = block->body.userRequests.size();
-                auto latencyList  = measurements->getTxnLatency(*block);
+                auto latencyList  = measurements->getTxnLatency(*block, timeMsWhenReturn);
                 auto& filterList = block->executeResult.transactionFilter;
                 CHECK(txnCount == latencyList.size());
                 CHECK(txnCount == filterList.size());

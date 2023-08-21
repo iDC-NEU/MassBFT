@@ -56,6 +56,8 @@ namespace client {
 
         std::unique_ptr<::proto::Block> getBlock(int blockNumber) override;
 
+        std::unique_ptr<::proto::Block> getLightBlock(int blockNumber, int64_t& timeMsWhenReturn) override;
+
         bool connect(int retryCount, int retryTimeoutMs) override;
 
         bool getTop(int& blockNumber, int retryCount, int retryTimeoutMs) override;

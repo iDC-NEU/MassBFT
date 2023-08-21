@@ -12,14 +12,14 @@ message HelloResponse {
   optional bytes payload = 2;
 };
 
-message PullBlockRequest {
+message GetBlockRequest {
   required bytes ski = 1;
   required int32 chainId = 2;
   required int32 blockId = 3;
   optional int32 timeoutMs = 4;
 };
 
-message PullBlockResponse {
+message GetBlockResponse {
   required bool success = 1;
   optional bytes payload = 2;
 };
@@ -69,12 +69,12 @@ message GetBlockHeaderResponse {
 service UserService {
   // Client test if the port is connectable
   rpc hello(HelloRequest) returns (HelloResponse);
-  // Pull a block
-  rpc pullBlock(PullBlockRequest) returns (PullBlockResponse);
+  // Get a block
+  rpc getBlock(GetBlockRequest) returns (GetBlockResponse);
+  rpc getLightBlock(GetBlockRequest) returns (GetBlockResponse);
+  rpc getBlockHeader(GetBlockHeaderRequest) returns (GetBlockHeaderResponse);
   // Get the current block chain head
   rpc getTop(GetTopRequest) returns (GetTopResponse);
 
   rpc getTxWithProof(GetTxRequest) returns (GetTxResponse);
-
-  rpc getBlockHeader(GetBlockHeaderRequest) returns (GetBlockHeaderResponse);
 };

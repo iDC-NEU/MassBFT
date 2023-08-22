@@ -11,11 +11,11 @@
 
 class MockPBFTStateMachine : public util::pbft::PBFTStateMachine {
 public:
-    [[nodiscard]] std::optional<::util::OpenSSLED25519::digestType> OnSignMessage(const ::util::NodeConfigPtr&, const std::string&) const override {
-        return std::nullopt;
+    [[nodiscard]] std::unique_ptr<::proto::Block::SignaturePair> OnSignProposal(const ::util::NodeConfigPtr&, const std::string&) override {
+        return {};
     }
     // Call by followers only
-    bool OnVerifyProposal(::util::NodeConfigPtr, const std::string&) override {
+    bool OnVerifyProposal(const ::util::NodeConfigPtr&, const std::string&) override {
         return true;
     }
 

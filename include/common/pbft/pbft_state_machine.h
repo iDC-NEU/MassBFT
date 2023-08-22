@@ -15,9 +15,9 @@ namespace util::pbft {
     public:
         virtual ~PBFTStateMachine() = default;
 
-        [[nodiscard]] virtual std::optional<::util::OpenSSLED25519::digestType> OnSignMessage(const ::util::NodeConfigPtr& localNode, const std::string& message) const = 0;
+        [[nodiscard]] virtual std::unique_ptr<::proto::Block::SignaturePair> OnSignProposal(const ::util::NodeConfigPtr& localNode, const std::string& message) = 0;
         // When a node become follower, it verifies proposal sent from the leader
-        virtual bool OnVerifyProposal(::util::NodeConfigPtr localNode, const std::string& context) = 0;
+        virtual bool OnVerifyProposal(const ::util::NodeConfigPtr& localNode, const std::string& context) = 0;
 
         virtual bool OnDeliver(::util::NodeConfigPtr localNode,
                                const std::string& context,

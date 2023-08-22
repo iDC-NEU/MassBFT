@@ -34,6 +34,9 @@ namespace client::core {
 
         virtual std::unique_ptr<proto::Block> getBlock(int blockNumber) = 0;
 
+        // For benchmark only, skip serialize the read-write sets
+        virtual std::unique_ptr<::proto::Block> getLightBlock(int blockNumber, int64_t& timeMsWhenReturn) { return nullptr; }
+
         virtual bool connect(int retryCount, int retryTimeoutMs) = 0;
 
         virtual bool getTop(int& blockNumber, int retryCount, int retryTimeoutMs) = 0;

@@ -34,10 +34,15 @@ namespace peer::core {
                    ::client::proto::HelloResponse* response,
                    ::google::protobuf::Closure* done) override;
 
-        void pullBlock(::google::protobuf::RpcController* controller,
-                       const ::client::proto::PullBlockRequest* request,
-                       ::client::proto::PullBlockResponse* response,
-                       ::google::protobuf::Closure* done) override;
+        void getBlock(::google::protobuf::RpcController* controller,
+                      const ::client::proto::GetBlockRequest* request,
+                      ::client::proto::GetBlockResponse* response,
+                      ::google::protobuf::Closure* done) override;
+
+        void getLightBlock(::google::protobuf::RpcController* controller,
+                      const ::client::proto::GetBlockRequest* request,
+                      ::client::proto::GetBlockResponse* response,
+                      ::google::protobuf::Closure* done) override;
 
         void getTop(::google::protobuf::RpcController* controller,
                     const ::client::proto::GetTopRequest* request,

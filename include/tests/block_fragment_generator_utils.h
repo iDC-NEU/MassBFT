@@ -39,7 +39,7 @@ namespace tests {
         };
 
         std::string generateMockFragment(peer::BlockFragmentGenerator::Context* context, proto::BlockNumber number, uint32_t start, uint32_t end) const {
-            proto::EncodeBlockFragment fragment{number, {}, {}, start, end, {}};
+            proto::EncodeBlockFragment fragment{{}, number, {}, {}, start, end, {}};
             // fill the rest fields
             auto encodeMessageBuf = FillFragment(context, start, end);
             fragment.size = message.size();

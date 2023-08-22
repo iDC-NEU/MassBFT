@@ -92,11 +92,16 @@ namespace util::pbft {
                 LOG(WARNING) << "Wrong node id.";
                 return;
             }
-            auto ret = _stateMachine->OnSignMessage(_localNodes.at(request->localid()), request->payload());
-            if (ret == std::nullopt) {
-                response->set_success(false);
+            auto signature = _stateMachine->OnSignProposal(_localNodes.at(request->localid()), request->payload());
+            if (signature == nullptr) {
+                return;
             }
-            response->set_payload(ret->data(), ret->size());
+            auto* payload = response->mutable_payload();
+            payload->reserve(1024);
+            zpp::bits::out out(*payload);
+            if (failure(out(*signature))) {
+                return;
+            }
             response->set_success(true);
         }
 
@@ -122,16 +127,11 @@ namespace util::pbft {
             std::vector<::proto::Block::SignaturePair> consensusSignatures(request->contents_size());
             // append signatures
             for (int i=0; i<request->contents_size(); i++) {
-                auto& it = consensusSignatures[i];
-                std::memcpy(it.second.digest.data(), request->signatures(i).data(), it.second.digest.size());
-                if ((int)_localNodes.size() <= request->localid()) {
-                    LOG(WARNING) << "Signatures contains error.";
+                zpp::bits::in in(request->signatures(i));
+                if (failure(in(consensusSignatures[i]))) {
+                    LOG(WARNING) << "Deserialize signatures failed!";
                     return;
                 }
-                it.second.ski = _localNodes.at(request->localid())->ski;
-                // After consensus, the consensus service may not only sign the hash of the block,
-                // we need to keep the content corresponding to the signature for verification
-                it.first = request->contents(i);
             }
             if (!_stateMachine->OnDeliver(_localNodes.at(request->localid()), tomMessage.content(), std::move(consensusSignatures))) {
                 LOG(WARNING) << "Validate block error.";

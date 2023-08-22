@@ -81,9 +81,9 @@ namespace peer::core {
         LOG(INFO) << "Receive hello from " << request->ski();
     }
 
-    void UserRPCController::pullBlock(::google::protobuf::RpcController *,
-                                      const ::client::proto::PullBlockRequest *request,
-                                      ::client::proto::PullBlockResponse *response,
+    void UserRPCController::getBlock(::google::protobuf::RpcController *,
+                                      const ::client::proto::GetBlockRequest *request,
+                                      ::client::proto::GetBlockResponse *response,
                                       ::google::protobuf::Closure *done) {
         brpc::ClosureGuard guard(done);
         response->set_success(false);
@@ -101,6 +101,31 @@ namespace peer::core {
         auto* payload = response->mutable_payload();
         auto ret = block->serializeToString(payload);
         if (!ret.valid) {
+            response->set_payload("Serialize message failed.");
+            return;
+        }
+        response->set_success(true);
+    }
+
+    void UserRPCController::getLightBlock(::google::protobuf::RpcController *,
+                                     const ::client::proto::GetBlockRequest *request,
+                                     ::client::proto::GetBlockResponse *response,
+                                     ::google::protobuf::Closure *done) {
+        brpc::ClosureGuard guard(done);
+        response->set_success(false);
+        DLOG(INFO) << "pullBlock, chainId: " << request->chainid()  << ", blockId: " << request->blockid();
+        auto timeout = -1;
+        if (request->has_timeoutms()) {
+            timeout = request->timeoutms();
+        }
+        auto block = _impl->_storage->waitForBlock(request->chainid(), request->blockid(), timeout);
+        if (block == nullptr) {
+            response->set_payload("Failed to get block within timeout.");
+            return;
+        }
+        auto* payload = response->mutable_payload();
+        auto out = zpp::bits::out(*payload);
+        if(failure(out(block->header, block->body, block->executeResult.transactionFilter))) {
             response->set_payload("Serialize message failed.");
             return;
         }

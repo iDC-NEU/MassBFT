@@ -104,17 +104,22 @@ namespace util {
         void receive(Callback Func) {
             auto timeout = std::chrono::milliseconds(100);
             zmq::pollitem_t item = { _socket->operator void *(), 0, ZMQ_POLLIN, 0 };
-            try {
-                while (true) {
+            while (true) {
+                try {
                     zmq::poll(&item, 1, timeout);
-                    if (item.revents & ZMQ_POLLIN) {
-                        //  Got a message! process it.
+                } catch (const zmq::error_t& error) {
+                    LOG(INFO) << "ZMQ instance receive message failed, " << error.what();
+                    return;
+                }
+                if (item.revents & ZMQ_POLLIN) {
+                    //  Got some messages! process them.
+                    while (true) {
                         zmq::message_t msg;
                         // Assuming single part message. If not you'd have to get all parts here
                         // zmq guarantees all parts arrive before flagging a message is there.
-                        auto res = _socket->recv(msg, zmq::recv_flags::none);
+                        auto res = _socket->recv(msg, zmq::recv_flags::dontwait);
                         if (res == std::nullopt) {
-                            return; // socket is closed
+                            break;
                         }
                         // call the message
                         if (!Func(std::move(msg), &timeout)) {
@@ -122,27 +127,32 @@ namespace util {
                         }
                     }
                 }
-            } catch (const zmq::error_t& error) {
-                LOG(INFO) << "ZMQ instance receive message failed, " << error.what();
             }
         }
 
         void shutdown() { _context->shutdown(); }
 
-        // Zero copy is only available for sender
-        template<class CT=std::string>
-        auto send(CT&& msg) {
-            using CTNoCVR = std::remove_cvref<CT>::type;
-            auto* container = new CTNoCVR(std::forward<CT>(msg));
-            zmq::message_t zmqMsg(static_cast<void *>(container->data()), container->size(), freeBufferCallback<CTNoCVR>, nullptr);
-            return sendInternal(zmqMsg);
+        bool send(const std::string& msg) {
+            zmq::message_t zmqMsg(msg);
+            return send(zmqMsg);
         }
 
-    protected:
-        ZMQInstance(auto context, auto socket)
-                :_context(std::move(context)), _socket(std::move(socket)){ }
+        bool send(std::string&& msg) {
+            return send(msg);
+        }
 
-        bool sendInternal(zmq::message_t& msg) {
+        bool send(std::string& msg) {
+            auto buffer = new std::string;
+            buffer->swap(msg);
+            zmq::message_t zmqMsg(static_cast<void *>(buffer->data()), buffer->size(), freeBufferCallback<std::string>, nullptr);
+            return send(zmqMsg);
+        }
+
+        bool send(zmq::message_t&& msg) {
+            return send(msg);
+        }
+
+        bool send(zmq::message_t& msg) {
             try {
                 while (true) {
                     auto res = _socket->send(msg, zmq::send_flags::none);
@@ -155,6 +165,10 @@ namespace util {
                 return false;
             }
         }
+
+    protected:
+        ZMQInstance(auto context, auto socket)
+                :_context(std::move(context)), _socket(std::move(socket)){ }
 
     private:
         template<class T>

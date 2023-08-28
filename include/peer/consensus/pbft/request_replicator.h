@@ -100,7 +100,7 @@ namespace peer::consensus::v2 {
                     }
                 }
                 auto timeLeftMs = _batchConfig.timeoutMs - static_cast<int>(timer.end_ns() / 1000 / 1000);
-                *timeout = std::chrono::milliseconds();
+                *timeout = std::chrono::milliseconds(timeLeftMs);
 
                 auto envelop = std::make_unique<proto::Envelop>();
                 envelop->setSerializedMessage(message.to_string());

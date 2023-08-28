@@ -4,8 +4,9 @@
 
 #include "peer/core/module_coordinator.h"
 #include "peer/core/module_factory.h"
-#include "peer/core/single_pbft_controller.h"
+#include "peer/consensus/pbft/single_pbft_controller.h"
 #include "peer/consensus/block_order/global_ordering.h"
+#include "peer/storage/mr_block_storage.h"
 #include "peer/concurrency_control/deterministic/coordinator_impl.h"
 
 namespace peer::core {
@@ -74,12 +75,12 @@ namespace peer::core {
         if (mc->_userRPCNotifier == nullptr) {
             return nullptr;
         }
-        // the bftController id is 0
-        auto bftController = mc->_moduleFactory->newReplicatorBFTController(0*totalGroup + mc->_localNode->groupId);
-        if (bftController == nullptr) {
+        // the localContentBFT id is 0
+        auto localContentBFT = mc->_moduleFactory->newReplicatorBFTController(0*totalGroup + mc->_localNode->groupId);
+        if (localContentBFT == nullptr) {
             return nullptr;
         }
-        mc->_localContentBFT = std::move(bftController);
+        mc->_localContentBFT = std::move(localContentBFT);
         // the result will be pushed into storage automatically
 
         // spin up the thread finally
@@ -134,7 +135,7 @@ namespace peer::core {
             LOG(ERROR) << "Raft config contains error, can not wait until raft is ready!";
         }
         // wait until bft is ready
-        _localContentBFT->waitUntilReady();
+        _localContentBFT->pbftController->waitUntilReady();
     }
 
     bool ModuleCoordinator::startInstance() {
@@ -142,7 +143,7 @@ namespace peer::core {
             LOG(ERROR) << "ReplicatorSender client start failed!";
             return false;
         }
-        _localContentBFT->startInstance();
+        _localContentBFT->pbftController->startInstance();
         return true;
     }
 

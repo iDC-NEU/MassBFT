@@ -99,6 +99,34 @@ namespace util {
             }
         }
 
+        // deserialize the data
+        template<typename Callback>
+        void receive(Callback Func) {
+            auto timeout = std::chrono::milliseconds(100);
+            zmq::pollitem_t item = { _socket->operator void *(), 0, ZMQ_POLLIN, 0 };
+            try {
+                while (true) {
+                    zmq::poll(&item, 1, timeout);
+                    if (item.revents & ZMQ_POLLIN) {
+                        //  Got a message! process it.
+                        zmq::message_t msg;
+                        // Assuming single part message. If not you'd have to get all parts here
+                        // zmq guarantees all parts arrive before flagging a message is there.
+                        auto res = _socket->recv(msg, zmq::recv_flags::none);
+                        if (res == std::nullopt) {
+                            return; // socket is closed
+                        }
+                        // call the message
+                        if (!Func(std::move(msg), &timeout)) {
+                            return;
+                        }
+                    }
+                }
+            } catch (const zmq::error_t& error) {
+                LOG(INFO) << "ZMQ instance receive message failed, " << error.what();
+            }
+        }
+
         void shutdown() { _context->shutdown(); }
 
         // Zero copy is only available for sender

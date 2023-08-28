@@ -5,19 +5,18 @@
 #pragma once
 
 #include "ca/bft_instance_controller.h"
-#include "peer/consensus/block_content/local_pbft_controller.h"
+#include "bthread/countdown_event.h"
+#include <thread>
 
-namespace peer::core {
+namespace peer::consensus::v2 {
     class SinglePBFTController {
     public:
         SinglePBFTController(std::unique_ptr<::ca::BFTInstanceController> instanceManager,
-                             std::unique_ptr<::peer::consensus::LocalPBFTController> consensusHandler,
                              int nodeGroupId,
                              int instanceId,
                              int bftGroupId)
                 : _ce(1), _nodeGroupId(nodeGroupId), _instanceId(instanceId), _bftGroupId(bftGroupId),
-                  _instanceManager(std::move(instanceManager)), _consensusHandler(std::move(consensusHandler)) {
-            CHECK(_instanceManager && _consensusHandler);
+                  _instanceManager(std::move(instanceManager)) {
             _instanceManager->stopAndClean();
         }
 
@@ -28,8 +27,6 @@ namespace peer::core {
             }
             _instanceManager->stopAndClean();
         }
-
-        [[nodiscard]] ::peer::consensus::LocalPBFTController& getConsensusHandler() const { return *_consensusHandler; }
 
         void startInstance() {
             _instanceManager->startInstance("");    // we have already prepared the file
@@ -68,8 +65,7 @@ namespace peer::core {
         const int _nodeGroupId;
         const int _instanceId;
         const int _bftGroupId;
-        std::unique_ptr<std::thread> _statusThread;
+        std::unique_ptr<std::thread> _statusThread{};
         std::unique_ptr<::ca::BFTInstanceController> _instanceManager;
-        std::unique_ptr<::peer::consensus::LocalPBFTController> _consensusHandler;
     };
 }

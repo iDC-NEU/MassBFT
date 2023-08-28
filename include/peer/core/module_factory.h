@@ -14,12 +14,11 @@ namespace util {
 }
 
 namespace peer {
-    namespace core {
-        class SinglePBFTController;
-    }
     namespace consensus::v2 {
         class BlockOrder;
         class OrderACB;
+        class LocalConsensusController;
+        class SinglePBFTController;
     }
     class MRBlockStorage;
     class BlockLRUCache;
@@ -27,6 +26,12 @@ namespace peer {
 }
 
 namespace peer::core {
+    struct BFTController {
+        ~BFTController();
+        std::unique_ptr<consensus::v2::LocalConsensusController> consensusController;
+        std::unique_ptr<consensus::v2::SinglePBFTController> pbftController;
+    };
+
     class ModuleFactory {
     protected:
         ModuleFactory() = default;
@@ -52,7 +57,7 @@ namespace peer::core {
 
         // groupId: the bft group id (not region id!)
         // bft instance runningPath = std::filesystem::current_path();
-        std::unique_ptr<::peer::core::SinglePBFTController> newReplicatorBFTController(int groupId);
+        std::unique_ptr<BFTController> newReplicatorBFTController(int groupId);
 
         std::unique_ptr<::peer::consensus::v2::BlockOrder> newGlobalBlockOrdering(std::shared_ptr<peer::consensus::v2::OrderACB> callback);
 

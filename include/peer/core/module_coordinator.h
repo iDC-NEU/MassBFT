@@ -28,7 +28,7 @@ namespace peer {
 
 namespace peer::core {
     class ModuleFactory;
-    class SinglePBFTController;
+    class BFTController;
 
     class ModuleCoordinator {
     public:
@@ -67,7 +67,7 @@ namespace peer::core {
         // other components
         std::shared_ptr<::peer::MRBlockStorage> _contentStorage;
         std::unique_ptr<::peer::consensus::v2::BlockOrder> _gbo;
-        std::unique_ptr<::peer::core::SinglePBFTController> _localContentBFT;
+        std::unique_ptr<BFTController> _localContentBFT;
         // for debug
         std::shared_ptr<util::NodeConfig> _localNode;
         // for concurrency control

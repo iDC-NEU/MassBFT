@@ -3,12 +3,13 @@
 //
 
 #include "peer/core/module_factory.h"
-#include "peer/core/single_pbft_controller.h"
-#include "peer/replicator/replicator.h"
+#include "peer/core/user_rpc_controller.h"
 #include "peer/consensus/block_order/global_ordering.h"
+#include "peer/consensus/pbft/local_consensus_controller.h"
+#include "peer/consensus/pbft/single_pbft_controller.h"
+#include "peer/replicator/replicator.h"
 #include "common/yaml_key_storage.h"
 #include "common/property.h"
-#include "peer/core/user_rpc_controller.h"
 
 namespace peer::core {
     ModuleFactory::~ModuleFactory() = default;
@@ -84,7 +85,7 @@ namespace peer::core {
         return replicator;
     }
 
-    std::unique_ptr<::peer::core::SinglePBFTController> ModuleFactory::newReplicatorBFTController(int groupId) {
+    std::unique_ptr<BFTController> ModuleFactory::newReplicatorBFTController(int groupId) {
         auto np = _properties->getNodeProperties();
         auto localNode = np.getLocalNodeInfo();
         auto [user, pass, success] = _properties->getSSHInfo();
@@ -134,20 +135,21 @@ namespace peer::core {
             return nullptr;
         }
         // local region nodes
-        auto pc = consensus::LocalPBFTController::NewPBFTController(
+        auto pc = consensus::v2::LocalConsensusController::NewLocalConsensusController(
                 localRegionNodes,
                 localNode->nodeId,
                 groupPortMap.at(localNode->nodeId),
                 bccsp,
                 std::move(tp),
                 std::move(cs),
-                {_properties->getBlockBatchTimeoutMs(),
-                 _properties->getBlockMaxBatchSize()},
-                 _properties->validateOnReceive());
+                _properties->getBlockBatchTimeoutMs(),
+                _properties->getBlockMaxBatchSize());
         if (!pc || !pc->startRPCService()) {
             return nullptr;
         }
-        return std::make_unique<SinglePBFTController>(std::move(ic), std::move(pc), localNode->groupId, localNode->nodeId, groupId);
+        auto rc = std::make_unique<consensus::v2::SinglePBFTController>(std::move(ic), localNode->groupId, localNode->nodeId, groupId);
+
+        return std::unique_ptr<BFTController>(new BFTController{std::move(pc), std::move(rc)});
     }
 
     std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> ModuleFactory::getOrInitZMQPortUtilMap() {
@@ -218,4 +220,6 @@ namespace peer::core {
         }
         return storage;
     }
+
+    BFTController::~BFTController() = default;
 }

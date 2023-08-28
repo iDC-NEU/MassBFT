@@ -256,6 +256,10 @@ namespace peer::v2 {
         [[nodiscard]] std::shared_ptr<BlockFragmentGenerator> getBFG() { return _bfg; }
 
         bool checkAndStart(int startFromBlock) {
+            if (_senderMap.empty()) {
+                LOG(WARNING) << "Config with only one region, quit sender.";
+                return true;
+            }
             if (!_wpForBlockSender|| !_storage || !_bfg) {
                 LOG(ERROR) << "System have not init yet.";
                 return false;

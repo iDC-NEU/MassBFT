@@ -104,20 +104,9 @@ namespace peer::consensus::v2 {
                     if (_leaderStopSignal.load(std::memory_order_relaxed)) {
                         return;
                     }
-                    // wake up every 1ms
                     auto ret = _receiveFromUserQueue.wait_dequeue_bulk_timed(unorderedRequests.begin() + currentBatchSize,
                                                                              _batchConfig.maxBatchSize - currentBatchSize,
-                                                                             std::min(timeLeftUs, 1000));
-                    {   // batch send function
-                        std::string buffer;
-                        buffer.reserve((int)ret * 512);
-                        for (int i = 0; i < (int)ret; i++) {
-                            unorderedRequests[currentBatchSize + i]->serializeToString(&buffer, (int)buffer.size());
-                        }
-                        if (!_sendToPeer->send(buffer)) {
-                            return;
-                        }
-                    }
+                                                                             timeLeftUs);
                     currentBatchSize += (int)ret;
                     if (currentBatchSize == 0) {   // We can not pass empty batch to replicator
                         timer.start();
@@ -133,9 +122,15 @@ namespace peer::consensus::v2 {
                 }
                 unorderedRequests.resize(currentBatchSize);
                 DLOG(INFO) << "Leader batch a block, size: " << currentBatchSize;
-                // notice peer this block is end
-                if (!_sendToPeer->send(endSeparator)) {
-                    return;   // send failure
+                {   // batch send function
+                    std::string buffer;
+                    buffer.reserve(currentBatchSize * 512);
+                    for (int i = 0; i < (int)currentBatchSize; i++) {
+                        unorderedRequests[i]->serializeToString(&buffer, (int)buffer.size());
+                    }
+                    if (!_sendToPeer->send(buffer)) {
+                        return;
+                    }
                 }
                 if (_batchCallback && !_batchCallback(std::move(unorderedRequests))) {
                     LOG(WARNING) << "Batch call back return false!";
@@ -171,11 +166,6 @@ namespace peer::consensus::v2 {
                 if (_followerStopSignal.load(std::memory_order_relaxed)) {
                     return false;
                 }
-
-                if (message.to_string_view() == endSeparator) {
-                    return batchingFunc();  // batch is full
-                }
-
                 int pos = 0;
                 while (pos < (int)message.size()) {
                     if (currentBatchSize == (int)unorderedRequests.size()) {
@@ -191,7 +181,7 @@ namespace peer::consensus::v2 {
                     unorderedRequests[currentBatchSize] = std::move(envelop);
                     currentBatchSize += 1;
                 }
-                return true;
+                return batchingFunc();
             };
 
             _receiveFromPeer->receive(callback);
@@ -202,8 +192,6 @@ namespace peer::consensus::v2 {
         Config _batchConfig;
         std::atomic<bool> _leaderStopSignal;
         std::atomic<bool> _followerStopSignal;
-
-        inline static const std::string endSeparator = "end_sep";
 
         // receive from user as a server
         std::unique_ptr<std::thread> _receiveFromUserThread;

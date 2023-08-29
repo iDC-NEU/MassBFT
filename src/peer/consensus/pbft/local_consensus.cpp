@@ -3,10 +3,8 @@
 //
 
 #include "peer/consensus/pbft/local_consensus.h"
-
-#include <memory>
 #include "peer/consensus/pbft/request_replicator.h"
-#include "peer/consensus/block_content/pbft_block_cache.h"
+#include "peer/consensus/pbft/pbft_block_cache.h"
 #include "common/proof_generator.h"
 
 namespace peer::consensus::v2 {

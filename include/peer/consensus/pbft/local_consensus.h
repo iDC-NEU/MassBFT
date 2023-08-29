@@ -121,7 +121,7 @@ namespace peer::consensus::v2 {
         std::unique_ptr<PBFTBlockCache> _blockCache;
         std::unique_ptr<RequestReplicator> _requestReplicator;
         // Used when the node become leader, receive txn batch from user and enqueue to queue
-        util::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>, 64> _requestBatchQueue;
+        util::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>, 256> _requestBatchQueue;
         // BCCSP and thread pool
         std::shared_ptr<util::BCCSP> _bccsp;
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;

@@ -195,8 +195,7 @@ namespace client::sdk {
             return nullptr;
         }
         auto envelop = std::make_unique<::proto::Envelop>();
-        envelop->setSerializedMessage(std::move(*response.mutable_envelop()));
-        if (!envelop->deserializeFromString()) {
+        if (envelop->deserializeFromString(response.envelop()) < 0) {
             return nullptr;
         }
         respWithProof->envelop = std::move(envelop);

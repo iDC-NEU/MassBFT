@@ -125,7 +125,7 @@ namespace proto {
         std::shared_ptr<std::string> storage;
     };
 
-    class Envelop : public DeserializeStorage {
+    class Envelop {
     public:
         Envelop() = default;
 
@@ -157,16 +157,15 @@ namespace proto {
             return archive(e._payloadSV, e._signature);
         }
 
-        bool deserializeFromString(int pos = 0) {
-            if (this->storage == nullptr) {
-                return false;
-            }
-            auto in = zpp::bits::in(*(this->storage));
+        int deserializeFromString(std::string_view buf, int pos = 0) {
+            auto in = zpp::bits::in(buf);
             in.reset(pos);
-            if(failure(in(*this))) {
-                return false;
+            // we must set the actual payload, since the outside message may be empty
+            if(failure(in(_payload, _signature))) {
+                return -1;
             }
-            return true;
+            _payloadSV = _payload;
+            return (int)in.position();
         }
 
         bool serializeToString(std::string *buf, int pos = 0) const {

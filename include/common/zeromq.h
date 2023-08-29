@@ -144,7 +144,7 @@ namespace util {
         bool send(std::string& msg) {
             auto buffer = new std::string;
             buffer->swap(msg);
-            zmq::message_t zmqMsg(static_cast<void *>(buffer->data()), buffer->size(), freeBufferCallback<std::string>, nullptr);
+            zmq::message_t zmqMsg(static_cast<void *>(buffer->data()), buffer->size(), freeBufferCallback<std::string>, buffer);
             return send(zmqMsg);
         }
 

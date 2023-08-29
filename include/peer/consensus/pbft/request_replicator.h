@@ -31,6 +31,9 @@ namespace peer::consensus::v2 {
             _receiveFromUser->shutdown();
             _leaderStopSignal = true;
             _followerStopSignal = true;
+            if (_receiveFromUserThread) {
+                _receiveFromUserThread->join();
+            }
             if (_batchingThread) {
                 _batchingThread->join();
             }
@@ -51,6 +54,11 @@ namespace peer::consensus::v2 {
             _leaderStopSignal = false;
             _receiveFromUser = util::ZMQInstance::NewServer<zmq::socket_type::sub>(userPort);
             _sendToPeer = util::ZMQInstance::NewServer<zmq::socket_type::pub>(leaderPort);
+            {   // clear the queue
+                std::unique_ptr<proto::Envelop> trash;
+                while (_receiveFromUserQueue.try_dequeue(trash));
+            }
+            _receiveFromUserThread = std::make_unique<std::thread>(&RequestReplicator::collectorFunction, this);
             _batchingThread = std::make_unique<std::thread>(&RequestReplicator::batchingFunction, this);
         }
 
@@ -65,68 +73,75 @@ namespace peer::consensus::v2 {
         }
 
     protected:
+        void collectorFunction() {
+            pthread_setname_np(pthread_self(), "req_collector");
+            while(true) {
+                if (_leaderStopSignal.load(std::memory_order_relaxed)) {
+                    return;
+                }
+                auto ret = _receiveFromUser->receive();
+                if (ret == std::nullopt) {
+                    return;  // socket dead
+                }
+                auto envelop = std::make_unique<proto::Envelop>();
+                if (envelop->deserializeFromString(ret->to_string_view()) < 0) {
+                    LOG(WARNING) << "Deserialize user request failed.";
+                }
+                _receiveFromUserQueue.enqueue(std::move(envelop));
+            }
+        }
+
         void batchingFunction() {
             pthread_setname_np(pthread_self(), "batch_leader");
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-            auto currentBatchSize = 0;
-            auto unorderedRequests = std::vector<std::unique_ptr<proto::Envelop>>(_batchConfig.maxBatchSize);
-
-            auto batchingFunc = [&]() -> bool {
-                if (currentBatchSize == 0) {
-                    return true;
+            while(true) {
+                auto unorderedRequests = std::vector<std::unique_ptr<proto::Envelop>>(_batchConfig.maxBatchSize);
+                auto timer = util::Timer();
+                auto timeLeftUs = _batchConfig.timeoutMs * 1000;
+                auto currentBatchSize = 0;
+                while (true) {
+                    if (_leaderStopSignal.load(std::memory_order_relaxed)) {
+                        return;
+                    }
+                    // wake up every 1ms
+                    auto ret = _receiveFromUserQueue.wait_dequeue_bulk_timed(unorderedRequests.begin() + currentBatchSize,
+                                                                             _batchConfig.maxBatchSize - currentBatchSize,
+                                                                             std::min(timeLeftUs, 1000));
+                    {   // batch send function
+                        std::string buffer;
+                        buffer.reserve((int)ret * 512);
+                        for (int i = 0; i < (int)ret; i++) {
+                            unorderedRequests[currentBatchSize + i]->serializeToString(&buffer, (int)buffer.size());
+                        }
+                        if (!_sendToPeer->send(buffer)) {
+                            return;
+                        }
+                    }
+                    currentBatchSize += (int)ret;
+                    if (currentBatchSize == 0) {   // We can not pass empty batch to replicator
+                        timer.start();
+                        continue;  // reset timer and retry
+                    }
+                    if (currentBatchSize == _batchConfig.maxBatchSize) {
+                        break;  // batch is full
+                    }
+                    timeLeftUs = _batchConfig.timeoutMs * 1000 - static_cast<int>(timer.end_ns() / 1000);
+                    if (timeLeftUs <= 0) {
+                        break;  // timeout and batch is not empty
+                    }
                 }
                 unorderedRequests.resize(currentBatchSize);
                 DLOG(INFO) << "Leader batch a block, size: " << currentBatchSize;
+                // notice peer this block is end
+                if (!_sendToPeer->send(endSeparator)) {
+                    return;   // send failure
+                }
                 if (_batchCallback && !_batchCallback(std::move(unorderedRequests))) {
                     LOG(WARNING) << "Batch call back return false!";
-                    return false;
+                    continue;
                 }
-                currentBatchSize = 0;   // reset
-                unorderedRequests = std::vector<std::unique_ptr<proto::Envelop>>(_batchConfig.maxBatchSize);
-                return true;
-            };
-
-            auto timer = util::Timer();
-
-            auto callback = [&](zmq::message_t message, std::chrono::milliseconds* timeout) -> bool {
-                if (_leaderStopSignal.load(std::memory_order_relaxed)) {
-                    return false;
-                }
-                if (currentBatchSize == 0) {
-                    timer.start();
-                    if (!_sendToPeer->send(beginSeparator)) {
-                        return false;   // send failure
-                    }
-                }
-                auto timeLeftMs = _batchConfig.timeoutMs - static_cast<int>(timer.end_ns() / 1000 / 1000);
-                *timeout = std::chrono::milliseconds(timeLeftMs);
-
-                auto envelop = std::make_unique<proto::Envelop>();
-                envelop->setSerializedMessage(message.to_string());
-                if (!envelop->deserializeFromString()) {
-                    LOG(WARNING) << "Deserialize user request failed.";
-                    return true;
-                }
-
-                unorderedRequests[currentBatchSize] = std::move(envelop);
-                currentBatchSize += 1;
-
-                // send to other peers
-                if (!_sendToPeer->send(std::move(message))) {
-                    return false;   // send failure
-                }
-
-                if (timeLeftMs <= 0) {
-                    return batchingFunc();  // timeout and batch is not empty
-                }
-                if (currentBatchSize >= _batchConfig.maxBatchSize) {
-                    return batchingFunc();  // batch is full
-                }
-                return true;
-            };
-
-            _receiveFromUser->receive(callback);
+            }
         }
 
         void followerFunction() {
@@ -157,19 +172,25 @@ namespace peer::consensus::v2 {
                     return false;
                 }
 
-                if (message.to_string_view() == beginSeparator) {
+                if (message.to_string_view() == endSeparator) {
                     return batchingFunc();  // batch is full
                 }
 
-                auto envelop = std::make_unique<proto::Envelop>();
-                envelop->setSerializedMessage(message.to_string());
-                if (!envelop->deserializeFromString()) {
-                    LOG(WARNING) << "Deserialize user request failed.";
-                    return true;
+                int pos = 0;
+                while (pos < (int)message.size()) {
+                    if (currentBatchSize == (int)unorderedRequests.size()) {
+                        LOG(WARNING) << "Max size exceed.";
+                        return true;
+                    }
+                    auto envelop = std::make_unique<proto::Envelop>();
+                    pos = envelop->deserializeFromString(message.to_string_view(), pos);
+                    if (pos < 0) {
+                        LOG(WARNING) << "Deserialize user request failed.";
+                        return true;
+                    }
+                    unorderedRequests[currentBatchSize] = std::move(envelop);
+                    currentBatchSize += 1;
                 }
-
-                unorderedRequests[currentBatchSize] = std::move(envelop);
-                currentBatchSize += 1;
                 return true;
             };
 
@@ -182,10 +203,12 @@ namespace peer::consensus::v2 {
         std::atomic<bool> _leaderStopSignal;
         std::atomic<bool> _followerStopSignal;
 
-        inline static const std::string beginSeparator = "begin_sep";
+        inline static const std::string endSeparator = "end_sep";
 
         // receive from user as a server
+        std::unique_ptr<std::thread> _receiveFromUserThread;
         std::shared_ptr<util::ZMQInstance> _receiveFromUser;
+        util::BlockingConcurrentQueue<std::unique_ptr<proto::Envelop>> _receiveFromUserQueue{};
         std::unique_ptr<std::thread> _batchingThread;
         // listening to leader peer as a client
         std::shared_ptr<util::ZMQInstance> _receiveFromPeer;

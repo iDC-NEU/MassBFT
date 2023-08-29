@@ -3,7 +3,7 @@
 //
 
 #include "peer/core/module_factory.h"
-#include "peer/core/single_pbft_controller.h"
+#include "peer/consensus/pbft/single_pbft_controller.h"
 #include "peer/consensus/block_order/global_ordering.h"
 #include "tests/mock_property_generator.h"
 #include "common/reliable_zeromq.h"
@@ -57,7 +57,7 @@ TEST_F(BootstrapTest, BasicTest) {
 
 TEST_F(BootstrapTest, TestBFTController) {
     std::vector<std::unique_ptr<peer::core::ModuleFactory>> modList(4);
-    std::vector<std::unique_ptr<::peer::core::SinglePBFTController>> bftControllerList(4);
+    std::vector<std::unique_ptr<::peer::core::BFTController>> bftControllerList(4);
     for (int i=0; i<4; i++) {
         tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
         tests::MockPropertyGenerator::SetLocalId(0, i);
@@ -68,10 +68,10 @@ TEST_F(BootstrapTest, TestBFTController) {
         CHECK(bftControllerList[i] != nullptr);
     }
     for (int i=0; i<4; i++) {
-        bftControllerList[i]->startInstance();
+        bftControllerList[i]->pbftController->startInstance();
     }
     for (int i=0; i<4; i++) {
-        bftControllerList[i]->waitUntilReady();
+        bftControllerList[i]->pbftController->waitUntilReady();
     }
     util::Timer::sleep_sec(2);
 }

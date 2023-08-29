@@ -93,13 +93,13 @@ namespace peer::core {
             LOG(WARNING) << "please check your ssh setting in config file.";
         }
         auto runningPath = _properties->getRunningPath();
-        ca::SSHConfig sshConfig {
+        peer::consensus::SSHConfig sshConfig {
                 .ip = localNode->priIp,
                 .port = -1,
                 .userName = user,
                 .password = pass,
         };
-        auto ic = ca::BFTInstanceController::NewBFTInstanceController(
+        auto ic = peer::consensus::BFTInstanceController::NewBFTInstanceController(
                 sshConfig,
                 groupId,
                 localNode->nodeId,
@@ -113,7 +113,7 @@ namespace peer::core {
         if (!portMap) {
             return nullptr;
         }
-        std::vector<ca::NodeHostConfig> hostList;
+        std::vector<peer::consensus::NodeHostConfig> hostList;
         auto& groupPortMap = portMap->at(localNode->groupId);
         auto localRegionNodes = np.getGroupNodesInfo(localNode->groupId);
         CHECK(localRegionNodes.size() == portMap->at(localNode->groupId).size());

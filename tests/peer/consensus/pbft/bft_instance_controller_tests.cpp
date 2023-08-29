@@ -2,7 +2,7 @@
 // Created by user on 23-4-16.
 //
 
-#include "ca/bft_instance_controller.h"
+#include "peer/consensus/pbft/bft_instance_controller.h"
 
 #include "gtest/gtest.h"
 #include "glog/logging.h"
@@ -23,15 +23,15 @@ protected:
     };
 
 protected:
-    ca::SSHConfig sshConfig;
+    peer::consensus::SSHConfig sshConfig;
     inline static std::string runningPath = "/home/user/nc_bft";
     inline static std::string jvmPath = "/home/user/.jdks/corretto-16.0.2/bin/java";
 };
 
 TEST_F(ControllerTest, StartTest) {
-    std::vector<ca::NodeHostConfig> hostList;
+    std::vector<peer::consensus::NodeHostConfig> hostList;
     for (int i=0; i<4; i++) {
-        ca::NodeHostConfig host;
+        peer::consensus::NodeHostConfig host;
         host.processId = i;
         host.ip = "127.0.0.1";
         host.serverToServerPort = 11000 + i*10;
@@ -39,9 +39,9 @@ TEST_F(ControllerTest, StartTest) {
         host.rpcPort =  51204 + i*5;
         hostList.push_back(host);
     }
-    std::vector<std::unique_ptr<ca::BFTInstanceController>> ctlList(4);
+    std::vector<std::unique_ptr<peer::consensus::BFTInstanceController>> ctlList(4);
     for (int i=0; i<4; i++) {
-        ctlList[i] = ca::BFTInstanceController::NewBFTInstanceController(sshConfig, 0, i, runningPath, jvmPath);
+        ctlList[i] = peer::consensus::BFTInstanceController::NewBFTInstanceController(sshConfig, 0, i, runningPath, jvmPath);
         ctlList[i]->prepareConfigurationFile(hostList);
         ctlList[i]->stopAndClean();
     }
@@ -60,9 +60,9 @@ TEST_F(ControllerTest, StartTest) {
 }
 
 TEST_F(ControllerTest, StartDemoInstance) {
-    std::vector<ca::NodeHostConfig> hostList;
+    std::vector<peer::consensus::NodeHostConfig> hostList;
     for (int i=0; i<4; i++) {
-        ca::NodeHostConfig host;
+        peer::consensus::NodeHostConfig host;
         host.processId = i;
         host.ip = "127.0.0.1";
         host.serverToServerPort = 11000 + i*10;
@@ -70,9 +70,9 @@ TEST_F(ControllerTest, StartDemoInstance) {
         host.rpcPort =  51204 + i*5;
         hostList.push_back(host);
     }
-    std::vector<std::unique_ptr<ca::BFTInstanceController>> ctlList(4);
+    std::vector<std::unique_ptr<peer::consensus::BFTInstanceController>> ctlList(4);
     for (int i=0; i<4; i++) {
-        ctlList[i] = ca::BFTInstanceController::NewBFTInstanceController(sshConfig, 0, i, runningPath, jvmPath);
+        ctlList[i] = peer::consensus::BFTInstanceController::NewBFTInstanceController(sshConfig, 0, i, runningPath, jvmPath);
         ctlList[i]->prepareConfigurationFile(hostList);
         ctlList[i]->stopAndClean();
     }

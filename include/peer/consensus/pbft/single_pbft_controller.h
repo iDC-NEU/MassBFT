@@ -4,14 +4,14 @@
 
 #pragma once
 
-#include "ca/bft_instance_controller.h"
+#include "peer/consensus/pbft/bft_instance_controller.h"
 #include "bthread/countdown_event.h"
 #include <thread>
 
 namespace peer::consensus::v2 {
     class SinglePBFTController {
     public:
-        SinglePBFTController(std::unique_ptr<::ca::BFTInstanceController> instanceManager,
+        SinglePBFTController(std::unique_ptr<::peer::consensus::BFTInstanceController> instanceManager,
                              int nodeGroupId,
                              int instanceId,
                              int bftGroupId)
@@ -66,6 +66,6 @@ namespace peer::consensus::v2 {
         const int _instanceId;
         const int _bftGroupId;
         std::unique_ptr<std::thread> _statusThread{};
-        std::unique_ptr<::ca::BFTInstanceController> _instanceManager;
+        std::unique_ptr<::peer::consensus::BFTInstanceController> _instanceManager;
     };
 }

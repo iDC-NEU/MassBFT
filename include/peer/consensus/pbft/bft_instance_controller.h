@@ -10,7 +10,7 @@
 
 #include "glog/logging.h"
 
-namespace ca {
+namespace peer::consensus {
     struct SSHConfig {
         std::string ip;
         int port=-1;

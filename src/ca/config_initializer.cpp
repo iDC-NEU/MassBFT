@@ -184,8 +184,7 @@ namespace ca {
         if (!session->executeCommand({ "kill -9 $(pidof clash-linux-amd64-v3)" }, true)) {
             return false;
         }
-        LOG(INFO) << "Sleep for 5 seconds.";
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         LOG(INFO) << "Starting proxy.";
         std::vector<std::string> builder = {
                 "cd",
@@ -323,11 +322,15 @@ namespace ca {
         if (!sftp->putFile(_runningPath / ncZipName, true, _runningPath / ncZipName)) {
             return false;
         }
-        LOG(INFO) << "Unzip sourcecode.";
+        LOG(INFO) << "Unzip sourcecode, sourcecode must contain src and include folder.";
         // unzip the files
         std::vector<std::string> builder = {
                 "cd",
                 _runningPath,
+                "&&",
+                "rm -rf",
+                _runningPath / _ncFolderName / "src",
+                _runningPath / _ncFolderName / "include",
                 "&&",
                 "unzip -q -o",
                 _runningPath / _ncFolderName, };

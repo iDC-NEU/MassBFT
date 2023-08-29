@@ -113,6 +113,16 @@ namespace peer::consensus::v2 {
         }
         auto block = _blockCache->eraseCachedBlock(header.dataHash);
         CHECK(block != nullptr) << "Block mut be not null!" << util::OpenSSLSHA256::toString(header.dataHash);
+        // serialize block here (do not serialize signature)
+        {
+            auto serializedBlock = std::make_unique<std::string>();
+            serializedBlock->reserve(100 * 1024);
+            auto posList = block->serializeToString(serializedBlock.get());
+            if (!posList.valid) {
+                LOG(WARNING) << "Serialize block failed!";
+            }
+            block->setSerializedMessage(std::move(serializedBlock));
+        }
         block->metadata.consensusSignatures = std::move(signatures);
 
         // validate the block signature

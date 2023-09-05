@@ -36,9 +36,9 @@ namespace peer::core {
     class ModuleCoordinator {
     public:
         // Uncomment this line to enable CRDT chaincode
-        // using ChaincodeType = peer::cc::crdt::CRDTCoordinator;
+        using ChaincodeType = peer::cc::crdt::CRDTCoordinator;
         // Uncomment this line to enable traditional chaincode
-        using ChaincodeType = peer::cc::CoordinatorImpl;
+        // using ChaincodeType = peer::cc::CoordinatorImpl;
 
         static std::unique_ptr<ModuleCoordinator> NewModuleCoordinator(const std::shared_ptr<util::Properties>& properties);
 

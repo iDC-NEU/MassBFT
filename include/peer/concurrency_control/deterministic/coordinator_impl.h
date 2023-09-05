@@ -7,10 +7,19 @@
 #include "peer/concurrency_control/deterministic/coordinator.h"
 #include "peer/concurrency_control/deterministic/worker_fsm_impl.h"
 
-
 namespace peer::cc {
-    class CoordinatorImpl : public Coordinator<WorkerFSMImpl, ReserveTable, CoordinatorImpl> {
+    class CoordinatorImpl : public Coordinator<WorkerFSMImpl, CoordinatorImpl> {
     public:
+        bool init(const std::shared_ptr<peer::db::DBConnection>& dbc) {
+            auto table = std::make_shared<ReserveTable>();
+            this->reserveTable = table;
+            for (auto& it: this->fsmList) {
+                it->setDB(dbc);
+                it->setReserveTable(table);
+            }
+            return true;
+        }
+
         bool processSync(const auto& afterStart, const auto& afterCommit) {
             reserveTable->reset();
             // prepare txn function
@@ -37,5 +46,7 @@ namespace peer::cc {
     protected:
         CoordinatorImpl() = default;
 
+    private:
+        std::shared_ptr<ReserveTable> reserveTable;
     };
 }

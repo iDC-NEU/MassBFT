@@ -8,7 +8,18 @@
 #include "peer/concurrency_control/deterministic/write_based/wb_worker_fsm.h"
 
 namespace peer::cc {
-    class WBCoordinator : public Coordinator<WBWorkerFSM, WBReserveTable, WBCoordinator> {
+    class WBCoordinator : public Coordinator<WBWorkerFSM, WBCoordinator> {
+    public:
+        bool init(const std::shared_ptr<peer::db::DBConnection>& dbc) {
+            auto table = std::make_shared<WBReserveTable>();
+            this->reserveTable = table;
+            for (auto& it: this->fsmList) {
+                it->setDB(dbc);
+                it->setReserveTable(table);
+            }
+            return true;
+        }
+
         bool processSync(const auto& afterStart, const auto& afterCommit) {
             reserveTable->reset();
             auto ret = processParallel(InvokerCommand::START, ReceiverState::READY, afterStart);
@@ -42,6 +53,6 @@ namespace peer::cc {
         WBCoordinator() = default;
 
     private:
-
+        std::shared_ptr<WBReserveTable> reserveTable;
     };
 }

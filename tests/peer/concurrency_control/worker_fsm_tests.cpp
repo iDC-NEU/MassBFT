@@ -6,7 +6,7 @@
 #include "glog/logging.h"
 
 #include "bthread/countdown_event.h"
-#include "peer/concurrency_control/deterministic/worker_fsm.h"
+#include "peer/concurrency_control/worker_fsm.h"
 
 class WorkerTest : public ::testing::Test {
 protected:

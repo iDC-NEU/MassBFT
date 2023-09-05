@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "peer/concurrency_control/deterministic/worker_fsm.h"
+#include "peer/concurrency_control/worker_fsm.h"
 #include "proto/transaction.h"
 
 #include "peer/chaincode/crdt/crdt_orm.h"

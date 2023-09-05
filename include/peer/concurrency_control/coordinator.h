@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "peer/concurrency_control/deterministic/worker_fsm.h"
+#include "peer/concurrency_control/worker_fsm.h"
 #include "bthread/countdown_event.h"
 #include "peer/db/db_interface.h"
 #include "proto/transaction.h"

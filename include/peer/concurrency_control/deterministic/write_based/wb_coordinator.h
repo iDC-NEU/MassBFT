@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "peer/concurrency_control/deterministic/coordinator.h"
+#include "peer/concurrency_control/coordinator.h"
 #include "peer/concurrency_control/deterministic/write_based/wb_worker_fsm.h"
 
 namespace peer::cc {

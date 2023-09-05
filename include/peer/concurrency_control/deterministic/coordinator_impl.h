@@ -47,6 +47,6 @@ namespace peer::cc {
         CoordinatorImpl() = default;
 
     private:
-        std::shared_ptr<ReserveTable> reserveTable;
+        std::shared_ptr<ReserveTable> reserveTable{};
     };
 }

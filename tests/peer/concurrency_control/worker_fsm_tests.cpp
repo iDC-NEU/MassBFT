@@ -2,11 +2,10 @@
 // Created by peng on 2/20/23.
 //
 
+#include "peer/concurrency_control/worker_fsm.h"
+#include "bthread/countdown_event.h"
 #include "gtest/gtest.h"
 #include "glog/logging.h"
-
-#include "bthread/countdown_event.h"
-#include "peer/concurrency_control/worker_fsm.h"
 
 class WorkerTest : public ::testing::Test {
 protected:

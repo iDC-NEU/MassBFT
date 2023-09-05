@@ -5,10 +5,9 @@
 #pragma once
 
 #include "peer/concurrency_control/worker_fsm.h"
-#include "proto/transaction.h"
-
 #include "peer/chaincode/crdt/crdt_orm.h"
 #include "peer/chaincode/crdt/crdt_chaincode.h"
+#include "proto/transaction.h"
 
 namespace peer::cc::crdt {
 

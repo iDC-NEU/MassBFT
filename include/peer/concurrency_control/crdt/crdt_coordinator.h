@@ -5,8 +5,8 @@
 #pragma once
 
 #include "peer/concurrency_control/crdt/crdt_worker_fsm.h"
-#include "bthread/countdown_event.h"
 #include "peer/db/db_interface.h"
+#include "bthread/countdown_event.h"
 
 namespace peer::cc::crdt {
     class CRDTCoordinator : public Coordinator<CRDTWorkerFSM, CRDTCoordinator> {

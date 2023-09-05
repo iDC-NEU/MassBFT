@@ -4,11 +4,10 @@
 
 #pragma once
 
-#include "proto/read_write_set.h"
 #include "peer/db/db_interface.h"
+#include "proto/read_write_set.h"
 #include "common/phmap.h"
 #include "zpp_bits.h"
-
 #include <functional>
 
 namespace peer::crdt::chaincode {

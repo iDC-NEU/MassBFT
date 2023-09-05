@@ -133,6 +133,12 @@ namespace peer::consensus {
                 // return the final decision to caller
                 this->onDeliver(c->subChainId, c->blockNumber);
             });
+            // Optimize-1: order next block as soon as receiving the previous block
+            // for (int i=0; i<groupCount; i++) {
+            //     for (int j=0; j<groupCount; j++) {
+            //         CHECK(om->pushDecision(i, 0, { j, -1 }));
+            //     }
+            // }
             _orderManager = std::move(om);
             // all handles are set
             CHECK(onValidateHandle && onDeliverHandle && onBroadcastHandle);
@@ -159,6 +165,8 @@ namespace peer::consensus {
                 return false;
             }
             return _orderManager->pushDecision(bo.chainId, bo.blockId, { bo.voteChainId, bo.voteBlockId });
+            // Optimize-1: order next block as soon as receiving the previous block
+            // return _orderManager->pushDecision(bo.chainId, bo.blockId + 1, { bo.voteChainId, bo.voteBlockId + 1 });
         }
 
     protected:

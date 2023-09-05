@@ -97,6 +97,8 @@ namespace peer::consensus::v2 {
 
             while(true) {
                 auto unorderedRequests = std::vector<std::unique_ptr<proto::Envelop>>(_batchConfig.maxBatchSize);
+                std::string serializedRequests;
+                serializedRequests.reserve(_batchConfig.maxBatchSize * 512);
                 auto timer = util::Timer();
                 auto timeLeftUs = _batchConfig.timeoutMs * 1000;
                 auto currentBatchSize = 0;
@@ -107,6 +109,9 @@ namespace peer::consensus::v2 {
                     auto ret = _receiveFromUserQueue.wait_dequeue_bulk_timed(unorderedRequests.begin() + currentBatchSize,
                                                                              _batchConfig.maxBatchSize - currentBatchSize,
                                                                              timeLeftUs);
+                    for (int i = 0; i < (int)ret; i++) {
+                        unorderedRequests[currentBatchSize + i]->serializeToString(&serializedRequests, (int)serializedRequests.size());
+                    }
                     currentBatchSize += (int)ret;
                     if (currentBatchSize == 0) {   // We can not pass empty batch to replicator
                         timer.start();
@@ -122,19 +127,12 @@ namespace peer::consensus::v2 {
                 }
                 unorderedRequests.resize(currentBatchSize);
                 DLOG(INFO) << "Leader batch a block, size: " << currentBatchSize;
-                {   // batch send function
-                    std::string buffer;
-                    buffer.reserve(currentBatchSize * 512);
-                    for (int i = 0; i < (int)currentBatchSize; i++) {
-                        unorderedRequests[i]->serializeToString(&buffer, (int)buffer.size());
-                    }
-                    if (!_sendToPeer->send(buffer)) {
-                        return;
-                    }
-                }
                 if (_batchCallback && !_batchCallback(std::move(unorderedRequests))) {
                     LOG(WARNING) << "Batch call back return false!";
                     continue;
+                }
+                if (!_sendToPeer->send(std::move(serializedRequests))) {
+                    return;
                 }
             }
         }
@@ -186,7 +184,6 @@ namespace peer::consensus::v2 {
 
             _receiveFromPeer->receive(callback);
         }
-
 
     private:
         Config _batchConfig;

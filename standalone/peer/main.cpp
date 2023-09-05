@@ -34,7 +34,13 @@ public:
     }
 
     bool initDB(const std::string& ccName) {
-        return _mc->initChaincodeData(ccName);
+        if (_mc->initChaincodeData(ccName)) {
+            return true;
+        }
+        if (_mc->initCrdtChaincodeData(ccName)) {
+            return true;
+        }
+        return false;
     }
 
     ~PeerInstance() {

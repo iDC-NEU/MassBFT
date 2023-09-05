@@ -8,6 +8,7 @@
 #include "peer/consensus/block_order/global_ordering.h"
 #include "peer/storage/mr_block_storage.h"
 #include "peer/concurrency_control/deterministic/coordinator_impl.h"
+#include "peer/concurrency_control/crdt/crdt_coordinator.h"
 
 namespace peer::core {
 
@@ -36,7 +37,7 @@ namespace peer::core {
         if (mc->_db == nullptr) {
             return nullptr;
         }
-        mc->_cc = peer::cc::CoordinatorImpl::NewCoordinator(mc->_db, properties->getAriaWorkerCount());
+        mc->_cc = ChaincodeType::NewCoordinator(mc->_db, properties->getAriaWorkerCount());
         if (mc->_cc == nullptr) {
             return nullptr;
         }
@@ -150,7 +151,7 @@ namespace peer::core {
     bool ModuleCoordinator::initChaincodeData(const std::string& ccName) {
         auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(_db);
         auto cc = ::peer::chaincode::NewChaincodeByName(ccName, std::move(orm));
-        if (cc->InitDatabase() != 0) {
+        if (cc == nullptr || cc->InitDatabase() != 0) {
             return false;
         }
         proto::KVList reads, writes;
@@ -162,5 +163,16 @@ namespace peer::core {
             }
             return true;
         });
+    }
+
+    bool ModuleCoordinator::initCrdtChaincodeData(const std::string &ccName) {
+        // try the crdt ones
+        auto dbShim = std::make_shared<peer::crdt::chaincode::DBShim>(_db);
+        auto crdtORM = std::make_unique<peer::crdt::chaincode::CrdtORM>(dbShim);
+        auto crdtCC = ::peer::crdt::chaincode::NewChaincodeByName(ccName, std::move(crdtORM));
+        if (crdtCC == nullptr || crdtCC->InitDatabase() != 0) {
+            return false;
+        }
+        return true;
     }
 }

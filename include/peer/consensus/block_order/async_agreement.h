@@ -74,6 +74,9 @@ namespace peer::consensus {
                 LOG(ERROR) << "Remote leader contains error, " << _leaderId;
                 _running->store((int)Status::ERROR);
                 bthread::butex_wake_all(_running);
+                if (_onErrorCallback) {
+                    _onErrorCallback(ctx.leader_id(), ctx.term(), ctx.status());
+                }
             }
         }
 
@@ -90,12 +93,17 @@ namespace peer::consensus {
                 if (!_onApplyCallback || !_onApplyCallback(iter.data())) {
                     LOG(ERROR) << "addr " << get_address()  << " apply " << iter.index()
                                << " data_size " << iter.data().size() << " failed!";
+                    if (_onErrorCallback) {
+                        _onErrorCallback(_leaderId, iter.term(), butil::Status(-1, "Apply failed"));
+                    }
                 }
             }
         }
 
     public:
         void setOnApplyCallback(auto&& callback) { _onApplyCallback = std::forward<decltype(callback)>(callback); }
+
+        void setOnErrorCallback(auto&& callback) { _onErrorCallback = std::forward<decltype(callback)>(callback); }
 
     private:
         // if running == 0, the raft instance is not ready
@@ -106,6 +114,7 @@ namespace peer::consensus {
         braft::PeerId _leaderId;
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaftFsm;
         std::function<bool(const butil::IOBuf& data)> _onApplyCallback;
+        std::function<void(const braft::PeerId& leaderId, const int64_t& term, butil::Status status)> _onErrorCallback;
     };
 
     class AsyncAgreementCallback {

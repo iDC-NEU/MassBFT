@@ -47,7 +47,7 @@ namespace peer::consensus::v2 {
                     finalDecision[i] = ret->second;
                 }
                 // additional check, may be unnecessary
-                CHECK(decisions[subChainId] == blockNumber - 1) << "Input error!";
+                CHECK(decisions[subChainId] == blockNumber - 1 || decisions[subChainId] == std::numeric_limits<int>::max()) << "Input error!";
                 return true;
             }
 
@@ -159,6 +159,11 @@ namespace peer::consensus::v2 {
                     cell->subChainId = subChainId;
                     cell->blockNumber = blockNumber;
                     cell->decisions.reserve(subChainCount);
+                    // fill in crash group decisions
+                    for (const auto& it: invalidGroupList) {
+                        // maybe unnecessary
+                        cell->decisions.insert(std::make_pair(it, std::numeric_limits<int>::max()));
+                    }
                     return cell;
                 }
                 return nullptr;
@@ -167,8 +172,43 @@ namespace peer::consensus::v2 {
         }
 
     public:
-        bool pushDecision(int subChainId, int blockNumber, std::pair<int, int> decision) {
+        bool invalidateChain(int subChainId) {
             std::unique_lock guard(mutex);
+            LOG(WARNING) << "Invalidate chain of group: " << subChainId;
+            invalidGroupList.insert(subChainId);
+            // all unfilled decisions is marked invalid
+            for (int i=0; i<subChainCount; i++) {
+                auto chain = chains.find(i);
+                if (chain == chains.end()) {
+                    return false;
+                }
+                for (int j=chain->second.lastFinished; ; j++) {
+                    auto* cell = findCell(i, j, false); // do not create if not exist
+                    if (cell == nullptr) {
+                        break;  // the sub chain is purged
+                    }
+                    if (cell->decisions.contains(subChainId)) {
+                        continue;   // has already decide
+                    }
+                    if (!pushDecisionWithoutLock(i, j, std::make_pair(subChainId, std::numeric_limits<int>::max()))) {
+                        return false;   // decide it
+                    }
+                }
+            }
+            return true;
+        }
+
+    private:
+        std::unordered_set<int> invalidGroupList;
+
+    public:
+        inline bool pushDecision(int subChainId, int blockNumber, std::pair<int, int> decision) {
+            std::unique_lock guard(mutex);
+            return pushDecisionWithoutLock(subChainId, blockNumber, decision);
+        }
+
+    protected:
+        bool pushDecisionWithoutLock(int subChainId, int blockNumber, std::pair<int, int> decision) {
             auto* cell = findCell(subChainId, blockNumber, true);
             CHECK(cell != nullptr) << "Impl error!";
             // prevent unordered concurrent access
@@ -176,6 +216,7 @@ namespace peer::consensus::v2 {
                 // return true if not an internal error (should not be displayed)
                 return true;
             }
+            // LOG(INFO) << "Add decision for cell: " << subChainId << ", blk: " << blockNumber << ", dec: " << decision.first << ", " << decision.second;
             cell->decisions.insert(std::move(decision));
             // prevent out-of-order insert
             while (cell != nullptr && cell->blockNumber-1 == chains[cell->subChainId].lastFinished) {
@@ -212,6 +253,9 @@ namespace peer::consensus::v2 {
                     // iter through chain, i: chainId
                     if (i == cell->subChainId) {
                         continue;   // skip itself
+                    }
+                    if (cell->finalDecision[i] == std::numeric_limits<int>::max()) {
+                        continue;   // skip crash decisions
                     }
                     const auto& lastFinished = chains[i].lastFinished;
                     if (lastFinished == -1) {

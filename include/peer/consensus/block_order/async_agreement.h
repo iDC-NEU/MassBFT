@@ -114,7 +114,7 @@ namespace peer::consensus {
         braft::PeerId _leaderId;
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaftFsm;
         std::function<bool(const butil::IOBuf& data)> _onApplyCallback;
-        std::function<void(const braft::PeerId& leaderId, const int64_t& term, butil::Status status)> _onErrorCallback;
+        std::function<void(const braft::PeerId& leaderId, const int64_t& term, const butil::Status& status)> _onErrorCallback;
     };
 
     class AsyncAgreementCallback {
@@ -134,6 +134,12 @@ namespace peer::consensus {
 
         // Called after receiving a message from raft, responsible for broadcasting to all local nodes
         inline auto onBroadcast(std::string decision) { return onBroadcastHandle(std::move(decision)); }
+
+        // Called when the remote leader is down
+        inline void onError(int subChainId) {
+            // the group is down, invalid all the block
+            _orderManager->invalidateChain(subChainId);
+        }
 
         void init(int groupCount) {
             auto om = std::make_unique<v2::InterChainOrderManager>();
@@ -288,7 +294,16 @@ namespace peer::consensus {
                 return false; // can not find local index
             }
             auto* fsm = new AgreementRaftFSM(peers[myIdIndex], peers[leaderPos], _multiRaft);
-            fsm->setOnApplyCallback([this](auto&& data) { return this->onApply(std::forward<decltype(data)>(data)); });
+            fsm->setOnApplyCallback([this](auto&& data) {
+                auto dataStr = data.to_string();
+                return _callback->onBroadcast(std::move(dataStr));
+            });
+
+            fsm->setOnErrorCallback([this](const braft::PeerId& peerId, const int64_t& term, const butil::Status& status) {
+                LOG(ERROR) << "Remote leader error: " << status << ", LeaderId: " << peerId << ", term: " << term;
+                return _callback->onError(peerId.idx);
+            });
+
             if (_multiRaft->start(peers, myIdIndex, fsm) != 0) {
                 return false;
             }
@@ -364,11 +379,5 @@ namespace peer::consensus {
             }
             return true;
         }
-
-        // thread safe, called by raft fsm (followers and the leader)
-        bool onApply(const butil::IOBuf& data) {
-            auto dataStr = data.to_string();
-            return _callback->onBroadcast(std::move(dataStr));
-        };
     };
 }

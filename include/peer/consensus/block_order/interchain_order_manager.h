@@ -174,8 +174,10 @@ namespace peer::consensus::v2 {
     public:
         bool invalidateChain(int subChainId) {
             std::unique_lock guard(mutex);
+            if (!invalidGroupList.insert(subChainId).second) {
+                return true;    // already invalidated
+            }
             LOG(WARNING) << "Invalidate chain of group: " << subChainId;
-            invalidGroupList.insert(subChainId);
             // all unfilled decisions is marked invalid
             for (int i=0; i<subChainCount; i++) {
                 auto chain = chains.find(i);

@@ -52,18 +52,18 @@ namespace ca {
         // init properties
         SetLocalId(0, 0);
         util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 2000);
-        util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 30);
+        util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 20);
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, true);
         util::Properties::SetProperties(util::Properties::SSH_USERNAME, "root");
         util::Properties::SetProperties(util::Properties::SSH_PASSWORD, "neu1234.");
 
         // init utility
         client::small_bank::SmallBankProperties::SetProperties(client::small_bank::SmallBankProperties::TARGET_THROUGHPUT_PROPERTY, 40000);
-        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 40000);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 5000);
         client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::TARGET_THROUGHPUT_PROPERTY, 40000);
         client::small_bank::SmallBankProperties::SetProperties(client::small_bank::SmallBankProperties::THREAD_COUNT_PROPERTY, 4);
         client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::THREAD_COUNT_PROPERTY, 4);
-        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 4);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
 
         // init custom property
         client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::WAREHOUSE_COUNT_PROPERTY, 30);

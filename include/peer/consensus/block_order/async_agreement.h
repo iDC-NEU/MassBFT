@@ -122,12 +122,11 @@ namespace peer::consensus {
         virtual ~AsyncAgreementCallback() = default;
 
         explicit AsyncAgreementCallback() {
-            onValidateHandle = [this](const proto::SignedBlockOrder& sb) { return validateSignatureOfBlockOrder(sb); };
             onBroadcastHandle = [this](const std::string& decision) { return applyRawBlockOrder(decision); };
         }
 
         // Called by raft fsm in the first RPC (Receive but may not be replicated in most region)
-        inline auto onValidate(const proto::SignedBlockOrder& sb) { return onValidateHandle(sb); }
+        inline auto onValidate(const proto::SignedBlockOrder& sb) { return validateSignatureOfBlockOrder(sb); }
 
         // Called on return after determining the final order of sub chain blocks
         inline auto onDeliver(int subChainId, int blockId) { return onDeliverHandle(subChainId, blockId); }
@@ -138,7 +137,21 @@ namespace peer::consensus {
         // Called when the remote leader is down
         inline void onError(int subChainId) {
             // the group is down, invalid all the block
-            _orderManager->invalidateChain(subChainId);
+            // _orderManager->invalidateChain(subChainId);
+            proto::BlockOrder bo {
+                    .chainId = subChainId,
+                    .blockId = -1,
+                    .voteChainId = -1,
+                    .voteBlockId = -1
+            };
+            ::proto::SignedBlockOrder sb;
+            if (!bo.serializeToString(&sb.serializedBlockOrder)) {
+                return;
+            }
+            std::string buffer;
+            sb.serializeToString(&buffer);
+            // broadcast to all nodes in this group
+            onBroadcastHandle(std::move(buffer));
         }
 
         void init(int groupCount) {
@@ -156,12 +169,10 @@ namespace peer::consensus {
             // }
             _orderManager = std::move(om);
             // all handles are set
-            CHECK(onValidateHandle && onDeliverHandle && onBroadcastHandle);
+            CHECK(onDeliverHandle && onBroadcastHandle);
         }
 
     protected:
-        std::function<bool(const proto::SignedBlockOrder& sb)> onValidateHandle;
-
         std::function<bool(int, int)> onDeliverHandle;
 
         std::function<bool(std::string decision)> onBroadcastHandle;
@@ -178,6 +189,11 @@ namespace peer::consensus {
             proto::BlockOrder bo{};
             if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
                 return false;
+            }
+            if (bo.voteChainId == -1) {   // this is an error message
+                CHECK(bo.blockId == -1 && bo.voteBlockId == -1);
+                // the group is down, invalid all the block
+                return _orderManager->invalidateChain(bo.chainId);
             }
             return _orderManager->pushDecision(bo.chainId, bo.blockId, { bo.voteChainId, bo.voteBlockId });
             // Optimize-1: order next block as soon as receiving the previous block

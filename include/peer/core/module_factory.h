@@ -23,6 +23,9 @@ namespace peer {
     class MRBlockStorage;
     class BlockLRUCache;
     class Replicator;
+    namespace direct {
+        class Replicator;
+    }
 }
 
 namespace peer::core {
@@ -37,12 +40,15 @@ namespace peer::core {
         ModuleFactory() = default;
 
     public:
+        using ReplicatorType = peer::Replicator;
+        // using ReplicatorType = peer::direct::Replicator;
+
         static std::unique_ptr<ModuleFactory> NewModuleFactory(const std::shared_ptr<util::Properties>& properties);
 
         virtual ~ModuleFactory();
 
         // Called after PBFT consensuses a block
-        std::shared_ptr<::peer::Replicator> getOrInitReplicator();
+        std::shared_ptr<ReplicatorType> getOrInitReplicator();
 
         bool startReplicatorSender();
 
@@ -68,7 +74,7 @@ namespace peer::core {
         std::shared_ptr<::util::BCCSP> _bccsp;
         std::shared_ptr<::util::thread_pool_light> _threadPoolForBCCSP;
         std::shared_ptr<::peer::MRBlockStorage> _contentStorage;
-        std::shared_ptr<::peer::Replicator> _replicator;
+        std::shared_ptr<ReplicatorType> _replicator;
         std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> _zmqPortUtilMap;
     };
 }

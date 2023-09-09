@@ -59,11 +59,11 @@ namespace ca {
 
         // init utility
         client::small_bank::SmallBankProperties::SetProperties(client::small_bank::SmallBankProperties::TARGET_THROUGHPUT_PROPERTY, 40000);
-        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 5000);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::TARGET_THROUGHPUT_PROPERTY, 40000);
         client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::TARGET_THROUGHPUT_PROPERTY, 40000);
         client::small_bank::SmallBankProperties::SetProperties(client::small_bank::SmallBankProperties::THREAD_COUNT_PROPERTY, 4);
         client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::THREAD_COUNT_PROPERTY, 4);
-        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 1);
+        client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 4);
 
         // init custom property
         client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::WAREHOUSE_COUNT_PROPERTY, 30);

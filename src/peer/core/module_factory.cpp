@@ -8,6 +8,7 @@
 #include "peer/consensus/pbft/local_consensus_controller.h"
 #include "peer/consensus/pbft/single_pbft_controller.h"
 #include "peer/replicator/replicator.h"
+#include "peer/replicator/direct/direct_replicator.h"
 #include "common/yaml_key_storage.h"
 #include "common/property.h"
 
@@ -42,7 +43,7 @@ namespace peer::core {
         return _contentStorage;
     }
 
-    std::shared_ptr<::peer::Replicator> ModuleFactory::getOrInitReplicator() {
+    std::shared_ptr<ModuleFactory::ReplicatorType> ModuleFactory::getOrInitReplicator() {
         if (_replicator) {
             return _replicator;
         }
@@ -57,7 +58,7 @@ namespace peer::core {
         if (localNode == nullptr) {
             return nullptr;
         }
-        auto replicator = std::make_shared<peer::Replicator>(nodes, localNode);
+        auto replicator = std::make_shared<ReplicatorType>(nodes, localNode);
         auto [bccsp, tp] = getOrInitBCCSPAndThreadPool();
         replicator->setBCCSPWithThreadPool(std::move(bccsp), std::move(tp));
         auto cs = getOrInitContentStorage();

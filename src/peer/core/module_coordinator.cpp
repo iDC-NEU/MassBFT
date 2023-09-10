@@ -96,7 +96,7 @@ namespace peer::core {
     // called after generated final block order by GlobalBlockOrdering
     bool ModuleCoordinator::onConsensusBlockOrder(int regionId, int blockId) {
         auto realBlock = _contentStorage->waitForBlock(regionId, blockId, 0);
-        CHECK(realBlock != nullptr && (int)realBlock->header.number == blockId);
+        CHECK(realBlock != nullptr && (int)realBlock->header.number == blockId) << "The block is already deleted!";
         // if success, txReadWriteSet and transactionFilter are the return values
         if (!_cc->processValidatedRequests(realBlock->body.userRequests,
                                            realBlock->executeResult.txReadWriteSet,

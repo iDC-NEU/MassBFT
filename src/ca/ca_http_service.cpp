@@ -34,9 +34,12 @@ namespace ca {
         _nodesList[pub] = cfg;
     }
 
-    void ServiceBackend::updateProperties() {
+    void ServiceBackend::updateProperties(bool clientOnly) {
         for (const auto& it: _nodesList) {
             const auto& cfg = it.second;
+            if (clientOnly && !cfg.isClient) {
+                continue;
+            }
             ca::Initializer::SetLocalId(cfg.groupId, cfg.nodeId);
             // transmit config to remote
             bool success = false;
@@ -48,32 +51,6 @@ namespace ca {
             }
             if (!success) {
                 LOG(ERROR) << "Failed to connect to specific ip: " << it.first;
-            }
-        }
-    }
-
-    void ServiceBackend::updateProperties(const std::vector<std::string> &ipList) {
-        if (ipList.empty()) {
-            updateProperties();
-            return;
-        }
-        for (const auto& it: ipList) {
-            if (!_nodesList.contains(it)) {
-                LOG(ERROR) << "Does not exist specific ip: " << it;
-                continue;
-            }
-            const auto& cfg = _nodesList[it];
-            ca::Initializer::SetLocalId(cfg.groupId, cfg.nodeId);
-            // transmit config to remote
-            bool success = false;
-            for (int i=0; i<3; i++) {
-                if (_dispatcher->transmitPropertiesToRemote(it)) {
-                    success = true;
-                    break;
-                }
-            }
-            if (!success) {
-                LOG(ERROR) << "Failed to connect to specific ip: " << it;
             }
         }
     }

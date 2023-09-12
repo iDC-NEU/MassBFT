@@ -404,6 +404,19 @@ namespace ca {
         return true;
     }
 
+    bool Dispatcher::stopUser(const std::string &ip, const std::string &dbName) const {
+        auto session = destroyPool.connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        if (!session->executeCommand({ "kill -9 $(pidof " + dbName + ")" }, true)) {
+            LOG(WARNING) << "Kill user error: " << ip;
+            return false;
+        }
+        LOG(INFO) << "Kill user successfully: " << ip;
+        return true;
+    }
+
     Dispatcher::~Dispatcher() = default;
 
     util::SSHSession *SessionPool::connect(const std::string &ip) {

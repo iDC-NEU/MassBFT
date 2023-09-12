@@ -69,6 +69,8 @@ namespace ca {
 
         [[nodiscard]] bool startUser(const std::string &ip, const std::string &dbName) const;
 
+        [[nodiscard]] bool stopUser(const std::string &ip, const std::string &dbName) const;
+
         [[nodiscard]] bool updateRemoteSourcecode(const std::string &ip) const;
 
         [[nodiscard]] bool updateRemoteBFTPack(const std::string &ip) const;

@@ -5,10 +5,8 @@
 #pragma once
 
 #include "common/pbft/pbft_state_machine.h"
-#include "common/zeromq.h"
 #include "common/property.h"
 #include "common/bccsp.h"
-#include "common/phmap.h"
 #include "common/thread_pool_light.h"
 #include "common/concurrent_queue.h"
 
@@ -16,33 +14,45 @@
 #include "bthread/countdown_event.h"
 
 namespace peer::consensus {
-    class ContentSender;
-
-    class ContentReceiver;
-
     class PBFTBlockCache;
+}
 
-    class ContentReplicator: public util::pbft::PBFTStateMachine {
+namespace peer::consensus::v2 {
+    class RequestReplicator;
+
+    class LocalConsensus: public util::pbft::PBFTStateMachine {
     public:
+        struct Config {
+            std::vector<std::shared_ptr<util::ZMQInstanceConfig>> targetNodes;
+            int localId;
+            int userRequestPort;
+            // timeout for producing a block
+            int timeoutMs;
+            // batch size for producing a block
+            int maxBatchSize;
+
+            [[nodiscard]] std::shared_ptr<util::ZMQInstanceConfig> getNodeInfo(int nodeId) const {
+                for (const auto& it: targetNodes) {
+                    if (it->nodeConfig->nodeId == nodeId) {
+                        return it;
+                    }
+                }
+                return nullptr;
+            }
+        };
         // In order to separate the payload from the consensus,
         // the local cluster needs to establish a set of zmq ports, which are stored in targetNodes
-        ContentReplicator(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& targetNodes, int localId);
+        explicit LocalConsensus(Config config);
 
-        ~ContentReplicator() override;
+        ~LocalConsensus() override;
 
         void setBCCSPWithThreadPool(std::shared_ptr<util::BCCSP> bccsp, std::shared_ptr<util::thread_pool_light> threadPool) {
             _bccsp = std::move(bccsp);
             _threadPoolForBCCSP = std::move(threadPool);
         }
 
-        [[nodiscard]] auto getThreadPoolForBCCSP() const { return _threadPoolForBCCSP; }
-
         // This handle is called when the consensus of the block in local region is completed
         void setDeliverCallback(auto callback) { _deliverCallback = std::move(callback); }
-
-        // This function is called when the master node changes, thread safe
-        // leader may become itself, newLeaderNode is empty when the master node is itself
-        void setLeaderChangeCallback(auto callback) { _leaderChangeCallback = std::move(callback); }
 
         // Start the zeromq sender and receiver threads
         bool checkAndStart();
@@ -52,32 +62,7 @@ namespace peer::consensus {
 
         // If the user request has been verified before (pessimistic verification),
         // there is no need to re-verify here, otherwise the user signature needs to be verified
-        bool pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>>&& batch, bool validateOnReceive);
-
-    protected:
-        // As a slave node, need to verify the block before can endorse the block.
-        void validateUnorderedBlock(zmq::message_t&& raw);
-
-    public:
-        [[nodiscard]] inline bool validateUserRequest(const proto::Envelop& envelop) const {
-            auto& payload = envelop.getPayload();
-            auto& signature = envelop.getSignature();
-            const auto key = _bccsp->GetKey(signature.ski);
-            if (key == nullptr) {
-                LOG(WARNING) << "Can not load key, ski: " << signature.ski;
-                return false;
-            }
-            return key->Verify(signature.digest, payload.data(), payload.size());
-        }
-
-        [[nodiscard]] inline bool validateUserRequestHash(const proto::SignatureString& signature, const util::OpenSSLSHA256::digestType& hash) const {
-            const auto key = _bccsp->GetKey(signature.ski);
-            if (key == nullptr) {
-                LOG(WARNING) << "Can not load key, ski: " << signature.ski;
-                return false;
-            }
-            return key->VerifyRaw(signature.digest, hash.data(), hash.size());
-        }
+        bool pushUnorderedBlock(std::vector<std::unique_ptr<proto::Envelop>> batch);
 
     protected:
         [[nodiscard]] std::unique_ptr<::proto::Block::SignaturePair> OnSignProposal(const ::util::NodeConfigPtr& localNode, const std::string& message) override;
@@ -129,23 +114,18 @@ namespace peer::consensus {
         SignatureCache _signatureCache{};
 
     private:
+        const Config _config;
         std::atomic<bool> _running;
-        // Check if the node is leader
-        std::shared_mutex _isLeaderMutex;
-        bool _isLeader = false;
-        std::unique_ptr<ContentSender> _sender;
-        std::unique_ptr<ContentReceiver> _receiver;
+        std::atomic<bool> _isLeader = false;
         // Used when the node become follower, receive txn batch from leader, using zeromq
         std::unique_ptr<PBFTBlockCache> _blockCache;
+        std::unique_ptr<RequestReplicator> _requestReplicator;
         // Used when the node become leader, receive txn batch from user and enqueue to queue
-        // TODO: consider limit the size of the queue
-        util::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>> _requestBatchQueue;
+        util::BlockingConcurrentQueue<std::shared_ptr<::proto::Block>, 256> _requestBatchQueue;
         // BCCSP and thread pool
         std::shared_ptr<util::BCCSP> _bccsp;
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;
         // For saving delivered blocks
         std::function<bool(std::shared_ptr<::proto::Block> block, ::util::NodeConfigPtr localNode)> _deliverCallback;
-        // This Function is called inside a lock, thus thread safe
-        std::function<void(::util::NodeConfigPtr localNode, ::util::NodeConfigPtr newLeaderNode, int sequence)> _leaderChangeCallback;
     };
 }

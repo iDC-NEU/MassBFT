@@ -91,8 +91,7 @@ namespace tests::peer {
                         return;  // socket dead
                     }
                     auto envelop = std::make_unique<proto::Envelop>();
-                    envelop->setSerializedMessage(ret->to_string());
-                    if (!envelop->deserializeFromString()) {
+                    if (envelop->deserializeFromString(ret->to_string_view()) < 0) {
                         LOG(WARNING) << "Deserialize user request failed.";
                         continue;
                     }

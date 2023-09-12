@@ -1,27 +1,27 @@
 //
-// Created by user on 23-3-7.
+// Created by peng on 2/21/23.
 //
 
 #pragma once
 
-#include "peer/concurrency_control/coordinator.h"
-#include "peer/concurrency_control/deterministic/write_based/wb_worker_fsm.h"
+#include "peer/concurrency_control/crdt/crdt_worker_fsm.h"
+#include "peer/db/db_interface.h"
+#include "bthread/countdown_event.h"
 
-namespace peer::cc {
-    class WBCoordinator : public Coordinator<WBWorkerFSM, WBCoordinator> {
+namespace peer::cc::crdt {
+    class CRDTCoordinator : public Coordinator<CRDTWorkerFSM, CRDTCoordinator> {
     public:
         bool init(const std::shared_ptr<peer::db::DBConnection>& dbc) {
-            auto table = std::make_shared<WBReserveTable>();
-            this->reserveTable = table;
+            auto dbShim = std::make_shared<peer::crdt::chaincode::DBShim>(dbc);
+            auto table = std::make_shared<ReserveTable>();
             for (auto& it: this->fsmList) {
-                it->setDB(dbc);
-                it->setReserveTable(table);
+                it->setDBShim(dbShim);
             }
             return true;
         }
 
         bool processSync(const auto& afterStart, const auto& afterCommit) {
-            reserveTable->reset();
+            // prepare txn function
             auto ret = processParallel(InvokerCommand::START, ReceiverState::READY, afterStart);
             if (!ret) {
                 LOG(ERROR) << "init txnList failed!";
@@ -32,16 +32,9 @@ namespace peer::cc {
                 LOG(ERROR) << "exec txnList failed!";
                 return false;
             }
-            // First commit, WBCoordinator add this function
-            ret = processParallel(InvokerCommand::COMMIT, ReceiverState::FINISH_COMMIT, nullptr);
-            if (!ret) {
-                LOG(ERROR) << "first commit failed!";
-                return false;
-            }
-            // Second commit
             ret = processParallel(InvokerCommand::COMMIT, ReceiverState::FINISH_COMMIT, afterCommit);
             if (!ret) {
-                LOG(ERROR) << "second commit failed!";
+                LOG(ERROR) << "commit txnList failed!";
                 return false;
             }
             return true;
@@ -50,9 +43,6 @@ namespace peer::cc {
         friend class Coordinator;
 
     protected:
-        WBCoordinator() = default;
-
-    private:
-        std::shared_ptr<WBReserveTable> reserveTable;
+        CRDTCoordinator() = default;
     };
 }

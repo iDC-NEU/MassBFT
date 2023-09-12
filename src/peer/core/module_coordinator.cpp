@@ -4,9 +4,11 @@
 
 #include "peer/core/module_coordinator.h"
 #include "peer/core/module_factory.h"
-#include "peer/core/single_pbft_controller.h"
+#include "peer/consensus/pbft/single_pbft_controller.h"
 #include "peer/consensus/block_order/global_ordering.h"
+#include "peer/storage/mr_block_storage.h"
 #include "peer/concurrency_control/deterministic/coordinator_impl.h"
+#include "peer/concurrency_control/crdt/crdt_coordinator.h"
 
 namespace peer::core {
 
@@ -35,7 +37,7 @@ namespace peer::core {
         if (mc->_db == nullptr) {
             return nullptr;
         }
-        mc->_cc = peer::cc::CoordinatorImpl::NewCoordinator(mc->_db, properties->getAriaWorkerCount());
+        mc->_cc = ChaincodeType::NewCoordinator(mc->_db, properties->getAriaWorkerCount());
         if (mc->_cc == nullptr) {
             return nullptr;
         }
@@ -74,12 +76,12 @@ namespace peer::core {
         if (mc->_userRPCNotifier == nullptr) {
             return nullptr;
         }
-        // the bftController id is 0
-        auto bftController = mc->_moduleFactory->newReplicatorBFTController(0*totalGroup + mc->_localNode->groupId);
-        if (bftController == nullptr) {
+        // the localContentBFT id is 0
+        auto localContentBFT = mc->_moduleFactory->newReplicatorBFTController(0*totalGroup + mc->_localNode->groupId);
+        if (localContentBFT == nullptr) {
             return nullptr;
         }
-        mc->_localContentBFT = std::move(bftController);
+        mc->_localContentBFT = std::move(localContentBFT);
         // the result will be pushed into storage automatically
 
         // spin up the thread finally
@@ -94,7 +96,7 @@ namespace peer::core {
     // called after generated final block order by GlobalBlockOrdering
     bool ModuleCoordinator::onConsensusBlockOrder(int regionId, int blockId) {
         auto realBlock = _contentStorage->waitForBlock(regionId, blockId, 0);
-        CHECK(realBlock != nullptr && (int)realBlock->header.number == blockId);
+        CHECK(realBlock != nullptr && (int)realBlock->header.number == blockId) << "The block is already deleted!";
         // if success, txReadWriteSet and transactionFilter are the return values
         if (!_cc->processValidatedRequests(realBlock->body.userRequests,
                                            realBlock->executeResult.txReadWriteSet,
@@ -134,7 +136,7 @@ namespace peer::core {
             LOG(ERROR) << "Raft config contains error, can not wait until raft is ready!";
         }
         // wait until bft is ready
-        _localContentBFT->waitUntilReady();
+        _localContentBFT->pbftController->waitUntilReady();
     }
 
     bool ModuleCoordinator::startInstance() {
@@ -142,14 +144,14 @@ namespace peer::core {
             LOG(ERROR) << "ReplicatorSender client start failed!";
             return false;
         }
-        _localContentBFT->startInstance();
+        _localContentBFT->pbftController->startInstance();
         return true;
     }
 
     bool ModuleCoordinator::initChaincodeData(const std::string& ccName) {
         auto orm = ::peer::chaincode::ORM::NewORMFromDBInterface(_db);
         auto cc = ::peer::chaincode::NewChaincodeByName(ccName, std::move(orm));
-        if (cc->InitDatabase() != 0) {
+        if (cc == nullptr || cc->InitDatabase() != 0) {
             return false;
         }
         proto::KVList reads, writes;
@@ -161,5 +163,16 @@ namespace peer::core {
             }
             return true;
         });
+    }
+
+    bool ModuleCoordinator::initCrdtChaincodeData(const std::string &ccName) {
+        // try the crdt ones
+        auto dbShim = std::make_shared<peer::crdt::chaincode::DBShim>(_db);
+        auto crdtORM = std::make_unique<peer::crdt::chaincode::CrdtORM>(dbShim);
+        auto crdtCC = ::peer::crdt::chaincode::NewChaincodeByName(ccName, std::move(crdtORM));
+        if (crdtCC == nullptr || crdtCC->InitDatabase() != 0) {
+            return false;
+        }
+        return true;
     }
 }

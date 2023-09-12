@@ -58,6 +58,16 @@ set_target_properties(${PROJECT_NAME}_small_bank PROPERTIES CXX_STANDARD 20 OUTP
 
 target_link_libraries(${PROJECT_NAME}_small_bank NBP cxxopts ${COMMON_DEPENDENCIES})
 
+# ---- Create crdt standalone executable ----
+
+file(GLOB crdt_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/client/crdt/*.cpp)
+
+add_executable(${PROJECT_NAME}_crdt ${crdt_sources})
+
+set_target_properties(${PROJECT_NAME}_crdt PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "crdt")
+
+target_link_libraries(${PROJECT_NAME}_crdt NBP cxxopts ${COMMON_DEPENDENCIES})
+
 # ---- Create pension standalone executable ----
 
 file(GLOB pension_headers CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/client/pension_demo/*.h")

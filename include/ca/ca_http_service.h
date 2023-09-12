@@ -48,11 +48,8 @@ namespace ca {
             return processParallel(&ca::Dispatcher::updateRemoteBFTPack, ipList);
         }
 
-    protected:
-        void updateProperties();
-
     public:
-        void updateProperties(const std::vector<std::string>& ipList);
+        void updateProperties(bool clientOnly);
 
         bool generateDatabase(const std::string& dbName) {
             return processParallelPeerOnly(&ca::Dispatcher::generateDatabase, dbName);
@@ -68,6 +65,10 @@ namespace ca {
 
         bool startUser(const std::string& dbName) {
             return processParallelClientOnly(&ca::Dispatcher::startUser, dbName);
+        }
+
+        bool stopUser(const std::string& dbName) {
+            return processParallelClientOnly(&ca::Dispatcher::stopUser, dbName);
         }
 
     protected:
@@ -121,7 +122,7 @@ namespace ca {
         struct NodeConfig {
             int groupId;
             int nodeId;
-            int isClient;
+            bool isClient;
         };
 
         util::MyNodeHashMap<std::string, NodeConfig, std::mutex> _nodesList;

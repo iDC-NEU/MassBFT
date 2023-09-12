@@ -9,6 +9,8 @@
 
 namespace proto {
     struct BlockOrder {
+        // If blockId, voteChainId, voteBlockId all == -1,
+        // this is an error message indicating group with chainId is failed.
         int chainId;
         int blockId;
         int voteChainId;

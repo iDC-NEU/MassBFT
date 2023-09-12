@@ -129,17 +129,16 @@ namespace ca {
         });
 
         _server->Post("/upload/prop", [&](const httplib::Request &req, httplib::Response &res) {
-            auto [s1, json] = util::parseJson(req.body);
-            if (!s1) {
+            auto [success, json] = util::parseJson(req.body);
+            if (!success) {
                 util::setErrorWithMessage(res, "Body deserialize failed!");
                 return;
             }
-            auto [s2, nodes] = util::getListFromJson<std::string>(json);
-            if (!s2) {
-                util::setErrorWithMessage(res, "param contains error!");
-                return;
-            }
-            _service->updateProperties(nodes);
+            bool clientOnly = false;
+            try {
+                clientOnly = json["client"];
+            } catch (...) { }
+            _service->updateProperties(clientOnly);
             util::setSuccessWithMessage(res, "Operation complete successfully.");
         });
 
@@ -223,6 +222,25 @@ namespace ca {
             try {
                 auto name = json["name"];
                 if (!_service->startUser(name)) {
+                    util::setErrorWithMessage(res, "execute error!");
+                    return;
+                }
+            } catch (...) {
+                util::setErrorWithMessage(res, "Body deserialize failed!");
+                return;
+            }
+            util::setSuccessWithMessage(res, "Operation complete successfully.");
+        });
+
+        _server->Post("/user/stop", [&](const httplib::Request &req, httplib::Response &res) {
+            auto [success, json] = util::parseJson(req.body);
+            if (!success) {
+                util::setErrorWithMessage(res, "Body deserialize failed!");
+                return;
+            }
+            try {
+                auto name = json["name"];
+                if (!_service->stopUser(name)) {
                     util::setErrorWithMessage(res, "execute error!");
                     return;
                 }

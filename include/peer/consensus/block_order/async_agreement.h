@@ -74,6 +74,9 @@ namespace peer::consensus {
                 LOG(ERROR) << "Remote leader contains error, " << _leaderId;
                 _running->store((int)Status::ERROR);
                 bthread::butex_wake_all(_running);
+                if (_onErrorCallback) {
+                    _onErrorCallback(ctx.leader_id(), ctx.term(), ctx.status());
+                }
             }
         }
 
@@ -90,12 +93,17 @@ namespace peer::consensus {
                 if (!_onApplyCallback || !_onApplyCallback(iter.data())) {
                     LOG(ERROR) << "addr " << get_address()  << " apply " << iter.index()
                                << " data_size " << iter.data().size() << " failed!";
+                    if (_onErrorCallback) {
+                        _onErrorCallback(_leaderId, iter.term(), butil::Status(-1, "Apply failed"));
+                    }
                 }
             }
         }
 
     public:
         void setOnApplyCallback(auto&& callback) { _onApplyCallback = std::forward<decltype(callback)>(callback); }
+
+        void setOnErrorCallback(auto&& callback) { _onErrorCallback = std::forward<decltype(callback)>(callback); }
 
     private:
         // if running == 0, the raft instance is not ready
@@ -106,6 +114,7 @@ namespace peer::consensus {
         braft::PeerId _leaderId;
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaftFsm;
         std::function<bool(const butil::IOBuf& data)> _onApplyCallback;
+        std::function<void(const braft::PeerId& leaderId, const int64_t& term, const butil::Status& status)> _onErrorCallback;
     };
 
     class AsyncAgreementCallback {
@@ -113,18 +122,37 @@ namespace peer::consensus {
         virtual ~AsyncAgreementCallback() = default;
 
         explicit AsyncAgreementCallback() {
-            onValidateHandle = [this](const proto::SignedBlockOrder& sb) { return validateSignatureOfBlockOrder(sb); };
             onBroadcastHandle = [this](const std::string& decision) { return applyRawBlockOrder(decision); };
         }
 
         // Called by raft fsm in the first RPC (Receive but may not be replicated in most region)
-        inline auto onValidate(const proto::SignedBlockOrder& sb) { return onValidateHandle(sb); }
+        inline auto onValidate(const proto::SignedBlockOrder& sb) { return validateSignatureOfBlockOrder(sb); }
 
         // Called on return after determining the final order of sub chain blocks
         inline auto onDeliver(int subChainId, int blockId) { return onDeliverHandle(subChainId, blockId); }
 
         // Called after receiving a message from raft, responsible for broadcasting to all local nodes
         inline auto onBroadcast(std::string decision) { return onBroadcastHandle(std::move(decision)); }
+
+        // Called when the remote leader is down
+        inline void onError(int subChainId) {
+            // the group is down, invalid all the block
+            // _orderManager->invalidateChain(subChainId);
+            proto::BlockOrder bo {
+                    .chainId = subChainId,
+                    .blockId = -1,
+                    .voteChainId = -1,
+                    .voteBlockId = -1
+            };
+            ::proto::SignedBlockOrder sb;
+            if (!bo.serializeToString(&sb.serializedBlockOrder)) {
+                return;
+            }
+            std::string buffer;
+            sb.serializeToString(&buffer);
+            // broadcast to all nodes in this group
+            onBroadcastHandle(std::move(buffer));
+        }
 
         void init(int groupCount) {
             auto om = std::make_unique<v2::InterChainOrderManager>();
@@ -133,14 +161,18 @@ namespace peer::consensus {
                 // return the final decision to caller
                 this->onDeliver(c->subChainId, c->blockNumber);
             });
+            // Optimize-1: order next block as soon as receiving the previous block
+            // for (int i=0; i<groupCount; i++) {
+            //     for (int j=0; j<groupCount; j++) {
+            //         CHECK(om->pushDecision(i, 0, { j, -1 }));
+            //     }
+            // }
             _orderManager = std::move(om);
             // all handles are set
-            CHECK(onValidateHandle && onDeliverHandle && onBroadcastHandle);
+            CHECK(onDeliverHandle && onBroadcastHandle);
         }
 
     protected:
-        std::function<bool(const proto::SignedBlockOrder& sb)> onValidateHandle;
-
         std::function<bool(int, int)> onDeliverHandle;
 
         std::function<bool(std::string decision)> onBroadcastHandle;
@@ -158,7 +190,14 @@ namespace peer::consensus {
             if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
                 return false;
             }
+            if (bo.voteChainId == -1) {   // this is an error message
+                CHECK(bo.blockId == -1 && bo.voteBlockId == -1);
+                // the group is down, invalid all the block
+                return _orderManager->invalidateChain(bo.chainId);
+            }
             return _orderManager->pushDecision(bo.chainId, bo.blockId, { bo.voteChainId, bo.voteBlockId });
+            // Optimize-1: order next block as soon as receiving the previous block
+            // return _orderManager->pushDecision(bo.chainId, bo.blockId + 1, { bo.voteChainId, bo.voteBlockId + 1 });
         }
 
     protected:
@@ -271,7 +310,16 @@ namespace peer::consensus {
                 return false; // can not find local index
             }
             auto* fsm = new AgreementRaftFSM(peers[myIdIndex], peers[leaderPos], _multiRaft);
-            fsm->setOnApplyCallback([this](auto&& data) { return this->onApply(std::forward<decltype(data)>(data)); });
+            fsm->setOnApplyCallback([this](auto&& data) {
+                auto dataStr = data.to_string();
+                return _callback->onBroadcast(std::move(dataStr));
+            });
+
+            fsm->setOnErrorCallback([this](const braft::PeerId& peerId, const int64_t& term, const butil::Status& status) {
+                LOG(ERROR) << "Remote leader error: " << status << ", LeaderId: " << peerId << ", term: " << term;
+                return _callback->onError(peerId.idx);
+            });
+
             if (_multiRaft->start(peers, myIdIndex, fsm) != 0) {
                 return false;
             }
@@ -347,11 +395,5 @@ namespace peer::consensus {
             }
             return true;
         }
-
-        // thread safe, called by raft fsm (followers and the leader)
-        bool onApply(const butil::IOBuf& data) {
-            auto dataStr = data.to_string();
-            return _callback->onBroadcast(std::move(dataStr));
-        };
     };
 }

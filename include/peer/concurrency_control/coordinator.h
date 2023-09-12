@@ -4,20 +4,18 @@
 
 #pragma once
 
-#include "peer/concurrency_control/deterministic/worker_fsm.h"
-#include "bthread/countdown_event.h"
+#include "peer/concurrency_control/worker_fsm.h"
 #include "peer/db/db_interface.h"
-#include "reserve_table.h"
+#include "bthread/countdown_event.h"
+#include "proto/transaction.h"
 
 namespace peer::cc {
-    template<class WorkerFSMType, class ReserveTableType, class Derived>
+    template<class WorkerFSMType, class Derived>
     class Coordinator {
     public:
         static std::unique_ptr<Derived> NewCoordinator(const std::shared_ptr<peer::db::DBConnection>& dbc, int workerCount) {
             std::unique_ptr<Derived> ptr(new Derived());
             auto* c = static_cast<Coordinator*>(ptr.get());
-            auto table = std::make_shared<ReserveTableType>();
-            c->reserveTable = table;
             c->workerList.reserve(workerCount);
             c->fsmList.reserve(workerCount);
             for (int i=0; i<workerCount; i++) {
@@ -26,8 +24,6 @@ namespace peer::cc {
                     LOG(ERROR) << "Create fsm failed!";
                     return nullptr;
                 }
-                fsm->setDB(dbc);
-                fsm->setReserveTable(table);
                 auto worker = peer::cc::Worker::NewWorker(fsm);
                 if (worker == nullptr) {
                     LOG(ERROR) << "Create worker failed!";
@@ -41,6 +37,9 @@ namespace peer::cc {
                 }
                 c->fsmList.push_back(std::move(fsm));
                 c->workerList.push_back(std::move(worker));
+            }
+            if (!ptr->init(dbc)) {
+                return nullptr;
             }
             return ptr;
         }
@@ -157,7 +156,6 @@ namespace peer::cc {
     protected:
         std::vector<std::unique_ptr<Worker>> workerList;
         std::vector<std::shared_ptr<WorkerFSMType>> fsmList;
-        std::shared_ptr<ReserveTableType> reserveTable;
         // countdown: for method processParallel
         bthread::CountdownEvent countdown;
     };

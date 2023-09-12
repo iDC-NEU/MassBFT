@@ -23,18 +23,28 @@ namespace peer {
     }
     namespace cc {
         class CoordinatorImpl;
+        namespace crdt {
+            class CRDTCoordinator;
+        }
     }
 }
 
 namespace peer::core {
     class ModuleFactory;
-    class SinglePBFTController;
+    class BFTController;
 
     class ModuleCoordinator {
     public:
+        // Uncomment this line to enable CRDT chaincode
+        // using ChaincodeType = peer::cc::crdt::CRDTCoordinator;
+        // Uncomment this line to enable traditional chaincode
+        using ChaincodeType = peer::cc::CoordinatorImpl;
+
         static std::unique_ptr<ModuleCoordinator> NewModuleCoordinator(const std::shared_ptr<util::Properties>& properties);
 
         bool initChaincodeData(const std::string& ccName);
+
+        bool initCrdtChaincodeData(const std::string& ccName);
 
         ~ModuleCoordinator();
 
@@ -67,12 +77,12 @@ namespace peer::core {
         // other components
         std::shared_ptr<::peer::MRBlockStorage> _contentStorage;
         std::unique_ptr<::peer::consensus::v2::BlockOrder> _gbo;
-        std::unique_ptr<::peer::core::SinglePBFTController> _localContentBFT;
+        std::unique_ptr<BFTController> _localContentBFT;
         // for debug
         std::shared_ptr<util::NodeConfig> _localNode;
         // for concurrency control
         std::shared_ptr<peer::db::DBConnection> _db;
-        std::unique_ptr<peer::cc::CoordinatorImpl> _cc;
+        std::unique_ptr<ChaincodeType> _cc;
         util::AsyncSerialExecutor _serialExecutor;
         // for user rpc
         std::shared_ptr<::peer::BlockLRUCache> _userRPCNotifier;

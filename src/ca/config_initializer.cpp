@@ -52,7 +52,7 @@ namespace ca {
         // init properties
         SetLocalId(0, 0);
         util::Properties::SetProperties(util::Properties::BATCH_MAX_SIZE, 2000);
-        util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 30);
+        util::Properties::SetProperties(util::Properties::BATCH_TIMEOUT_MS, 20);
         util::Properties::SetProperties(util::Properties::DISTRIBUTED_SETTING, true);
         util::Properties::SetProperties(util::Properties::SSH_USERNAME, "root");
         util::Properties::SetProperties(util::Properties::SSH_PASSWORD, "neu1234.");
@@ -184,8 +184,7 @@ namespace ca {
         if (!session->executeCommand({ "kill -9 $(pidof clash-linux-amd64-v3)" }, true)) {
             return false;
         }
-        LOG(INFO) << "Sleep for 5 seconds.";
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         LOG(INFO) << "Starting proxy.";
         std::vector<std::string> builder = {
                 "cd",
@@ -323,11 +322,15 @@ namespace ca {
         if (!sftp->putFile(_runningPath / ncZipName, true, _runningPath / ncZipName)) {
             return false;
         }
-        LOG(INFO) << "Unzip sourcecode.";
+        LOG(INFO) << "Unzip sourcecode, sourcecode must contain src and include folder.";
         // unzip the files
         std::vector<std::string> builder = {
                 "cd",
                 _runningPath,
+                "&&",
+                "rm -rf",
+                _runningPath / _ncFolderName / "src",
+                _runningPath / _ncFolderName / "include",
                 "&&",
                 "unzip -q -o",
                 _runningPath / _ncFolderName, };
@@ -398,6 +401,19 @@ namespace ca {
         if (!session->executeCommand(builder, true)) {
             LOG(ERROR) << "Clear peer data failed.";
         }
+        return true;
+    }
+
+    bool Dispatcher::stopUser(const std::string &ip, const std::string &dbName) const {
+        auto session = destroyPool.connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        if (!session->executeCommand({ "kill -9 $(pidof " + dbName + ")" }, true)) {
+            LOG(WARNING) << "Kill user error: " << ip;
+            return false;
+        }
+        LOG(INFO) << "Kill user successfully: " << ip;
         return true;
     }
 

@@ -7,7 +7,7 @@
 #include "httplib.h"
 
 int main(int argc, char *argv[]) {
-    if (!util::Properties::LoadProperties("../../peer.yaml")) {
+    if (!util::Properties::LoadProperties("peer.yaml")) {
         LOG(ERROR) << "Load config failed!";
         return -1;
     }

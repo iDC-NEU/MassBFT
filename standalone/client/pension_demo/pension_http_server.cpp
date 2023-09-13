@@ -24,11 +24,108 @@ namespace demo::pension {
                 const auto& value = requestBody["value"];
                 auto ret = _service->put(key, value);
                 return ret;
-            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody) {
+            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody, const client::sdk::BlockHeaderProof& header, const std::string_view payload) {
                 // TODO
-                std::stringstream ss;
-                ss << "Operation success complete!";
-                return ss.str();
+                nlohmann::json ret;
+                ret["number"] = header.header.number;//区块号
+                ret["root"] = header.header.dataHash;//根哈希
+                std::string digestStr = OpenSSL::bytesToString(digest);
+                ret["digest"] = digestStr;//交易摘要
+                //反序列化用户请求
+                proto::UserRequest u;
+                zpp::bits::in in(payload);
+                if (failure(in(u))) {
+                    LOG(INFO) << "Payload deserialization failed!" << std::endl;
+                }
+                const proto::KVList& writes = responseBody.rwSet->getWrites();
+                for (const auto& kvPtr : writes) {
+                    // 获取 proto::KV 对象的指针
+                    const proto::KV* kv = kvPtr.get();
+
+                    // 检查指针是否有效
+                    if (kv) {
+                        // 访问 proto::KV 对象的成员
+                        const std::string_view& key = kv->getKeySV();
+                        const std::string_view& value = kv->getValueSV();
+                        LOG(INFO) << "WRITE:";
+                        std::vector<std::string_view> valueList;
+                        zpp::bits::in inv(value);
+                        if (failure(inv(valueList))) {
+                            LOG(INFO) << "failure";
+                        }
+                        LOG(INFO) << key;
+                        LOG(INFO) << value;
+                        for (const auto& strView : valueList) {
+                            LOG(INFO) << strView << std::endl;
+                        }
+                        ret["valueHash"] = valueList.back();
+                        // 在这里使用 key 和 value 进行操作
+                    }
+                }
+                ret["chaincode"] = u.getCCNameSV();
+                ret["function"] = u.getFuncNameSV();
+                ret["merkleProof_Siblings"] = responseBody.envelopProof.Siblings;
+                ret["merkleProof_Path"] = responseBody.envelopProof.Path;
+                return ret.dump();
+            });
+        }
+        void getDigestHistory(const httplib::Request &req, httplib::Response &res) {
+            processDataInner(req, res, [&](const nlohmann::json& requestBody) {
+                if (!requestBody.contains("key")) {
+                    util::setErrorWithMessage(res, "Invalid request. Missing key.");
+                    return client::core::ERROR;
+                }
+                const auto& key = requestBody["key"];
+                auto ret = _service->getDigest(key);
+                return ret;
+            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody, const client::sdk::BlockHeaderProof& header, const std::string_view payload) {
+                // TODO
+                nlohmann::json ret;
+                ret["number"] = header.header.number;//区块号
+                ret["root"] = header.header.dataHash;//根哈希
+                std::string digestStr = OpenSSL::bytesToString(digest);
+                ret["digest"] = digestStr;//交易摘要
+                LOG(INFO) <<payload;
+                //反序列化用户请求
+                proto::UserRequest u;
+                zpp::bits::in in(payload);
+                if (failure(in(u))) {
+                    LOG(INFO) << "Payload deserialization failed!" << std::endl;
+                }
+                const proto::KVList& reads = responseBody.rwSet->getReads();
+                for (const auto& kvPtr : reads) {
+                    // 获取 proto::KV 对象的指针
+                    const proto::KV* kv = kvPtr.get();
+
+                    // 检查指针是否有效
+                    if (kv) {
+                        // 访问 proto::KV 对象的成员
+                        const std::string_view& key = kv->getKeySV();
+                        const std::string_view& value = kv->getValueSV();
+                        LOG(INFO) << "Read:";
+                        std::vector<std::string_view> valueList;
+                        zpp::bits::in inv(value);
+                        if (failure(inv(valueList))) {
+                            LOG(INFO) << "failure";
+                        }
+                        LOG(INFO) << key;
+                        LOG(INFO) << value;
+                        for (const auto& strView : valueList) {
+                            LOG(INFO) << strView << std::endl;
+                        }
+                        ret["valueHash"] = valueList;
+
+                        // 在这里使用 key 和 value 进行操作
+                    }
+                }
+                auto hash = util::OpenSSLSHA256::generateDigest(payload.data(), payload.size());
+                proto::HashString hashS = hash.value();
+                ret["hash"] = hashS;
+                ret["chaincode"] = u.getCCNameSV();
+                ret["function"] = u.getFuncNameSV();
+                ret["merkleProof_Siblings"] = responseBody.envelopProof.Siblings;
+                ret["merkleProof_Path"] = responseBody.envelopProof.Path;
+                return ret.dump();
             });
         }
 
@@ -42,7 +139,7 @@ namespace demo::pension {
                 const auto& value = requestBody["value"];
                 auto ret = _service->putDigest(key, value);
                 return ret;
-            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody) {
+            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody, const client::sdk::BlockHeaderProof& header, const std::string_view str) {
                 // TODO
                 std::stringstream ss;
                 ss << "Operation success complete!";
@@ -59,19 +156,64 @@ namespace demo::pension {
                 const auto& key = requestBody["key"];
                 auto ret = _service->getDigest(key);
                 return ret;
-            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody) {
+            }, [&] (const proto::DigestString& digest, const client::sdk::TxMerkleProof& responseBody, const client::sdk::BlockHeaderProof& header, const std::string_view payload) {
                 // TODO
-                std::stringstream ss;
-                ss << "Operation success complete!";
-                return ss.str();
+                nlohmann::json ret;
+                ret["number"] = header.header.number;//区块号
+                ret["root"] = header.header.dataHash;//根哈希
+                std::string digestStr = OpenSSL::bytesToString(digest);
+                ret["digest"] = digestStr;//交易摘要
+                LOG(INFO) <<payload;
+                //反序列化用户请求
+                proto::UserRequest u;
+                zpp::bits::in in(payload);
+                if (failure(in(u))) {
+                    LOG(INFO) << "Payload deserialization failed!" << std::endl;
+                }
+                const proto::KVList& reads = responseBody.rwSet->getReads();
+                for (const auto& kvPtr : reads) {
+                    // 获取 proto::KV 对象的指针
+                    const proto::KV* kv = kvPtr.get();
+
+                    // 检查指针是否有效
+                    if (kv) {
+                        // 访问 proto::KV 对象的成员
+                        const std::string_view& key = kv->getKeySV();
+                        const std::string_view& value = kv->getValueSV();
+                        LOG(INFO) << "Read:";
+                        std::vector<std::string_view> valueList;
+                        zpp::bits::in inv(value);
+                        if (failure(inv(valueList))) {
+                            LOG(INFO) << "failure";
+                        }
+                        LOG(INFO) << key;
+                        LOG(INFO) << value;
+                        for (const auto& strView : valueList) {
+                            LOG(INFO) << strView << std::endl;
+                        }
+                        ret["valueHash"] = valueList.back();
+
+                        // 在这里使用 key 和 value 进行操作
+                    }
+                }
+                auto hash = util::OpenSSLSHA256::generateDigest(payload.data(), payload.size());
+                proto::HashString hashS = hash.value();
+                ret["hash"] = hashS;
+                ret["chaincode"] = u.getCCNameSV();
+                ret["function"] = u.getFuncNameSV();
+                ret["merkleProof_Siblings"] = responseBody.envelopProof.Siblings;
+                ret["merkleProof_Path"] = responseBody.envelopProof.Path;
+                return ret.dump();
             });
         }
 
     protected:
         void processDataInner(const httplib::Request &req, httplib::Response &res,
                                      const std::function<client::core::Status(const nlohmann::json& requestBody)>& fStart,
-                                     const std::function<std::string(const proto::DigestString& digest,
-                                                                     const client::sdk::TxMerkleProof& responseBody)>& fFinish) {
+                                     const std::function<std::string(const proto::DigestString& hash,
+                                                                     const client::sdk::TxMerkleProof& responseBody,
+                                                                     const client::sdk::BlockHeaderProof& header,
+                                                                     const std::string_view payload)>& fFinish) {
             auto [success, body] = util::parseJson(req.body);
             if (!success) {
                 util::setErrorWithMessage(res, "Invalid JSON data");
@@ -82,6 +224,7 @@ namespace demo::pension {
             // get height first
             auto startHeight = _service->getReceiver()->getChainHeight(localNodeInfo->groupId, 1000);
             auto request = fStart(body);
+            std::string_view payloadSV;
             if (!request.isOk()) {
                 util::setErrorWithMessage(res, "Failed to invoke chaincode.");
                 return;
@@ -93,6 +236,8 @@ namespace demo::pension {
                 return;
             }
             std::copy(txIdStr.begin(), txIdStr.end(), txId.begin());
+            proto::HashString root;
+            std::unique_ptr<client::sdk::BlockHeaderProof> header;
             for (int i=0; i<5; i++) {   // retry 5 times
                 auto result = _service->getReceiver()->getTransaction(txId, localNodeInfo->groupId, startHeight, 2000);
                 if (result == nullptr) {
@@ -100,7 +245,19 @@ namespace demo::pension {
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     continue;
                 }
-                util::setSuccessWithMessage(res, fFinish(txId, *result));
+                for (int j=startHeight; j>=0; j--) {
+                    header = _service->getReceiver()->getBlockHeader(localNodeInfo->groupId, startHeight+1, 2000);
+                    auto t = _service->getReceiver()->ValidateUserRequestMerkleProof(header->header.dataHash,
+                                                             result->envelopProof,
+                                                             *result->envelop);
+                    if (t) {
+                        root = header->header.dataHash;
+                        std::string hash = OpenSSL::bytesToString(root);
+                        payloadSV = result->envelop->getPayload();
+                        break;
+                    }
+                }
+                util::setSuccessWithMessage(res, fFinish(txId, *result, *header, payloadSV));
                 return;
             }
             util::setErrorWithMessage(res, "Failed to get response in time.");
@@ -139,7 +296,7 @@ namespace demo::pension {
     client::core::Status ServiceBackend::putDigest(const std::string &key, const util::OpenSSLSHA256::digestType &digest) {
         std::string raw;
         zpp::bits::out out(raw);
-        if (failure(out(key, std::string(std::begin(digest), std::end(digest))))) {
+        if (failure(out(key, util::OpenSSLSHA256::toString(digest)))) {
             LOG(ERROR) << "serialize data failed!";
             return client::core::ERROR;
         }
@@ -186,6 +343,9 @@ namespace demo::pension {
 
         server->_server->Post("/block/get_digest", [&](const httplib::Request &req, httplib::Response &res) {
             server->_controller->getDigest(req, res);
+        });
+        server->_server->Post("/block/get_history", [&](const httplib::Request &req, httplib::Response &res) {
+            server->_controller->getDigestHistory(req, res);
         });
         return server;
     }

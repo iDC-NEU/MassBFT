@@ -5,6 +5,7 @@
 #include "peer/core/module_factory.h"
 #include "peer/core/user_rpc_controller.h"
 #include "peer/consensus/block_order/global_ordering.h"
+#include "peer/consensus/block_order/round_based/round_based_block_order.h"
 #include "peer/consensus/pbft/local_consensus_controller.h"
 #include "peer/consensus/pbft/single_pbft_controller.h"
 #include "peer/replicator/replicator.h"
@@ -150,7 +151,7 @@ namespace peer::core {
         }
         auto rc = std::make_unique<consensus::v2::SinglePBFTController>(std::move(ic), localNode->groupId, localNode->nodeId, groupId);
 
-        return std::unique_ptr<BFTController>(new BFTController{std::move(pc), std::move(rc)});
+        return std::make_unique<BFTController>(std::move(pc), std::move(rc));
     }
 
     std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> ModuleFactory::getOrInitZMQPortUtilMap() {
@@ -160,7 +161,7 @@ namespace peer::core {
         return _zmqPortUtilMap;
     }
 
-    std::unique_ptr<::peer::consensus::v2::BlockOrder> ModuleFactory::newGlobalBlockOrdering(std::shared_ptr<peer::consensus::v2::OrderACB> callback) {
+    std::unique_ptr<consensus::BlockOrderInterface> ModuleFactory::newGlobalBlockOrdering(std::function<bool(int chainId, int blockNumber)> deliverCallback) {
         // we reuse the rpc port as the global broadcast port
         auto portMap = getOrInitZMQPortUtilMap();
         if (portMap == nullptr) {
@@ -193,7 +194,10 @@ namespace peer::core {
         if (!suc2) {
             return nullptr;
         }
-        return peer::consensus::v2::BlockOrder::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(callback));
+        auto [bccsp, tp] = getOrInitBCCSPAndThreadPool();
+        auto callback = BlockOrderType::NewRaftCallback(std::move(bccsp), std::move(tp));
+        callback->setOnExecuteBlockCallback(std::move(deliverCallback));
+        return BlockOrderType::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(callback));
     }
 
     bool ModuleFactory::startReplicatorSender() {

@@ -5,7 +5,7 @@
 #include "peer/core/module_coordinator.h"
 #include "peer/core/module_factory.h"
 #include "peer/consensus/pbft/single_pbft_controller.h"
-#include "peer/consensus/block_order/global_ordering.h"
+#include "peer/consensus/block_order/block_order.h"
 #include "peer/storage/mr_block_storage.h"
 #include "peer/concurrency_control/deterministic/coordinator_impl.h"
 #include "peer/concurrency_control/crdt/crdt_coordinator.h"
@@ -52,14 +52,15 @@ namespace peer::core {
             return nullptr;
         }
         // 1.2 init GlobalBlockOrdering
-        auto orderCAB = std::make_shared<peer::consensus::v2::OrderACB>([ptr = mc.get()](int chainId, int blockNumber) {
+
+        auto deliveredCallback = [ptr = mc.get()](int chainId, int blockNumber) {
             return ptr->_serialExecutor.addTask([=] {
                 if (!ptr->onConsensusBlockOrder(chainId, blockNumber)) {
                     LOG(ERROR) << "Can not execute block.";
                 }
             });
-        });
-        auto gbo = mc->_moduleFactory->newGlobalBlockOrdering(orderCAB);
+        };
+        auto gbo = mc->_moduleFactory->newGlobalBlockOrdering(std::move(deliveredCallback));
         if (gbo == nullptr) {
             return nullptr;
         }

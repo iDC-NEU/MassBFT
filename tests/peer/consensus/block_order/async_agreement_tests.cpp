@@ -3,6 +3,7 @@
 //
 
 #include "peer/consensus/block_order/async_agreement.h"
+#include "peer/consensus/block_order/global_ordering.h"
 #include "common/timer.h"
 #include "tests/proto_block_utils.h"
 #include "gtest/gtest.h"
@@ -10,16 +11,18 @@
 
 using namespace peer::consensus;
 
-class MockACB : public AsyncAgreementCallback {
+class MockACB : public v2::OrderACB {
 public:
-    void init(int groupCount, std::shared_ptr<util::ZMQInstanceConfig> node) {
-        onDeliverHandle = [this](int chainId, int blockNumber) {
+    void initMockACB(int groupCount, std::shared_ptr<util::ZMQInstanceConfig> node) {
+        setOnExecuteBlockCallback([this](int chainId, int blockNumber) {
             LOG(INFO) << "{ " << localNode->nodeConfig->groupId << ", " << localNode->nodeConfig->nodeId << " }: "
                       << chainId << ", " << blockNumber;
             return true;
-        };
+        });
         localNode = std::move(node);
-        AsyncAgreementCallback::init(groupCount);
+        auto ld = v2::LocalDistributor::NewLocalDistributor({}, -1);
+        CHECK(ld != nullptr);
+        init(groupCount, std::move(ld));
     }
 
 private:
@@ -97,7 +100,7 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
 
     for (const auto& it : nodes) {
         auto acb = std::make_unique<MockACB>();
-        acb->init(3, it);
+        acb->initMockACB(3, it);
         auto aa = AsyncAgreement::NewAsyncAgreement(it, std::move(acb));
         if (aa == nullptr) {
             CHECK(false) << "init failed";

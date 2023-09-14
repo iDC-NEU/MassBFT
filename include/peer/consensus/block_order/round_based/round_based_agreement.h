@@ -1,36 +1,29 @@
 //
-// Created by user on 23-4-5.
+// Created by user on 23-9-14.
 //
 
-#pragma once
-
-#include "peer/consensus/block_order/interchain_order_manager.h"
 #include "peer/consensus/block_order/agreement_raft_fsm.h"
 #include "peer/consensus/block_order/local_distributor.h"
+#include "peer/consensus/block_order/round_based/round_based_order_manager.h"
 
 #include "common/meta_rpc_server.h"
 #include "common/property.h"
-#include "common/thread_pool_light.h"
-#include "common/bccsp.h"
-#include "proto/block_order.h"
+#include "zpp_bits.h"
 
-namespace peer::consensus {
-    // The cluster orders the blocks locally(with bft) and then broadcasts to other clusters(with raft)
-    // Meanwhile, the cluster receives the ordering results of other clusters(with raft)
-    // Generate a final block order based on the aggregation of all results
-    class AsyncAgreement {
+namespace peer::consensus::rb {
+    class RoundBasedAgreement {
     private:
         std::shared_ptr<util::ZMQInstanceConfig> _localConfig;
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaft;
-        std::unique_ptr<v2::OrderAssigner> _localOrderAssigner;
         std::shared_ptr<v2::RaftCallback> _callback;
         braft::PeerId _localPeerId;
 
     public:
-        // groupCount: sub chain ids are from 0 to groupCount-1
-        static std::unique_ptr<AsyncAgreement> NewAsyncAgreement(std::shared_ptr<util::ZMQInstanceConfig> localConfig,
-                                                                 std::shared_ptr<v2::RaftCallback> callback) {
-            auto aa = std::make_unique<AsyncAgreement>();
+        static std::unique_ptr<RoundBasedAgreement> NewRoundBasedAgreement(
+                std::shared_ptr<util::ZMQInstanceConfig> localConfig,
+                std::shared_ptr<v2::RaftCallback> callback) {
+
+            auto aa = std::make_unique<RoundBasedAgreement>();
             aa->_localConfig = std::move(localConfig);
             auto& cfg = aa->_localConfig;
             if (!PeerIdFromConfig(cfg->pubAddr(), cfg->port, cfg->nodeConfig->groupId, aa->_localPeerId)) {
@@ -38,8 +31,6 @@ namespace peer::consensus {
             }
             aa->_callback = std::move(callback);
             aa->_multiRaft = std::make_unique<util::raft::MultiRaftFSM>("blk_order_cluster");
-            aa->_localOrderAssigner = std::make_unique<v2::OrderAssigner>();
-            aa->_localOrderAssigner->setLocalChainId(cfg->nodeConfig->groupId);
             // start local rpc instance
             if (util::DefaultRpcServer::AddRaftService(cfg->port) != 0) {
                 return nullptr;
@@ -47,11 +38,10 @@ namespace peer::consensus {
             if (util::DefaultRpcServer::Start(cfg->port) != 0) {
                 return nullptr;
             }
-            // TODO: CONNECT TO OTHER PEERS IN LOCAL CLUSTER
             return aa;
         }
 
-        virtual ~AsyncAgreement() {
+        virtual ~RoundBasedAgreement() {
             if (_localConfig != nullptr) {
                 util::DefaultRpcServer::Stop(_localConfig->port);
             }
@@ -81,14 +71,13 @@ namespace peer::consensus {
                 return false; // can not find local index
             }
             auto* fsm = new AgreementRaftFSM(peers[myIdIndex], peers[leaderPos], _multiRaft);
-            fsm->setOnApplyCallback([this](auto&& data) {
-                auto dataStr = data.to_string();
-                return _callback->onBroadcast(std::move(dataStr));
+            fsm->setOnApplyCallback([this](const butil::IOBuf& data) {
+                return _callback->onBroadcast(data.to_string());
             });
 
             fsm->setOnErrorCallback([this](const braft::PeerId& peerId, const int64_t& term, const butil::Status& status) {
                 LOG(ERROR) << "Remote leader error: " << status << ", LeaderId: " << peerId << ", term: " << term;
-                return _callback->onError(peerId.idx);
+                return _callback->onError(peerId.idx);  // group peerId.idx is down
             });
 
             if (_multiRaft->start(peers, myIdIndex, fsm) != 0) {
@@ -101,39 +90,19 @@ namespace peer::consensus {
         std::mutex leaderVotingMutex;
 
     public:
-        // TODO: pipeline the requests
         // the instance MUST BE the leader of local group
-        bool onLeaderVotingNewBlock(int chainId, int blockId) {
+        bool onReplicatingNewBlock(int chainId, int blockId) {
             std::unique_lock guard(leaderVotingMutex);
-            auto localVC = _localOrderAssigner->getBlockOrder(chainId, blockId);
-            proto::BlockOrder bo {
-                    .chainId = chainId,
-                    .blockId = blockId,
-                    .voteChainId = localVC.first,
-                    .voteBlockId = localVC.second
-            };
-            // TODO: use local BFT consensus to consensus the bo
-            //  BFT(bo) -> true
-            ::proto::SignedBlockOrder sb;
-            if (!bo.serializeToString(&sb.serializedBlockOrder)) {
-                return false;
+            if (_localConfig->nodeConfig->groupId != chainId) {
+                return true;    // only consensus block generate by this group
             }
+            // LOG(INFO) << "Leader of group " << chainId << " start consensus block " << blockId;
             std::string buffer;
-            sb.serializeToString(&buffer);
+            zpp::bits::out out(buffer);
+            if(failure(out(chainId, blockId))) {
+                return false;
+            }
             return apply(buffer);
-        }
-
-        // the instance MUST BE the follower of local group
-        // NOT thread safe, called seq by BFT instance
-        bool onValidateVotingNewBlock(const proto::BlockOrder& bo) {
-            auto localVC = _localOrderAssigner->getBlockOrder(bo.chainId, bo.blockId);
-            if (localVC.first != bo.voteChainId) {
-                return false;
-            }
-            if (localVC.second != bo.voteBlockId) {
-                return false;
-            }
-            return true;
         }
 
     public:
@@ -153,7 +122,6 @@ namespace peer::consensus {
             auto* leader = _multiRaft->find_node(_localPeerId);
             butil::IOBuf data;
             data.append(content);
-            // TODO: use complex task.done
             util::raft::NullOptionClosure done;
             braft::Task task;
             task.data = &data;

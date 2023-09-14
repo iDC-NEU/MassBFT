@@ -417,6 +417,14 @@ namespace ca {
         return true;
     }
 
+    bool Dispatcher::hello(const std::string &ip) const {
+        auto session = defaultPool.connect(ip);
+        if (session == nullptr) {
+            return false;
+        }
+        return true;
+    }
+
     Dispatcher::~Dispatcher() = default;
 
     util::SSHSession *SessionPool::connect(const std::string &ip) {

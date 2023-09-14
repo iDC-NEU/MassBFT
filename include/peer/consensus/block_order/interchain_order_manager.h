@@ -276,12 +276,13 @@ namespace peer::consensus::v2 {
                     auto* rhs = findCell(i, lastFinished, false);
                     CHECK(rhs != nullptr) << "Impl error!";
                     // ----DEFAULT VERSION START
-                    auto cmpResult = cell->operator<(rhs);
-                    // ----DEFAULT VERSION END
-                    // ----Optimization 3 lines, TODO: double check
-                    // rhs->finalDecision[rhs->subChainId]++;
                     // auto cmpResult = cell->operator<(rhs);
-                    // rhs->finalDecision[rhs->subChainId]--;
+                    // ----DEFAULT VERSION END
+                    // Note: explain finalDecision[rhs->subChainId]++, compare with chain[id][lastFinish+1]
+                    // ----Optimization 3 lines, TODO: double check
+                     rhs->finalDecision[rhs->subChainId]++;
+                     auto cmpResult = cell->operator<(rhs);
+                     rhs->finalDecision[rhs->subChainId]--;
                     // ----Optimization END
                     if (!cmpResult) {
                         // the block after res still may < than cell, still have to wait

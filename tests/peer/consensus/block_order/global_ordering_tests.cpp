@@ -57,8 +57,9 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     std::vector<std::unique_ptr<BlockOrder>> regions(8);
     for (auto i: {0, 1, 2, 3}) {
         auto& me = localNodes0[i]->nodeConfig;
-        auto orderCAB = std::make_unique<OrderACB>([&callback, i=i](int regionId, int blockId) ->bool {
-                return callback(i, regionId, blockId);
+        auto orderCAB = std::make_unique<OrderACB>();
+        orderCAB->setOnExecuteBlockCallback([&callback, i=i](int regionId, int blockId) ->bool {
+            return callback(i, regionId, blockId);
         });
         regions[i] = BlockOrder::NewBlockOrder(localNodes0, raftNodes, raftLeaders, me, std::move(orderCAB));
         ASSERT_TRUE(regions[i] != nullptr);
@@ -66,7 +67,8 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     // spin up nodes in region 1
     for (auto i: {4, 5, 6, 7}) {
         auto& me = localNodes1[i-4]->nodeConfig;
-        auto orderCAB = std::make_unique<OrderACB>([&callback, i=i](int regionId, int blockId) ->bool {
+        auto orderCAB = std::make_unique<OrderACB>();
+        orderCAB->setOnExecuteBlockCallback([&callback, i=i](int regionId, int blockId) ->bool {
             return callback(i, regionId, blockId);
         });
         regions[i] = BlockOrder::NewBlockOrder(localNodes1, raftNodes, raftLeaders, me, std::move(orderCAB));
@@ -108,4 +110,5 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     LOG(INFO) << "List size: " << retValue.size();
     LOG(INFO) << "Last value: " << retValue[0].back().first << ", " << retValue[0].back().second;
     util::Timer::sleep_sec(10);
+    regions.clear();
 }

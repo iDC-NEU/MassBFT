@@ -49,6 +49,8 @@ namespace ca {
         }
 
     public:
+        bool hello();
+
         void updateProperties(bool clientOnly);
 
         bool generateDatabase(const std::string& dbName) {

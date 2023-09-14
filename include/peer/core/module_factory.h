@@ -14,11 +14,16 @@ namespace util {
 }
 
 namespace peer {
-    namespace consensus::v2 {
-        class BlockOrder;
-        class OrderACB;
-        class LocalConsensusController;
-        class SinglePBFTController;
+    namespace consensus {
+        namespace v2 {
+            class LocalConsensusController;
+            class SinglePBFTController;
+            class BlockOrder;
+        }
+        namespace rb {
+            class BlockOrder;
+        }
+        class BlockOrderInterface;
     }
     class MRBlockStorage;
     class BlockLRUCache;
@@ -43,6 +48,9 @@ namespace peer::core {
         using ReplicatorType = peer::Replicator;
         // using ReplicatorType = peer::direct::Replicator;
 
+        using BlockOrderType = peer::consensus::v2::BlockOrder;
+        // using BlockOrderType = peer::consensus::rb::BlockOrder;
+
         static std::unique_ptr<ModuleFactory> NewModuleFactory(const std::shared_ptr<util::Properties>& properties);
 
         virtual ~ModuleFactory();
@@ -65,7 +73,7 @@ namespace peer::core {
         // bft instance runningPath = std::filesystem::current_path();
         std::unique_ptr<BFTController> newReplicatorBFTController(int groupId);
 
-        std::unique_ptr<::peer::consensus::v2::BlockOrder> newGlobalBlockOrdering(std::shared_ptr<peer::consensus::v2::OrderACB> callback);
+        std::unique_ptr<consensus::BlockOrderInterface> newGlobalBlockOrdering(std::function<bool(int chainId, int blockNumber)> deliverCallback);
 
     private:
         std::shared_ptr<util::Properties> _properties;

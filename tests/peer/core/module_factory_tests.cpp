@@ -80,10 +80,9 @@ TEST_F(BootstrapTest, TestGlobalOrdering) {
     tests::MockPropertyGenerator::GenerateDefaultProperties(4, 4);
     tests::MockPropertyGenerator::SetLocalId(0, 1);
     auto modules = GetAndInitModules(false);
-    auto orderCAB = std::make_shared<peer::consensus::v2::OrderACB>([](int, int) ->bool {
+    auto ret = modules->newGlobalBlockOrdering([](int, int) ->bool {
         return true;
     });
-    auto ret = modules->newGlobalBlockOrdering(orderCAB);
     CHECK(ret != nullptr);
     util::Timer::sleep_sec(2);
 }

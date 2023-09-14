@@ -57,12 +57,15 @@ namespace peer::consensus::v2 {
         // Input: port of all local servers
         // output: decisions
         static std::unique_ptr<LocalDistributor> NewLocalDistributor(const std::vector<std::shared_ptr<util::ZMQInstanceConfig>>& nodes, int myPos) {
+            auto ld = std::make_unique<LocalDistributor>();
+            if (nodes.empty()) {
+                return ld;
+            }
             // connect to those servers
             auto pub = util::ZMQInstance::NewServer<zmq::socket_type::pub>(nodes[myPos]->port);
             if (pub == nullptr) {
                 return nullptr;
             }
-            auto ld = std::make_unique<LocalDistributor>();
             ld->_pub = std::move(pub);
             ld->_subs.reserve(nodes.size()-1);  // skip local sub
             auto cb = [ptr = ld.get()](std::string raw) {    // receive function
@@ -86,12 +89,18 @@ namespace peer::consensus::v2 {
         // gossip should be thread safe
         inline bool gossip(std::string&& msg) {
             _deliverCallback(std::string(msg));
+            if (_pub == nullptr) {
+                return true;
+            }
             std::unique_lock guard(gossipMutex);
             return _pub->send(std::move(msg));
         }
 
         inline bool gossip(const std::string& msg) {
             _deliverCallback(std::string(msg.data(), msg.size()));
+            if (_pub == nullptr) {
+                return true;
+            }
             std::unique_lock guard(gossipMutex);
             return _pub->send(msg);
         }
@@ -104,6 +113,46 @@ namespace peer::consensus::v2 {
         std::unique_ptr<util::ZMQInstance> _pub;
         std::vector<std::unique_ptr<ActiveZMQReceiver>> _subs;
         std::function<void(std::string msg)> _deliverCallback;
+    };
+
+    class RaftCallback {
+    public:
+        virtual ~RaftCallback() = default;
+
+        // Called after receiving a message from raft, responsible for broadcasting to all local nodes
+        inline auto onBroadcast(std::string decision) { return _localDistributor->gossip(std::move(decision)); }
+
+        // Called when the remote leader is down
+        inline void onError(int subChainId) { onErrorHandle(subChainId); }
+
+        // Called on return after determining the final order of sub chain blocks
+        inline bool onExecuteBlock(int subChainId, int blockId) { return onExecuteBlockHandle(subChainId, blockId); }
+
+    public:
+        void setOnErrorCallback(auto&& cb) { onErrorHandle = std::forward<decltype(cb)>(cb); }
+
+        void setOnBroadcastCallback(auto&& cb) { onBroadcastHandle = std::forward<decltype(cb)>(cb); }
+
+        void setOnExecuteBlockCallback(auto&& cb) { onExecuteBlockHandle = std::forward<decltype(cb)>(cb); }
+
+    public:
+        virtual void init(int, std::unique_ptr<LocalDistributor> ld) {
+            _localDistributor = std::move(ld);
+            _localDistributor->setDeliverCallback([&](std::string decision) {
+                if (!onBroadcastHandle(std::move(decision))) {
+                    LOG(WARNING) << "receive wrong order from gossip!";
+                }
+            });
+        }
+
+    private:
+        std::function<void(int subChainId)> onErrorHandle;
+
+        std::function<bool(std::string decision)> onBroadcastHandle;
+
+        std::function<bool(int subChainId, int blockId)> onExecuteBlockHandle;
+
+        std::unique_ptr<v2::LocalDistributor> _localDistributor;
     };
 
 }

@@ -150,7 +150,7 @@ namespace peer::core {
         }
         auto rc = std::make_unique<consensus::v2::SinglePBFTController>(std::move(ic), localNode->groupId, localNode->nodeId, groupId);
 
-        return std::unique_ptr<BFTController>(new BFTController{std::move(pc), std::move(rc)});
+        return std::make_unique<BFTController>(std::move(pc), std::move(rc));
     }
 
     std::shared_ptr<std::unordered_map<int, util::ZMQPortUtilList>> ModuleFactory::getOrInitZMQPortUtilMap() {
@@ -193,8 +193,10 @@ namespace peer::core {
         if (!suc2) {
             return nullptr;
         }
-        auto orderCAB = std::make_shared<peer::consensus::v2::OrderACB>(std::move(deliverCallback));
-        return peer::consensus::v2::BlockOrder::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(orderCAB));
+        auto [bccsp, tp] = getOrInitBCCSPAndThreadPool();
+        auto callback = peer::consensus::v2::BlockOrder::NewRaftCallback(std::move(bccsp), std::move(tp));
+        callback->setOnExecuteBlockCallback(std::move(deliverCallback));
+        return peer::consensus::v2::BlockOrder::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(callback));
     }
 
     bool ModuleFactory::startReplicatorSender() {

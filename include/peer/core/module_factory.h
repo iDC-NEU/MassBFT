@@ -16,7 +16,6 @@ namespace util {
 namespace peer {
     namespace consensus::v2 {
         class BlockOrder;
-        class OrderACB;
         class LocalConsensusController;
         class SinglePBFTController;
     }
@@ -65,7 +64,7 @@ namespace peer::core {
         // bft instance runningPath = std::filesystem::current_path();
         std::unique_ptr<BFTController> newReplicatorBFTController(int groupId);
 
-        std::unique_ptr<::peer::consensus::v2::BlockOrder> newGlobalBlockOrdering(std::shared_ptr<peer::consensus::v2::OrderACB> callback);
+        std::unique_ptr<::peer::consensus::v2::BlockOrder> newGlobalBlockOrdering(std::function<bool(int chainId, int blockNumber)> deliverCallback);
 
     private:
         std::shared_ptr<util::Properties> _properties;

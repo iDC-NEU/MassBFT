@@ -52,14 +52,15 @@ namespace peer::core {
             return nullptr;
         }
         // 1.2 init GlobalBlockOrdering
-        auto orderCAB = std::make_shared<peer::consensus::v2::OrderACB>([ptr = mc.get()](int chainId, int blockNumber) {
+
+        auto deliveredCallback = [ptr = mc.get()](int chainId, int blockNumber) {
             return ptr->_serialExecutor.addTask([=] {
                 if (!ptr->onConsensusBlockOrder(chainId, blockNumber)) {
                     LOG(ERROR) << "Can not execute block.";
                 }
             });
-        });
-        auto gbo = mc->_moduleFactory->newGlobalBlockOrdering(orderCAB);
+        };
+        auto gbo = mc->_moduleFactory->newGlobalBlockOrdering(std::move(deliveredCallback));
         if (gbo == nullptr) {
             return nullptr;
         }

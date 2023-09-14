@@ -160,7 +160,7 @@ namespace peer::core {
         return _zmqPortUtilMap;
     }
 
-    std::unique_ptr<::peer::consensus::v2::BlockOrder> ModuleFactory::newGlobalBlockOrdering(std::shared_ptr<peer::consensus::v2::OrderACB> callback) {
+    std::unique_ptr<::peer::consensus::v2::BlockOrder> ModuleFactory::newGlobalBlockOrdering(std::function<bool(int chainId, int blockNumber)> deliverCallback) {
         // we reuse the rpc port as the global broadcast port
         auto portMap = getOrInitZMQPortUtilMap();
         if (portMap == nullptr) {
@@ -193,7 +193,8 @@ namespace peer::core {
         if (!suc2) {
             return nullptr;
         }
-        return peer::consensus::v2::BlockOrder::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(callback));
+        auto orderCAB = std::make_shared<peer::consensus::v2::OrderACB>(std::move(deliverCallback));
+        return peer::consensus::v2::BlockOrder::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(orderCAB));
     }
 
     bool ModuleFactory::startReplicatorSender() {

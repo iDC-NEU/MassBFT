@@ -197,6 +197,14 @@ namespace ca {
             util::setSuccessWithMessage(res, "Operation complete successfully.");
         });
 
+        _server->Post("/hello", [&](const httplib::Request &, httplib::Response &res) {
+            if (!_service->hello()) {
+                util::setErrorWithMessage(res, "execute error!");
+                return;
+            }
+            util::setSuccessWithMessage(res, "Operation complete successfully.");
+        });
+
         _server->Post("/peer/start", [&](const httplib::Request &, httplib::Response &res) {
             if (!_service->startPeer()) {
                 util::setErrorWithMessage(res, "execute error!");

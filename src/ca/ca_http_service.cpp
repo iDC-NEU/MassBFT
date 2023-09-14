@@ -55,6 +55,22 @@ namespace ca {
         }
     }
 
+    bool ServiceBackend::hello() {
+        for (int i=0; i<3; i++) {
+            bool success = true;
+            for (const auto &it: _nodesList) {
+                if (!_dispatcher->hello(it.first)) {
+                    success = false;
+                    break;
+                }
+            }
+            if (success) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     ServiceBackend::~ServiceBackend() = default;
 }
 

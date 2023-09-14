@@ -55,6 +55,8 @@ namespace ca {
         ~Dispatcher();
 
     public:
+        [[nodiscard]] bool hello(const std::string &ip) const;
+
         [[nodiscard]] bool transmitFileToRemote(const std::string &ip) const;
 
         [[nodiscard]] bool transmitPropertiesToRemote(const std::string &ip) const;

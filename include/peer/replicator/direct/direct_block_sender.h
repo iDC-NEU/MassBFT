@@ -33,8 +33,9 @@ namespace peer::direct {
                 }
                 // calculate f + 1 nodes, remoteRegionConfig=it.second
                 auto f = ((int)it.second.size() - 1) / 3;
+                DLOG(INFO) << "Regions: " << it.first << ", size: " << it.second.size() << ", f: " << f;
                 CHECK(f + 1 >= 1 && f + 1 <= (int)it.second.size());
-                for (int i=0; i<f; i++) {
+                for (int i = 0; i < f + 1; i += 1) {
                     mrBlockSender->_receivers.push_back(it.second[i]);
                 }
             }
@@ -84,8 +85,11 @@ namespace peer::direct {
                     nextBlockNumber++;
                     continue;
                 }
-                // LOG(INFO) << "send a block to remote, " << block->header.number;
                 const std::string& message = serializedBlock;
+                // LOG(INFO) << "Sender send a block, size: " <<block->body.userRequests.size()
+                //           << ", RawSize:" << serializedBlock.size()
+                //           << ", idx:" << block->header.number
+                //           << ", receivers:" << _senders.size();
                 for (auto& it: _senders) {
                     if (!it->send(message)) {
                         LOG(ERROR) << "blk_sender can not send block";

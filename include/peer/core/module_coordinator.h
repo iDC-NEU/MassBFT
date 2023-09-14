@@ -18,8 +18,8 @@ namespace util {
 namespace peer {
     class MRBlockStorage;
     class BlockLRUCache;
-    namespace consensus::v2 {
-        class BlockOrder;
+    namespace consensus {
+        class BlockOrderInterface;
     }
     namespace cc {
         class CoordinatorImpl;
@@ -31,7 +31,7 @@ namespace peer {
 
 namespace peer::core {
     class ModuleFactory;
-    class BFTController;
+    struct BFTController;
 
     class ModuleCoordinator {
     public:
@@ -76,7 +76,7 @@ namespace peer::core {
         std::unique_ptr<ModuleFactory> _moduleFactory;
         // other components
         std::shared_ptr<::peer::MRBlockStorage> _contentStorage;
-        std::unique_ptr<::peer::consensus::v2::BlockOrder> _gbo;
+        std::unique_ptr<::peer::consensus::BlockOrderInterface> _gbo;
         std::unique_ptr<BFTController> _localContentBFT;
         // for debug
         std::shared_ptr<util::NodeConfig> _localNode;

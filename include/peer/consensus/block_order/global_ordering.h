@@ -3,6 +3,7 @@
 //
 
 #include "peer/consensus/block_order/async_agreement.h"
+#include "peer/consensus/block_order/block_order.h"
 
 namespace peer::consensus::v2 {
     class OrderACB : public RaftCallback {
@@ -116,7 +117,7 @@ namespace peer::consensus::v2 {
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;
     };
 
-    class BlockOrder {
+    class BlockOrder : public BlockOrderInterface {
     public:
         static std::unique_ptr<RaftCallback> NewRaftCallback(std::shared_ptr<util::BCCSP> bccsp,
                                                              std::shared_ptr<util::thread_pool_light> threadPool) {
@@ -193,17 +194,17 @@ namespace peer::consensus::v2 {
         }
 
         // only raft leader can invoke this function
-        bool voteNewBlock(int chainId, int blockId) {
+        bool voteNewBlock(int chainId, int blockId) override {
             if (!isRaftLeader) {    // local node must be raft leader
                 return false;
             }
             return raftAgreement->onLeaderVotingNewBlock(chainId, blockId);
         }
 
-        [[nodiscard]] bool isLeader() const { return isRaftLeader; }
+        [[nodiscard]] bool isLeader() const override { return isRaftLeader; }
 
         // wait until the node become the leader of the raft group
-        [[nodiscard]] bool waitUntilRaftReady() const {
+        [[nodiscard]] bool waitUntilRaftReady() const override {
             if (raftAgreement == nullptr) {
                 return true;
             }

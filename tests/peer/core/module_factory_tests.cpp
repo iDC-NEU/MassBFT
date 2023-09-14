@@ -4,7 +4,7 @@
 
 #include "peer/core/module_factory.h"
 #include "peer/consensus/pbft/single_pbft_controller.h"
-#include "peer/consensus/block_order/global_ordering.h"
+#include "peer/consensus/block_order/block_order.h"
 #include "tests/mock_property_generator.h"
 #include "common/reliable_zeromq.h"
 #include "common/meta_rpc_server.h"

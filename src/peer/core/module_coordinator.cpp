@@ -5,7 +5,7 @@
 #include "peer/core/module_coordinator.h"
 #include "peer/core/module_factory.h"
 #include "peer/consensus/pbft/single_pbft_controller.h"
-#include "peer/consensus/block_order/global_ordering.h"
+#include "peer/consensus/block_order/block_order.h"
 #include "peer/storage/mr_block_storage.h"
 #include "peer/concurrency_control/deterministic/coordinator_impl.h"
 #include "peer/concurrency_control/crdt/crdt_coordinator.h"

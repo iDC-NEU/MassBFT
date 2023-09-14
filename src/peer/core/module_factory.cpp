@@ -5,6 +5,7 @@
 #include "peer/core/module_factory.h"
 #include "peer/core/user_rpc_controller.h"
 #include "peer/consensus/block_order/global_ordering.h"
+#include "peer/consensus/block_order/round_based/round_based_block_order.h"
 #include "peer/consensus/pbft/local_consensus_controller.h"
 #include "peer/consensus/pbft/single_pbft_controller.h"
 #include "peer/replicator/replicator.h"
@@ -160,7 +161,7 @@ namespace peer::core {
         return _zmqPortUtilMap;
     }
 
-    std::unique_ptr<::peer::consensus::v2::BlockOrder> ModuleFactory::newGlobalBlockOrdering(std::function<bool(int chainId, int blockNumber)> deliverCallback) {
+    std::unique_ptr<consensus::BlockOrderInterface> ModuleFactory::newGlobalBlockOrdering(std::function<bool(int chainId, int blockNumber)> deliverCallback) {
         // we reuse the rpc port as the global broadcast port
         auto portMap = getOrInitZMQPortUtilMap();
         if (portMap == nullptr) {
@@ -194,9 +195,9 @@ namespace peer::core {
             return nullptr;
         }
         auto [bccsp, tp] = getOrInitBCCSPAndThreadPool();
-        auto callback = peer::consensus::v2::BlockOrder::NewRaftCallback(std::move(bccsp), std::move(tp));
+        auto callback = BlockOrderType::NewRaftCallback(std::move(bccsp), std::move(tp));
         callback->setOnExecuteBlockCallback(std::move(deliverCallback));
-        return peer::consensus::v2::BlockOrder::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(callback));
+        return BlockOrderType::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(callback));
     }
 
     bool ModuleFactory::startReplicatorSender() {

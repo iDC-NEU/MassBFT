@@ -57,7 +57,7 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     std::vector<std::unique_ptr<BlockOrder>> regions(8);
     for (auto i: {0, 1, 2, 3}) {
         auto& me = localNodes0[i]->nodeConfig;
-        auto orderCAB = std::make_unique<OrderACB>();
+        auto orderCAB = std::make_unique<OrderACB>(nullptr);
         orderCAB->setOnExecuteBlockCallback([&callback, i=i](int regionId, int blockId) ->bool {
             return callback(i, regionId, blockId);
         });
@@ -67,7 +67,7 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     // spin up nodes in region 1
     for (auto i: {4, 5, 6, 7}) {
         auto& me = localNodes1[i-4]->nodeConfig;
-        auto orderCAB = std::make_unique<OrderACB>();
+        auto orderCAB = std::make_unique<OrderACB>(nullptr);
         orderCAB->setOnExecuteBlockCallback([&callback, i=i](int regionId, int blockId) ->bool {
             return callback(i, regionId, blockId);
         });

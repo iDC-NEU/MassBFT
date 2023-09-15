@@ -3,7 +3,6 @@
 //
 
 #include "peer/consensus/block_order/agreement_raft_fsm.h"
-#include "peer/consensus/block_order/local_distributor.h"
 #include "peer/consensus/block_order/round_based/round_based_order_manager.h"
 
 #include "common/meta_rpc_server.h"
@@ -71,15 +70,7 @@ namespace peer::consensus::rb {
                 return false; // can not find local index
             }
             auto* fsm = new AgreementRaftFSM(peers[myIdIndex], peers[leaderPos], _multiRaft);
-            fsm->setOnApplyCallback([this](const butil::IOBuf& data) {
-                return _callback->onBroadcast(data.to_string());
-            });
-
-            fsm->setOnErrorCallback([this](const braft::PeerId& peerId, const int64_t& term, const butil::Status& status) {
-                LOG(ERROR) << "Remote leader error: " << status << ", LeaderId: " << peerId << ", term: " << term;
-                return _callback->onError(peerId.idx);  // group peerId.idx is down
-            });
-
+            fsm->setCallback(_callback);
             if (_multiRaft->start(peers, myIdIndex, fsm) != 0) {
                 return false;
             }

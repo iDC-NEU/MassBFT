@@ -120,10 +120,17 @@ namespace peer::consensus::v2 {
         virtual ~RaftCallback() = default;
 
         // Called after receiving a message from raft, responsible for broadcasting to all local nodes
-        inline auto onBroadcast(std::string decision) { return _localDistributor->gossip(std::move(decision)); }
+        inline bool onBroadcast(std::string decision) { return _localDistributor->gossip(std::move(decision)); }
 
         // Called when the remote leader is down
-        inline void onError(int subChainId) { onErrorHandle(subChainId); }
+        inline void onError(int subChainId) {
+            if (onErrorHandle) {
+                onErrorHandle(subChainId);
+            }
+        }
+
+        // Called after receiving AppendEntries from raft (as a follower)
+        inline bool onValidate(std::string decision) { return onValidateHandle(std::move(decision)); }
 
         // Called on return after determining the final order of sub chain blocks
         inline bool onExecuteBlock(int subChainId, int blockId) { return onExecuteBlockHandle(subChainId, blockId); }
@@ -132,6 +139,8 @@ namespace peer::consensus::v2 {
         void setOnErrorCallback(auto&& cb) { onErrorHandle = std::forward<decltype(cb)>(cb); }
 
         void setOnBroadcastCallback(auto&& cb) { onBroadcastHandle = std::forward<decltype(cb)>(cb); }
+
+        void setOnValidateCallback(auto&& cb) { onValidateHandle = std::forward<decltype(cb)>(cb); }
 
         void setOnExecuteBlockCallback(auto&& cb) { onExecuteBlockHandle = std::forward<decltype(cb)>(cb); }
 
@@ -149,6 +158,8 @@ namespace peer::consensus::v2 {
         std::function<void(int subChainId)> onErrorHandle;
 
         std::function<bool(std::string decision)> onBroadcastHandle;
+
+        std::function<bool(std::string decision)> onValidateHandle;
 
         std::function<bool(int subChainId, int blockId)> onExecuteBlockHandle;
 

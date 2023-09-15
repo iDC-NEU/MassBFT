@@ -5,6 +5,7 @@
 #pragma once
 
 #include "common/raft/multi_raft_fsm.h"
+#include "peer/consensus/block_order/local_distributor.h"
 
 namespace peer::consensus {
     class AgreementRaftFSM: public util::raft::SingleRaftFSM {
@@ -66,9 +67,9 @@ namespace peer::consensus {
                 LOG(ERROR) << "Remote leader contains error, " << _leaderId;
                 _running->store((int)Status::ERROR);
                 bthread::butex_wake_all(_running);
-                if (_onErrorCallback) {
-                    _onErrorCallback(ctx.leader_id(), ctx.term(), ctx.status());
-                }
+                LOG(ERROR) << "Remote leader error: " << ctx.status() << ", LeaderId: " << ctx.leader_id() << ", term: " << ctx.term();
+                _callback->onError(ctx.leader_id().idx);  // group peerId.idx is down
+                return;
             }
         }
 
@@ -82,20 +83,25 @@ namespace peer::consensus {
 
         void on_apply(::braft::Iterator& iter) override {
             for (; iter.valid(); iter.next()) {
-                if (!_onApplyCallback || !_onApplyCallback(iter.data())) {
+                if (!_callback->onBroadcast(iter.data().to_string())) {
                     LOG(ERROR) << "addr " << get_address()  << " apply " << iter.index()
                                << " data_size " << iter.data().size() << " failed!";
-                    if (_onErrorCallback) {
-                        _onErrorCallback(_leaderId, iter.term(), butil::Status(-1, "Apply failed"));
-                    }
+                    _callback->onError(_leaderId.idx);  // group peerId.idx is down
+                    return;
                 }
             }
         }
 
-    public:
-        void setOnApplyCallback(auto&& callback) { _onApplyCallback = std::forward<decltype(callback)>(callback); }
+        bool on_follower_receive(int term, int index, const ::butil::IOBuf& data) override {
+            if (is_leader()) {  // skip leader
+                return true;
+            }
+            // DLOG(INFO) << "Follower receive index: " << index << " at term: " << term << ", data size: " << data.size();
+            return _callback->onValidate(data.to_string());    // accept it
+        }
 
-        void setOnErrorCallback(auto&& callback) { _onErrorCallback = std::forward<decltype(callback)>(callback); }
+    public:
+        void setCallback(auto&& callback) { _callback = std::forward<decltype(callback)>(callback); }
 
     private:
         // if running == 0, the raft instance is not ready
@@ -105,7 +111,6 @@ namespace peer::consensus {
         braft::PeerId _myId;
         braft::PeerId _leaderId;
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaftFsm;
-        std::function<bool(const butil::IOBuf& data)> _onApplyCallback;
-        std::function<void(const braft::PeerId& leaderId, const int64_t& term, const butil::Status& status)> _onErrorCallback;
+        std::shared_ptr<v2::RaftCallback> _callback;
     };
 }

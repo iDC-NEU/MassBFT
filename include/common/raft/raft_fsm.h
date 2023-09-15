@@ -139,6 +139,9 @@ namespace util::raft {
         }
 
         bool on_follower_receive(int term, int index, const ::butil::IOBuf& data) override {
+            if (is_leader()) {
+                return true;
+            }
             DLOG(INFO) << "follower " << address << " receive index: " << index << " at term: " << term << ", data size: " << data.size();
             return true;    // accept it
         }

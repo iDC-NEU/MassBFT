@@ -11,6 +11,10 @@
 #include <mutex>
 #include <memory>
 
+namespace braft {
+    DECLARE_int32(raft_election_heartbeat_factor);  // default 10
+}
+
 namespace util::raft {
     // A multi-raft instance
     // name: the cluster name
@@ -21,6 +25,7 @@ namespace util::raft {
             int64_t throttle_throughput_bytes = 10 * 1024 * 1024;
             int64_t check_cycle = 10;
             _throttle = new braft::ThroughputSnapshotThrottle(throttle_throughput_bytes, check_cycle);
+            braft::FLAGS_raft_election_heartbeat_factor = _election_timeout_ms / 20;    // epoch time is 20 ms
         }
 
         ~MultiRaftFSM() {
@@ -202,8 +207,9 @@ namespace util::raft {
 
     private:
         const std::string _name;
-        // default node config
-        const int32_t _election_timeout_ms = 200;
+        // Raft rpc timeout = _election_timeout_ms / 2 > 150 ms
+        // heartbeat interval = _election_timeout_ms / FLAGS_raft_election_heartbeat_factor == 20 ms
+        const int32_t _election_timeout_ms = 600;
         const int32_t _max_clock_drift_ms = 200;
         const int _snapshot_interval_s = 3600;
         braft::SnapshotThrottle* _throttle;

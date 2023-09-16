@@ -25,7 +25,7 @@ namespace util::raft {
             int64_t throttle_throughput_bytes = 10 * 1024 * 1024;
             int64_t check_cycle = 10;
             _throttle = new braft::ThroughputSnapshotThrottle(throttle_throughput_bytes, check_cycle);
-            braft::FLAGS_raft_election_heartbeat_factor = _election_timeout_ms / 20;    // epoch time is 20 ms
+            braft::FLAGS_raft_election_heartbeat_factor = _election_timeout_ms / 10;    // epoch time is 10 ms
         }
 
         ~MultiRaftFSM() {

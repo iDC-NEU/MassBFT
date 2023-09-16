@@ -32,7 +32,8 @@ namespace peer::consensus::v2 {
             int blockNumber = -1;
             std::unordered_map<int, int> decisions;
             // after we collect ALL decisions, we generate the final vector clock
-            std::vector<int> finalDecision;
+            // prevent std::numeric_limits<int>::max() increase overflow
+            std::vector<int64_t> finalDecision;
 
             // if final vc is calculated, the block can commit
             inline bool canAddToCommitBuffer() const {
@@ -40,7 +41,7 @@ namespace peer::consensus::v2 {
             }
 
             bool mergeDecisions() {
-                finalDecision = std::vector<int>(decisions.size(), -1);
+                finalDecision = std::vector<int64_t>(decisions.size(), -1);
                 for (int i=0; i<(int)finalDecision.size(); i++) {
                     auto ret = decisions.find(i);
                     CHECK(ret != decisions.end()) << "Missing decisions!";
@@ -306,7 +307,7 @@ namespace peer::consensus::v2 {
         [[nodiscard]] std::unique_ptr<Cell> createBarCell(int subChainId) const {
             auto barCell = std::make_unique<Cell>();
             // the vc of next block must be greater(or equal) than barCell
-            barCell->finalDecision = std::vector<int>(subChainCount, -1);
+            barCell->finalDecision = std::vector<int64_t>(subChainCount, -1);
             barCell->subChainId = subChainId;
             barCell->blockNumber = -1;
             return barCell;

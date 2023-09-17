@@ -237,12 +237,12 @@ namespace util {
             if (cache.if_contains(ski, [&](CacheType::value_type& value) { key = value.second; })) {
                 return key;
             }
+            auto ret = storage->loadKey(ski);
+            if (!ret) { // we cant find it in cache or storage
+                return nullptr;
+            }
             auto notExist = [&](const CacheType::constructor& ctor) {
                 // load from disk
-                auto ret = storage->loadKey(ski);
-                if (!ret) { // we cant find it in cache or storage
-                    return false;
-                }
                 auto [raw, isPrivate] = std::move(*ret);
                 key = GetKeyFromRaw(ski, raw, isPrivate, false);
                 ctor(ski, key);

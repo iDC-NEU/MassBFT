@@ -133,6 +133,9 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
         for (int i=0; i< 10000; i++) {
             auto ret = aaList[myIdx]->onLeaderVotingNewBlock(targetGroup, i);
             CHECK(ret);
+            if (i - 3 >= 0) {   // simulate delay
+                aaList[myIdx]->onLeaderIncreasingLocalClock(targetGroup, i - 3);
+            }
             util::Timer::sleep_ms(1);
         }
     };

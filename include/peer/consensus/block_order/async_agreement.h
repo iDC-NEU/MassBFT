@@ -114,6 +114,11 @@ namespace peer::consensus {
             return apply(buffer);
         }
 
+        bool onLeaderIncreasingLocalClock(int chainId, int blockId) {
+            std::unique_lock guard(leaderVotingMutex);
+            return _localOrderAssigner->increaseLocalClock(chainId, blockId);
+        }
+
         // the instance MUST BE the follower of local group
         // NOT thread safe, called seq by BFT instance
         bool onValidateVotingNewBlock(const proto::BlockOrder& bo) {

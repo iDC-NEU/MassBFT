@@ -333,10 +333,22 @@ namespace peer::consensus::v2 {
             std::unique_lock guard(mutex);
             auto ret = std::make_pair(_chainId, _myClock);
             if (_chainId == chainId) {
-                CHECK(blockId - 1 == _myClock);
-                _myClock = blockId;
+                ret = std::make_pair(_chainId, blockId - 1);
             }
             return ret;
+        }
+
+        bool increaseLocalClock(int chainId, int blockId) {
+            if (_chainId == chainId) {
+                if (blockId - 1 < _myClock) {
+                    return false;    //  stale call
+                }
+                // LOG(INFO) << "Leader " << chainId << " increase clock to " << blockId;
+                CHECK(blockId - 1 == _myClock) << "Consensus local block out of order!";
+                _myClock = blockId;
+                return true;
+            }
+            return false;   // receive other regions block
         }
 
     private:

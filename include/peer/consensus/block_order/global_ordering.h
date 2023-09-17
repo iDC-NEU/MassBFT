@@ -118,6 +118,7 @@ namespace peer::consensus::v2 {
             });
         }
 
+        // initialized by BlockOrder::NewBlockOrder
         void init(int groupCount, std::unique_ptr<LocalDistributor> ld) override {
             RaftCallback::init(groupCount, std::move(ld));
             auto om = std::make_unique<v2::InterChainOrderManager>();
@@ -137,6 +138,9 @@ namespace peer::consensus::v2 {
             _orderManager = std::move(om);
         }
 
+        // set by NewBlockOrder
+        void setIncreaseVCCallback(auto&& cb) { _increaseVCCallback = std::forward<decltype(cb)>(cb); }
+
     protected:
         bool applyRawBlockOrder(const std::string& decision) {
             proto::SignedBlockOrder sb;
@@ -152,6 +156,10 @@ namespace peer::consensus::v2 {
                 // the group is down, invalid all the block
                 return _orderManager->invalidateChain(bo.chainId);
             }
+            // if is leader, increase local vc
+            if (_increaseVCCallback) {
+                _increaseVCCallback(bo.chainId, bo.blockId);
+            }
             return _orderManager->pushDecision(bo.chainId, bo.blockId, { bo.voteChainId, bo.voteBlockId });
             // Optimize-1: order next block as soon as receiving the previous block
             // return _orderManager->pushDecision(bo.chainId, bo.blockId + 1, { bo.voteChainId, bo.voteBlockId + 1 });
@@ -160,15 +168,16 @@ namespace peer::consensus::v2 {
     private:
         std::unique_ptr<v2::InterChainOrderManager> _orderManager;
         std::unique_ptr<RaftLogValidator> _validator;
+        std::function<bool(int chainId, int blockId)> _increaseVCCallback;
     };
 
     class BlockOrder : public BlockOrderInterface {
     public:
-        static std::unique_ptr<RaftCallback> NewRaftCallback(std::shared_ptr<::peer::MRBlockStorage> storage,
+        static std::unique_ptr<OrderACB> NewRaftCallback(std::shared_ptr<::peer::MRBlockStorage> storage,
                                                              std::shared_ptr<util::BCCSP> bccsp,
                                                              std::shared_ptr<util::thread_pool_light> threadPool) {
             auto validator = std::make_unique<RaftLogValidator>(std::move(storage), std::move(bccsp), std::move(threadPool));
-            auto acb = std::make_unique<peer::consensus::v2::OrderACB>(std::move(validator));
+            auto acb = std::make_unique<OrderACB>(std::move(validator));
             return acb;
         }
 
@@ -178,7 +187,7 @@ namespace peer::consensus::v2 {
                 const std::vector<std::shared_ptr<util::ZMQInstanceConfig>> &multiRaftParticipant,
                 const std::vector<int> &multiRaftLeaderPos,  // the leader indexes in multiRaftParticipant
                 const util::NodeConfigPtr &me,
-                std::shared_ptr<RaftCallback> callback) {
+                const std::shared_ptr<OrderACB>& callback) {
             auto bo = std::make_unique<BlockOrder>();
             {   // init LocalDistributor
                 // find local nodes position
@@ -203,7 +212,7 @@ namespace peer::consensus::v2 {
                     maxGroupId = std::max(maxGroupId, it->nodeConfig->groupId);
                 }
                 callback->init(maxGroupId + 1, std::move(ld));
-                bo->agreementCallback = std::move(callback);
+                bo->agreementCallback = callback;   // do not move it, use later
             }
             {   // init AsyncAgreement
                 //---- get group count and local instance ID
@@ -221,7 +230,7 @@ namespace peer::consensus::v2 {
                     }
                 }
                 if (localConfig != nullptr) {   // init aa
-                    auto aa = AsyncAgreement::NewAsyncAgreement(localConfig, bo->agreementCallback);
+                    auto aa = AsyncAgreement::NewAsyncAgreement(localConfig, callback);
                     if (aa == nullptr) {
                         LOG(ERROR) << "create AsyncAgreement failed!";
                         return nullptr;
@@ -234,6 +243,11 @@ namespace peer::consensus::v2 {
                         }
                     }
                     bo->raftAgreement = std::move(aa);
+                    if (bo->isRaftLeader) {
+                        callback->setIncreaseVCCallback([ptr = bo.get()](int chainId, int blockId) -> bool {
+                            return ptr->raftAgreement->onLeaderIncreasingLocalClock(chainId, blockId);
+                        });
+                    }
                 }
             }
             return bo;

@@ -4,7 +4,7 @@ name: Ubuntu 22.04
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "workflow" ]
   pull_request:
     branches: [ "master" ]
 

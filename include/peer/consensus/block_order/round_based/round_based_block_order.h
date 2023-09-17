@@ -10,11 +10,47 @@
 #include "common/bccsp.h"
 
 namespace peer::consensus::rb {
+    class RaftLogValidator {
+    public:
+        explicit RaftLogValidator(std::shared_ptr<::peer::MRBlockStorage> storage)
+                : _storage(std::move(storage)) {
+            if (_storage == nullptr) {
+                LOG(WARNING) << "Storage is empty, validator may not wait until receiving the actual block.";
+            }
+        }
+
+        [[nodiscard]] bool waitUntilReceiveValidBlock(const std::string& decision) const {
+            int chainId, blockId;
+            zpp::bits::in in(decision);
+            if(failure(in(chainId, blockId))) {
+                return false;
+            }
+            for (int i=0; _storage->waitForBlock(chainId, blockId, 40) == nullptr; i++) {
+                if (i == 5) {
+                    LOG(WARNING) << "Cannot get block after 5 tries";
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    private:
+        std::shared_ptr<::peer::MRBlockStorage> _storage;
+    };
+
     class RoundBasedCallback : public v2::RaftCallback {
     public:
-        RoundBasedCallback() {
+        RoundBasedCallback(std::unique_ptr<RaftLogValidator> validator)
+                :_validator(std::move(validator)) {
             setOnErrorCallback([this](int subChainId) {
                 return _orderManager->invalidateChain(subChainId);
+            });
+
+            setOnValidateCallback([this](const std::string& decision)->bool {
+                if (_validator != nullptr) {
+                    return _validator->waitUntilReceiveValidBlock(decision);
+                }
+                return true;
             });
 
             setOnBroadcastCallback([this](const std::string& decision)->bool {
@@ -46,14 +82,16 @@ namespace peer::consensus::rb {
 
     private:
         std::unique_ptr<RoundBasedOrderManager> _orderManager;
+        std::unique_ptr<RaftLogValidator> _validator;
     };
 
     class BlockOrder : public BlockOrderInterface {
     public:
-        static std::unique_ptr<v2::RaftCallback> NewRaftCallback(
-                const std::shared_ptr<util::BCCSP>&,
-                const std::shared_ptr<util::thread_pool_light>&) {
-            return std::make_unique<RoundBasedCallback>();
+        static std::unique_ptr<v2::RaftCallback> NewRaftCallback(std::shared_ptr<::peer::MRBlockStorage> storage,
+                                                                 const std::shared_ptr<util::BCCSP>&,
+                                                                 const std::shared_ptr<util::thread_pool_light>&) {
+            auto validator = std::make_unique<RaftLogValidator>(std::move(storage));
+            return std::make_unique<RoundBasedCallback>(std::move(validator));
         }
 
         // I may not exist in multiRaftParticipant, but must exist in localReceivers

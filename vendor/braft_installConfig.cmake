@@ -2,9 +2,10 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 CPMAddPackage(
         NAME braft
-        GITHUB_REPOSITORY baidu/braft
-        VERSION v1.1.3
-        GIT_TAG bc527db96420f610257573d80e5f60a8b0d835ef
+        GITHUB_REPOSITORY sydxsty/braft
+        # GIT_TAG "origin/master"
+        VERSION 1.1.3
+        GIT_TAG b684d246e205c6fa1d0701c483e09a1abdb0ed25
         DOWNLOAD_ONLY True
 )
 

@@ -180,29 +180,30 @@ namespace ca {
         if (session == nullptr) {
             return false;
         }
-        LOG(INFO) << "Stopping proxy.";
-        if (!session->executeCommand({ "kill -9 $(pidof clash-linux-amd64-v3)" }, true)) {
+        // LOG(INFO) << "Stopping proxy.";
+        // if (!session->executeCommand({ "kill -9 $(pidof clash-linux-amd64-v3)" }, true)) {
+        //     return false;
+        // }
+        if (!session->executeCommand({ "kill -9 $(pidof cmake)" }, true)) {
             return false;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        LOG(INFO) << "Starting proxy.";
+        // std::this_thread::sleep_for(std::chrono::seconds(1));
+        // LOG(INFO) << "Starting proxy.";
+        // std::vector<std::string> builder = {
+        //         "cd",
+        //         _runningPath / _bftFolderName,
+        //         "&&",
+        //         "chmod +x clash-linux-amd64-v3",
+        //         "&&",
+        //         "./clash-linux-amd64-v3 -f proxy.yaml -d",
+        //         _runningPath / _bftFolderName / "clash", };
+        // auto clashChannel = session->executeCommandNoWait(builder);
+        // LOG(INFO) << "Sleep for 5 seconds.";
+        // std::this_thread::sleep_for(std::chrono::seconds(5));
+        LOG(INFO) << "Configure and installing nc_bft.";
         std::vector<std::string> builder = {
                 "cd",
-                _runningPath / _bftFolderName,
-                "&&",
-                "chmod +x clash-linux-amd64-v3",
-                "&&",
-                "./clash-linux-amd64-v3 -f proxy.yaml -d",
-                _runningPath / _bftFolderName / "clash", };
-        auto clashChannel = session->executeCommandNoWait(builder);
-        LOG(INFO) << "Sleep for 5 seconds.";
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-        LOG(INFO) << "Configure and installing nc_bft.";
-        builder = {
-                "cd",
                 _runningPath / _ncFolderName,
-                "&&",
-                "export https_proxy=http://127.0.0.1:7890 && export http_proxy=http://127.0.0.1:7890 && export all_proxy=socks5://127.0.0.1:7890",
                 "&&",
                 "cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/gcc-11 -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 -B build",
                 "&&",
@@ -210,6 +211,10 @@ namespace ca {
         if (!session->executeCommand(builder, true)) {
             return false;
         }
+        // LOG(INFO) << "Stopping proxy.";
+        // if (!session->executeCommand({ "kill -9 $(pidof clash-linux-amd64-v3)" }, true)) {
+        //     return false;
+        // }
         return true;
     }
 
@@ -418,8 +423,15 @@ namespace ca {
     }
 
     bool Dispatcher::hello(const std::string &ip) const {
+        if (defaultPool.contains(ip)) {
+            return true;
+        }
         auto session = defaultPool.connect(ip);
         if (session == nullptr) {
+            return false;
+        }
+        if (!session->executeCommand({ "echo Hello, world!" }, true)) {
+            LOG(WARNING) << "Error ping peer: " << ip;
             return false;
         }
         return true;
@@ -449,5 +461,9 @@ namespace ca {
         }
         sessionPool[ip] = std::move(session);
         return sessionPool[ip].get();
+    }
+
+    bool SessionPool::contains(const std::string &ip) {
+        return sessionPool.contains(ip);
     }
 }

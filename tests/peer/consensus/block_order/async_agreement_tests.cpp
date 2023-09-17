@@ -13,6 +13,9 @@ using namespace peer::consensus;
 
 class MockACB : public v2::OrderACB {
 public:
+    explicit MockACB(std::unique_ptr<v2::RaftLogValidator> validator)
+            :OrderACB(std::move(validator)){ }
+
     void initMockACB(int groupCount, std::shared_ptr<util::ZMQInstanceConfig> node) {
         setOnExecuteBlockCallback([this](int chainId, int blockNumber) {
             LOG(INFO) << "{ " << localNode->nodeConfig->groupId << ", " << localNode->nodeConfig->nodeId << " }: "
@@ -67,10 +70,17 @@ TEST_F(AsyncAgreementTest, TestFSM) {
         auto& port = subPeers[i].addr.port;
         CHECK(util::DefaultRpcServer::AddRaftService(port) == 0);
         CHECK(util::DefaultRpcServer::Start(port) == 0);
-        fsm->setOnApplyCallback([&](const butil::IOBuf&)->bool {
+        auto callback = std::make_shared<v2::RaftCallback>();
+        callback->setOnBroadcastCallback([&](const std::string&)->bool {
             ce.signal();
             return true;
         });
+        callback->setOnValidateCallback([&](const std::string&)->bool {
+            return true;    // do nothing
+        });
+        auto ld = v2::LocalDistributor::NewLocalDistributor({}, -1);
+        callback->init(-1, std::move(ld));
+        fsm->setCallback(std::move(callback));
         CHECK(multiRaft->start(subPeers, i, fsm) == 0);
     }
 
@@ -99,7 +109,7 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
     std::vector<std::unique_ptr<AsyncAgreement>> aaList;
 
     for (const auto& it : nodes) {
-        auto acb = std::make_unique<MockACB>();
+        auto acb = std::make_unique<MockACB>(nullptr);
         acb->initMockACB(3, it);
         auto aa = AsyncAgreement::NewAsyncAgreement(it, std::move(acb));
         if (aa == nullptr) {
@@ -123,6 +133,9 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
         for (int i=0; i< 10000; i++) {
             auto ret = aaList[myIdx]->onLeaderVotingNewBlock(targetGroup, i);
             CHECK(ret);
+            if (i - 3 >= 0) {   // simulate delay
+                aaList[myIdx]->onLeaderIncreasingLocalClock(targetGroup, i - 3);
+            }
             util::Timer::sleep_ms(1);
         }
     };

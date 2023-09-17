@@ -175,6 +175,7 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder2) {
         for (int i=0; i< 10000; i++) {
             for (int j=0; j<3; j++) {
                 auto vc = oiList[j]->getBlockOrder(id, i);
+                oiList[j]->increaseLocalClock(id, i);
                 iom->pushDecision(id, i, std::move(vc));
                 // util::Timer::sleep_ms(15 - rand()%5 - id*2);
                 std::this_thread::yield();
@@ -231,6 +232,9 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder3) {
         for (int i=0; i< 10000; i++) {
             for (int j=0; j<3; j++) {
                 auto vc = oiList[j]->getBlockOrder(id, i);
+                if (i - 10 >= 0) {   // simulate delay
+                    oiList[j]->increaseLocalClock(id, i - 10);
+                }
                 iom_1->pushDecision(id, i, vc);
                 std::this_thread::yield();
                 iom_2->pushDecision(id, i, vc);

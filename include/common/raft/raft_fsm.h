@@ -138,6 +138,14 @@ namespace util::raft {
             DLOG(INFO) << "address " << address << " commit conf: " << conf << " at index " << index;
         }
 
+        bool on_follower_receive(int term, int index, const ::butil::IOBuf& data) override {
+            if (is_leader()) {
+                return true;
+            }
+            DLOG(INFO) << "follower " << address << " receive index: " << index << " at term: " << term << ", data size: " << data.size();
+            return true;    // accept it
+        }
+
     private:
         butil::EndPoint address;
         RaftLog<butil::IOBuf> logs;

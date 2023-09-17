@@ -18,6 +18,8 @@ namespace ca {
 
         util::SSHSession* connect(const std::string &ip);
 
+        bool contains(const std::string &ip);
+
         void reset() {
             std::unique_lock lock(createMutex);
             sessionPool.clear();

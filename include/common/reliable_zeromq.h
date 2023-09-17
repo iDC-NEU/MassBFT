@@ -281,7 +281,7 @@ namespace util {
             // Initialize the channel, NULL means using default options.
             brpc::ChannelOptions options;
             options.protocol = "h2:grpc";
-            options.timeout_ms = 200 /*milliseconds*/;
+            options.timeout_ms = 300 /*milliseconds*/;
             options.max_retry = 0;
             if (channel.Init(ip.data(), rpcPort, &options) != 0) {
                 LOG(ERROR) << "Fail to initialize channel";

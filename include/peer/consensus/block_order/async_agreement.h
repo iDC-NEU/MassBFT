@@ -6,7 +6,6 @@
 
 #include "peer/consensus/block_order/interchain_order_manager.h"
 #include "peer/consensus/block_order/agreement_raft_fsm.h"
-#include "peer/consensus/block_order/local_distributor.h"
 
 #include "common/meta_rpc_server.h"
 #include "common/property.h"
@@ -81,15 +80,7 @@ namespace peer::consensus {
                 return false; // can not find local index
             }
             auto* fsm = new AgreementRaftFSM(peers[myIdIndex], peers[leaderPos], _multiRaft);
-            fsm->setOnApplyCallback([this](auto&& data) {
-                auto dataStr = data.to_string();
-                return _callback->onBroadcast(std::move(dataStr));
-            });
-
-            fsm->setOnErrorCallback([this](const braft::PeerId& peerId, const int64_t& term, const butil::Status& status) {
-                LOG(ERROR) << "Remote leader error: " << status << ", LeaderId: " << peerId << ", term: " << term;
-                return _callback->onError(peerId.idx);
-            });
+            fsm->setCallback(_callback);
 
             if (_multiRaft->start(peers, myIdIndex, fsm) != 0) {
                 return false;
@@ -121,6 +112,11 @@ namespace peer::consensus {
             std::string buffer;
             sb.serializeToString(&buffer);
             return apply(buffer);
+        }
+
+        bool onLeaderIncreasingLocalClock(int chainId, int blockId) {
+            std::unique_lock guard(leaderVotingMutex);
+            return _localOrderAssigner->increaseLocalClock(chainId, blockId);
         }
 
         // the instance MUST BE the follower of local group

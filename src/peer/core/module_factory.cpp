@@ -180,7 +180,7 @@ namespace peer::core {
         std::vector<int> multiRaftParticipantPorts;
         std::vector<int> multiRaftLeaderPos;
         for (int i=0; i<(int)portMap->size(); i++) {
-            auto reserveCount = (int)portMap->at(i).size() / 3 + 1;  // at least f+1 receivers
+            auto reserveCount = ((int)portMap->at(i).size() - 1) / 3 + 1;  // at least f+1 receivers
             auto raftNodes = np.getGroupNodesInfo(i);
             auto raftPorts = portMap->at(i)[0]->getLocalServicePorts(util::PortType::CFT_PEER_TO_PEER);
             multiRaftLeaderPos.push_back((int)multiRaftParticipantNodes.size());    // the first node in a region is a leader
@@ -195,7 +195,7 @@ namespace peer::core {
             return nullptr;
         }
         auto [bccsp, tp] = getOrInitBCCSPAndThreadPool();
-        auto callback = BlockOrderType::NewRaftCallback(std::move(bccsp), std::move(tp));
+        auto callback = BlockOrderType::NewRaftCallback(getOrInitContentStorage(), std::move(bccsp), std::move(tp));
         callback->setOnExecuteBlockCallback(std::move(deliverCallback));
         return BlockOrderType::NewBlockOrder(localReceivers, multiRaftParticipant, multiRaftLeaderPos, localNode, std::move(callback));
     }

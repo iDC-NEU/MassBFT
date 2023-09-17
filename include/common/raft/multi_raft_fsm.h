@@ -25,7 +25,7 @@ namespace util::raft {
             int64_t throttle_throughput_bytes = 10 * 1024 * 1024;
             int64_t check_cycle = 10;
             _throttle = new braft::ThroughputSnapshotThrottle(throttle_throughput_bytes, check_cycle);
-            braft::FLAGS_raft_election_heartbeat_factor = _election_timeout_ms / 10;    // epoch time is 10 ms
+            braft::FLAGS_raft_election_heartbeat_factor = _election_timeout_ms / 40;    // epoch time is 10 ms (set to 40 in global deployment)
         }
 
         ~MultiRaftFSM() {
@@ -209,8 +209,8 @@ namespace util::raft {
         const std::string _name;
         // Raft rpc timeout = _election_timeout_ms / 2 > 150 ms
         // heartbeat interval = _election_timeout_ms / FLAGS_raft_election_heartbeat_factor == 20 ms
-        const int32_t _election_timeout_ms = 600;
-        const int32_t _max_clock_drift_ms = 200;
+        const int32_t _election_timeout_ms = 1000;  // 600
+        const int32_t _max_clock_drift_ms = 1000;   // 200
         const int _snapshot_interval_s = 3600;
         braft::SnapshotThrottle* _throttle;
 

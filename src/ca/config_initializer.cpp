@@ -423,6 +423,9 @@ namespace ca {
     }
 
     bool Dispatcher::hello(const std::string &ip) const {
+        if (defaultPool.contains(ip)) {
+            return true;
+        }
         auto session = defaultPool.connect(ip);
         if (session == nullptr) {
             return false;
@@ -458,5 +461,9 @@ namespace ca {
         }
         sessionPool[ip] = std::move(session);
         return sessionPool[ip].get();
+    }
+
+    bool SessionPool::contains(const std::string &ip) {
+        return sessionPool.contains(ip);
     }
 }

@@ -427,6 +427,10 @@ namespace ca {
         if (session == nullptr) {
             return false;
         }
+        if (!session->executeCommand({ "echo Hello, world!" }, true)) {
+            LOG(WARNING) << "Error ping peer: " << ip;
+            return false;
+        }
         return true;
     }
 

@@ -398,6 +398,9 @@ namespace util {
     class LightweightED25519 : public OpenSSLPKCS<OpenSSL::ED25519, 64, LightweightED25519> {
     public:
         explicit LightweightED25519(EVP_PKEY* pkey) :OpenSSLPKCS(pkey) {
+            if (pkey == nullptr) {
+                return;
+            }
             _rawPubKey = getHexFromKey(false);
             _rawPriKey = getHexFromKey(true);
         }

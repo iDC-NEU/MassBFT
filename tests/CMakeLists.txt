@@ -23,8 +23,8 @@ endif()
 
 # ---- Add GreeterTests ----
 
-enable_testing()
-add_test(${PROJECT_NAME} ${PROJECT_NAME})
+include(GoogleTest)
+gtest_discover_tests(${PROJECT_NAME})
 
 # ---- code coverage ----
 

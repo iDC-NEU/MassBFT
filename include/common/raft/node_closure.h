@@ -34,9 +34,15 @@ namespace util::raft {
         const char *_pos;
     };
 
+    // initialize with new NullOptionClosure, do not wrap with smart pointer
     class NullOptionClosure : public braft::Closure {
     public:
-        void Run() override { }
+        void Run() override {
+            if (!status().ok()) {
+                LOG(WARNING) << "Can not apply task, " << status().error_cstr();
+            }
+            delete this;
+        }
     };
 }
 

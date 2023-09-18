@@ -113,15 +113,11 @@ namespace peer::consensus::rb {
             auto* leader = _multiRaft->find_node(_localPeerId);
             butil::IOBuf data;
             data.append(content);
-            util::raft::NullOptionClosure done;
+            auto done = new util::raft::NullOptionClosure;
             braft::Task task;
             task.data = &data;
-            task.done = &done;
+            task.done = done;
             leader->apply(task);
-            if (!task.done->status().ok()) {
-                LOG(WARNING) << "Can not apply task, " << task.done->status().error_cstr();
-                return false;
-            }
             return true;
         }
     };

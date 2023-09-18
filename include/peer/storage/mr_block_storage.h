@@ -134,7 +134,7 @@ namespace peer {
     // the block storage for ALL regions(including this one)
     class MRBlockStorage : public inner::BlockStorageBase<MRBlockStorage> {
     public:
-        explicit MRBlockStorage(int regionCount, int maxSize = 256)
+        explicit MRBlockStorage(int regionCount, int maxSize = 4096)
                 : inner::BlockStorageBase<MRBlockStorage>(regionCount)
                 , _maxSize(maxSize), blockStorage(regionCount) { }
 

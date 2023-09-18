@@ -4,11 +4,9 @@
 
 #pragma once
 
-#include "peer/consensus/block_order/interchain_order_manager.h"
 #include "peer/consensus/block_order/agreement_raft_fsm.h"
 
 #include "common/meta_rpc_server.h"
-#include "common/property.h"
 #include "common/thread_pool_light.h"
 #include "common/bccsp.h"
 #include "proto/block_order.h"
@@ -21,7 +19,6 @@ namespace peer::consensus {
     private:
         std::shared_ptr<util::ZMQInstanceConfig> _localConfig;
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaft;
-        std::unique_ptr<v2::OrderAssigner> _localOrderAssigner;
         std::shared_ptr<v2::RaftCallback> _callback;
         braft::PeerId _localPeerId;
 
@@ -37,8 +34,6 @@ namespace peer::consensus {
             }
             aa->_callback = std::move(callback);
             aa->_multiRaft = std::make_unique<util::raft::MultiRaftFSM>("blk_order_cluster");
-            aa->_localOrderAssigner = std::make_unique<v2::OrderAssigner>();
-            aa->_localOrderAssigner->setLocalChainId(cfg->nodeConfig->groupId);
             // start local rpc instance
             if (util::DefaultRpcServer::AddRaftService(cfg->port) != 0) {
                 return nullptr;
@@ -88,21 +83,9 @@ namespace peer::consensus {
             return true;
         }
 
-    private:
-        std::mutex leaderVotingMutex;
-
     public:
-        // TODO: pipeline the requests
         // the instance MUST BE the leader of local group
-        bool onLeaderVotingNewBlock(int chainId, int blockId) {
-            std::unique_lock guard(leaderVotingMutex);
-            auto localVC = _localOrderAssigner->getBlockOrder(chainId, blockId);
-            proto::BlockOrder bo {
-                    .chainId = chainId,
-                    .blockId = blockId,
-                    .voteChainId = localVC.first,
-                    .voteBlockId = localVC.second
-            };
+        bool onLeaderVotingNewBlock(const proto::BlockOrder& bo) {
             // TODO: use local BFT consensus to consensus the bo
             //  BFT(bo) -> true
             ::proto::SignedBlockOrder sb;
@@ -112,24 +95,6 @@ namespace peer::consensus {
             std::string buffer;
             sb.serializeToString(&buffer);
             return apply(buffer);
-        }
-
-        bool onLeaderIncreasingLocalClock(int chainId, int blockId) {
-            std::unique_lock guard(leaderVotingMutex);
-            return _localOrderAssigner->increaseLocalClock(chainId, blockId);
-        }
-
-        // the instance MUST BE the follower of local group
-        // NOT thread safe, called seq by BFT instance
-        bool onValidateVotingNewBlock(const proto::BlockOrder& bo) {
-            auto localVC = _localOrderAssigner->getBlockOrder(bo.chainId, bo.blockId);
-            if (localVC.first != bo.voteChainId) {
-                return false;
-            }
-            if (localVC.second != bo.voteBlockId) {
-                return false;
-            }
-            return true;
         }
 
     public:
@@ -149,16 +114,11 @@ namespace peer::consensus {
             auto* leader = _multiRaft->find_node(_localPeerId);
             butil::IOBuf data;
             data.append(content);
-            // TODO: use complex task.done
-            util::raft::NullOptionClosure done;
+            auto done = new util::raft::NullOptionClosure;
             braft::Task task;
             task.data = &data;
-            task.done = &done;
+            task.done = done;
             leader->apply(task);
-            if (!task.done->status().ok()) {
-                LOG(WARNING) << "Can not apply task, " << task.done->status().error_cstr();
-                return false;
-            }
             return true;
         }
     };

@@ -121,6 +121,7 @@ namespace peer::consensus {
             }
             bool printInfo = false;
             IF_DEBUG_MODE(printInfo = true;)
+            // if you want to print bft log in release mode, set printInfo to true, and change std::cout to std::cerr.
             return _bftInstanceChannel->waitUntilReceiveKeyword("Ready to process operations", printInfo, timeoutMs);
         }
 

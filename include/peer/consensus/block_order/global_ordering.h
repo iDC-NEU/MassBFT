@@ -4,6 +4,7 @@
 
 #include "peer/consensus/block_order/async_agreement.h"
 #include "peer/consensus/block_order/block_order.h"
+#include "peer/consensus/block_order/interchain_order_manager.h"
 #include "peer/storage/mr_block_storage.h"
 
 namespace peer::consensus::v2 {
@@ -18,23 +19,12 @@ namespace peer::consensus::v2 {
             }
         }
 
-        [[nodiscard]] bool waitUntilReceiveValidBlock(const std::string& decision) const {
-            proto::SignedBlockOrder sb{};
-            if (!sb.deserializeFromString(decision)) {
-                return false;
-            }
+        [[nodiscard]] bool waitUntilReceiveValidBlock(const proto::SignedBlockOrder& sb, const proto::BlockOrder& bo) const {
             if (!validateSignatureOfBlockOrder(sb)) {
                 return false;
             }
             if (_storage == nullptr) {
                 return true;    // skip waiting block
-            }
-            proto::BlockOrder bo{};
-            if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
-                return false;
-            }
-            if (bo.voteChainId == -1) {
-                return true;    // this is a view-change message
             }
             for (int i=0; _storage->waitForBlock(bo.chainId, bo.blockId, 40) == nullptr; i++) {
                 if (i == 5) {
@@ -108,7 +98,23 @@ namespace peer::consensus::v2 {
 
             setOnValidateCallback([this](const std::string& decision)->bool {
                 if (_validator != nullptr) {
-                    return _validator->waitUntilReceiveValidBlock(decision);
+                    proto::SignedBlockOrder sb{};
+                    if (!sb.deserializeFromString(decision)) {
+                        return false;
+                    }
+                    proto::BlockOrder bo{};
+                    if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
+                        return false;
+                    }
+                    if (bo.voteChainId == -1) {
+                        return true;    // this is a view-change message
+                    }
+                    if (_forceGetBlockOrderCallback) {
+                        if (_forceGetBlockOrderCallback(bo.chainId, bo.blockId)) {
+                            return true;    // received f+1 votes
+                        }
+                    }
+                    return _validator->waitUntilReceiveValidBlock(sb, bo);
                 }
                 return true;
             });
@@ -129,17 +135,14 @@ namespace peer::consensus::v2 {
                     LOG(ERROR) << "Execute block failed, bid: " << c->blockNumber;
                 }
             });
-            // Optimize-1: order next block as soon as receiving the previous block
-            // for (int i=0; i<groupCount; i++) {
-            //     for (int j=0; j<groupCount; j++) {
-            //         CHECK(om->pushDecision(i, 0, { j, -1 }));
-            //     }
-            // }
             _orderManager = std::move(om);
         }
 
-        // set by NewBlockOrder
+        // set by NewBlockOrder, the group leader in its Raft group receive f+1 votes, increase its vector clock
         void setIncreaseVCCallback(auto&& cb) { _increaseVCCallback = std::forward<decltype(cb)>(cb); }
+
+        // the group leader receive f+1 vc for a block, but not receive the block actually
+        void setForceGetBlockOrderCallback(auto&& cb) { _forceGetBlockOrderCallback = std::forward<decltype(cb)>(cb); }
 
     protected:
         bool applyRawBlockOrder(const std::string& decision) {
@@ -169,13 +172,14 @@ namespace peer::consensus::v2 {
         std::unique_ptr<v2::InterChainOrderManager> _orderManager;
         std::unique_ptr<RaftLogValidator> _validator;
         std::function<bool(int chainId, int blockId)> _increaseVCCallback;
+        std::function<bool(int chainId, int blockId)> _forceGetBlockOrderCallback;
     };
 
     class BlockOrder : public BlockOrderInterface {
     public:
         static std::unique_ptr<OrderACB> NewRaftCallback(std::shared_ptr<::peer::MRBlockStorage> storage,
-                                                             std::shared_ptr<util::BCCSP> bccsp,
-                                                             std::shared_ptr<util::thread_pool_light> threadPool) {
+                                                         std::shared_ptr<util::BCCSP> bccsp,
+                                                         std::shared_ptr<util::thread_pool_light> threadPool) {
             auto validator = std::make_unique<RaftLogValidator>(std::move(storage), std::move(bccsp), std::move(threadPool));
             auto acb = std::make_unique<OrderACB>(std::move(validator));
             return acb;
@@ -229,7 +233,12 @@ namespace peer::consensus::v2 {
                         break;
                     }
                 }
-                if (localConfig != nullptr) {   // init aa
+                if (localConfig != nullptr) {
+                    // init order assigner
+                    auto orderAssigner = std::make_unique<v2::OrderAssigner>();
+                    orderAssigner->setLocalChainId(localConfig->nodeConfig->groupId);
+                    bo->_orderAssigner = std::move(orderAssigner);
+                    // init aa
                     auto aa = AsyncAgreement::NewAsyncAgreement(localConfig, callback);
                     if (aa == nullptr) {
                         LOG(ERROR) << "create AsyncAgreement failed!";
@@ -245,7 +254,26 @@ namespace peer::consensus::v2 {
                     bo->raftAgreement = std::move(aa);
                     if (bo->isRaftLeader) {
                         callback->setIncreaseVCCallback([ptr = bo.get()](int chainId, int blockId) -> bool {
-                            return ptr->raftAgreement->onLeaderIncreasingLocalClock(chainId, blockId);
+                            return ptr->_orderAssigner->increaseLocalClock(chainId, blockId);
+                        });
+                        // force the current leader voting the block
+                        callback->setForceGetBlockOrderCallback(
+                                [ptr = bo.get(), groupCount = callback->getGroupCount(), localGroupId = localConfig->nodeConfig->groupId]
+                                (int chainId, int blockId) -> bool {
+                            auto ret = ptr->_orderAssigner->addVoteForBlock(chainId, blockId);
+                            const auto minThreshHold = groupCount / 2 + 1;    // more than half
+                            if (ret < minThreshHold) {
+                                return false;
+                            }
+                            if (ret > minThreshHold) {
+                                return true;
+                            }
+                            // ensure only invoke once
+                            auto success = ptr->voteNewBlock(chainId, blockId);
+                            if (success) {
+                                LOG(INFO) << "Leader of group " << localGroupId << " force vote new block " << chainId << ", " << blockId << ", " << ret;
+                            }
+                            return true;
                         });
                     }
                 }
@@ -258,7 +286,18 @@ namespace peer::consensus::v2 {
             if (!isRaftLeader) {    // local node must be raft leader
                 return false;
             }
-            return raftAgreement->onLeaderVotingNewBlock(chainId, blockId);
+            auto localVC = _orderAssigner->getBlockOrder(chainId, blockId);
+            if (localVC.first == -1 && localVC.second == -1) {
+                return true;    // already voted
+            }
+            // LOG(INFO) << "Leader of group " << chainId << " vote new block " << chainId << ", " << blockId;
+            proto::BlockOrder bo {
+                    .chainId = chainId,
+                    .blockId = blockId,
+                    .voteChainId = localVC.first,
+                    .voteBlockId = localVC.second
+            };
+            return raftAgreement->onLeaderVotingNewBlock(bo);
         }
 
         [[nodiscard]] bool isLeader() const override { return isRaftLeader; }
@@ -273,6 +312,7 @@ namespace peer::consensus::v2 {
 
     private:
         bool isRaftLeader = false;
+        std::unique_ptr<v2::OrderAssigner> _orderAssigner;
         std::unique_ptr<AsyncAgreement> raftAgreement;
         std::shared_ptr<RaftCallback> agreementCallback;
     };

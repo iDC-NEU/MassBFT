@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "common/raft/multi_raft_fsm.h"
 #include "peer/consensus/block_order/local_distributor.h"
+#include "common/raft/multi_raft_fsm.h"
 
 namespace peer::consensus {
     class AgreementRaftFSM: public util::raft::SingleRaftFSM {

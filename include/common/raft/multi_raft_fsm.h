@@ -9,7 +9,6 @@
 #include <memory>
 #include <shared_mutex>
 #include <mutex>
-#include <memory>
 
 namespace braft {
     DECLARE_int32(raft_election_heartbeat_factor);  // default 10

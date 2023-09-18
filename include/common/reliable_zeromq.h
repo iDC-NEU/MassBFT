@@ -58,7 +58,7 @@ namespace util {
 
         template<std::array addrType=std::to_array("tcp")>
         int initServer(int port) {
-            receiver = util::ZMQInstance::NewServer<zmq::socket_type::sub, addrType>(port);
+            receiver = util::ZMQInstance::NewServer<zmq::socket_type::pull, addrType>(port);
             if (receiver == nullptr) {
                 return -1;
             }
@@ -271,7 +271,7 @@ namespace util {
     public:
         static std::unique_ptr<ReliableZmqClient> NewPublishClient(const std::string& ip, int port, int rpcPort=9500, int retry=10, int timeout_ms=100) {
             std::unique_ptr<ReliableZmqClient> rClient(new ReliableZmqClient);
-            rClient->client = util::ZMQInstance::NewClient<zmq::socket_type::pub>(ip, port);
+            rClient->client = util::ZMQInstance::NewClient<zmq::socket_type::push>(ip, port);
             if (rClient->client == nullptr) {
                 return nullptr;
             }

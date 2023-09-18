@@ -88,14 +88,9 @@ namespace peer::consensus {
             return true;
         }
 
-    private:
-        std::mutex leaderVotingMutex;
-
     public:
-        // TODO: pipeline the requests
         // the instance MUST BE the leader of local group
         bool onLeaderVotingNewBlock(int chainId, int blockId) {
-            std::unique_lock guard(leaderVotingMutex);
             auto localVC = _localOrderAssigner->getBlockOrder(chainId, blockId);
             proto::BlockOrder bo {
                     .chainId = chainId,
@@ -115,21 +110,7 @@ namespace peer::consensus {
         }
 
         bool onLeaderIncreasingLocalClock(int chainId, int blockId) {
-            std::unique_lock guard(leaderVotingMutex);
             return _localOrderAssigner->increaseLocalClock(chainId, blockId);
-        }
-
-        // the instance MUST BE the follower of local group
-        // NOT thread safe, called seq by BFT instance
-        bool onValidateVotingNewBlock(const proto::BlockOrder& bo) {
-            auto localVC = _localOrderAssigner->getBlockOrder(bo.chainId, bo.blockId);
-            if (localVC.first != bo.voteChainId) {
-                return false;
-            }
-            if (localVC.second != bo.voteBlockId) {
-                return false;
-            }
-            return true;
         }
 
     public:
@@ -149,16 +130,11 @@ namespace peer::consensus {
             auto* leader = _multiRaft->find_node(_localPeerId);
             butil::IOBuf data;
             data.append(content);
-            // TODO: use complex task.done
-            util::raft::NullOptionClosure done;
+            auto done = new util::raft::NullOptionClosure;
             braft::Task task;
             task.data = &data;
-            task.done = &done;
+            task.done = done;
             leader->apply(task);
-            if (!task.done->status().ok()) {
-                LOG(WARNING) << "Can not apply task, " << task.done->status().error_cstr();
-                return false;
-            }
             return true;
         }
     };

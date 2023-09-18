@@ -145,7 +145,8 @@ namespace peer::consensus::v2 {
         void setOnExecuteBlockCallback(auto&& cb) { onExecuteBlockHandle = std::forward<decltype(cb)>(cb); }
 
     public:
-        virtual void init(int, std::unique_ptr<LocalDistributor> ld) {
+        virtual void init(int groupCount, std::unique_ptr<LocalDistributor> ld) {
+            _groupCount = groupCount;
             _localDistributor = std::move(ld);
             _localDistributor->setDeliverCallback([&](std::string decision) {
                 if (!onBroadcastHandle(std::move(decision))) {
@@ -154,7 +155,14 @@ namespace peer::consensus::v2 {
             });
         }
 
+        [[nodiscard]] inline int getGroupCount() const {
+            CHECK(_groupCount > 0) << "Have not inited.";
+            return _groupCount;
+        }
+
     private:
+        int _groupCount = -1;
+
         std::function<void(int subChainId)> onErrorHandle;
 
         std::function<bool(std::string decision)> onBroadcastHandle;

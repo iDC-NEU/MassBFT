@@ -400,7 +400,7 @@ namespace peer::v2 {
         BlockFragmentGenerator::Config _localFragmentConfig;
         std::shared_ptr<BlockFragmentGenerator> _bfg;
         // Cache the received fragments
-        Buffer<BufferBlock, 64> _ringBuf;
+        Buffer<BufferBlock, 4096> _ringBuf;
         // Check the block signature and other things
         ValidateFunc _validateCallback;
         // one RemoteFragmentReceiver (as server)

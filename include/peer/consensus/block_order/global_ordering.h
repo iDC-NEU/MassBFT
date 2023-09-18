@@ -19,23 +19,12 @@ namespace peer::consensus::v2 {
             }
         }
 
-        [[nodiscard]] bool waitUntilReceiveValidBlock(const std::string& decision) const {
-            proto::SignedBlockOrder sb{};
-            if (!sb.deserializeFromString(decision)) {
-                return false;
-            }
+        [[nodiscard]] bool waitUntilReceiveValidBlock(const proto::SignedBlockOrder& sb, const proto::BlockOrder& bo) const {
             if (!validateSignatureOfBlockOrder(sb)) {
                 return false;
             }
             if (_storage == nullptr) {
                 return true;    // skip waiting block
-            }
-            proto::BlockOrder bo{};
-            if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
-                return false;
-            }
-            if (bo.voteChainId == -1) {
-                return true;    // this is a view-change message
             }
             for (int i=0; _storage->waitForBlock(bo.chainId, bo.blockId, 40) == nullptr; i++) {
                 if (i == 5) {
@@ -109,7 +98,23 @@ namespace peer::consensus::v2 {
 
             setOnValidateCallback([this](const std::string& decision)->bool {
                 if (_validator != nullptr) {
-                    return _validator->waitUntilReceiveValidBlock(decision);
+                    proto::SignedBlockOrder sb{};
+                    if (!sb.deserializeFromString(decision)) {
+                        return false;
+                    }
+                    proto::BlockOrder bo{};
+                    if (!bo.deserializeFromString(sb.serializedBlockOrder)) {
+                        return false;
+                    }
+                    if (bo.voteChainId == -1) {
+                        return true;    // this is a view-change message
+                    }
+                    if (_forceGetBlockOrderCallback) {
+                        if (_forceGetBlockOrderCallback(bo.chainId, bo.blockId)) {
+                            return true;    // received f+1 votes
+                        }
+                    }
+                    return _validator->waitUntilReceiveValidBlock(sb, bo);
                 }
                 return true;
             });
@@ -157,9 +162,6 @@ namespace peer::consensus::v2 {
             // if is leader, increase local vc
             if (_increaseVCCallback) {
                 _increaseVCCallback(bo.chainId, bo.blockId);
-            }
-            if (_forceGetBlockOrderCallback) {
-                _forceGetBlockOrderCallback(bo.chainId, bo.blockId);
             }
             return _orderManager->pushDecision(bo.chainId, bo.blockId, { bo.voteChainId, bo.voteBlockId });
             // Optimize-1: order next block as soon as receiving the previous block
@@ -260,9 +262,16 @@ namespace peer::consensus::v2 {
                                 (int chainId, int blockId) -> bool {
                             auto ret = ptr->_orderAssigner->addVoteForBlock(chainId, blockId);
                             const auto minThreshHold = groupCount / 2 + 1;    // more than half
-                            if (ret == minThreshHold) { // ensure only invoke once
+                            if (ret < minThreshHold) {
+                                return false;
+                            }
+                            if (ret > minThreshHold) {
+                                return true;
+                            }
+                            // ensure only invoke once
+                            auto success = ptr->voteNewBlock(chainId, blockId);
+                            if (success) {
                                 LOG(INFO) << "Leader of group " << localGroupId << " force vote new block " << chainId << ", " << blockId << ", " << ret;
-                                ptr->voteNewBlock(chainId, blockId);
                             }
                             return true;
                         });

@@ -107,6 +107,7 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
     auto nodes = InitNodes();
     // each elem in aaList is a node instance(a node both as follower in n-1 and leader in 1 instance)
     std::vector<std::unique_ptr<AsyncAgreement>> aaList;
+    std::vector<std::unique_ptr<v2::OrderAssigner>> oaList;
 
     for (const auto& it : nodes) {
         auto acb = std::make_unique<MockACB>(nullptr);
@@ -116,6 +117,10 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
             CHECK(false) << "init failed";
         }
         aaList.push_back(std::move(aa));
+        // init order assigner
+        auto oa = std::make_unique<v2::OrderAssigner>();
+        oa->setLocalChainId(it->nodeConfig->groupId);
+        oaList.push_back(std::move(oa));
     }
     // start all peers
     for (int i=0; i<(int)nodes.size(); i++) {
@@ -131,10 +136,18 @@ TEST_F(AsyncAgreementTest, TestAgreement) {
 
     auto voteFunc = [&](int myIdx, int targetGroup) {
         for (int i=0; i< 10000; i++) {
-            auto ret = aaList[myIdx]->onLeaderVotingNewBlock(targetGroup, i);
+            auto localVC = oaList[myIdx]->getBlockOrder(targetGroup, i);
+            CHECK(localVC.first != -1);
+            proto::BlockOrder bo {
+                    .chainId = targetGroup,
+                    .blockId = i,
+                    .voteChainId = localVC.first,
+                    .voteBlockId = localVC.second
+            };
+            auto ret = aaList[myIdx]->onLeaderVotingNewBlock(bo);
             CHECK(ret);
             if (i - 3 >= 0) {   // simulate delay
-                aaList[myIdx]->onLeaderIncreasingLocalClock(targetGroup, i - 3);
+                oaList[myIdx]->increaseLocalClock(targetGroup, i - 3);
             }
             util::Timer::sleep_ms(1);
         }

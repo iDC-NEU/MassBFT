@@ -4,11 +4,9 @@
 
 #pragma once
 
-#include "peer/consensus/block_order/interchain_order_manager.h"
 #include "peer/consensus/block_order/agreement_raft_fsm.h"
 
 #include "common/meta_rpc_server.h"
-#include "common/property.h"
 #include "common/thread_pool_light.h"
 #include "common/bccsp.h"
 #include "proto/block_order.h"
@@ -21,7 +19,6 @@ namespace peer::consensus {
     private:
         std::shared_ptr<util::ZMQInstanceConfig> _localConfig;
         std::shared_ptr<util::raft::MultiRaftFSM> _multiRaft;
-        std::unique_ptr<v2::OrderAssigner> _localOrderAssigner;
         std::shared_ptr<v2::RaftCallback> _callback;
         braft::PeerId _localPeerId;
 
@@ -37,8 +34,6 @@ namespace peer::consensus {
             }
             aa->_callback = std::move(callback);
             aa->_multiRaft = std::make_unique<util::raft::MultiRaftFSM>("blk_order_cluster");
-            aa->_localOrderAssigner = std::make_unique<v2::OrderAssigner>();
-            aa->_localOrderAssigner->setLocalChainId(cfg->nodeConfig->groupId);
             // start local rpc instance
             if (util::DefaultRpcServer::AddRaftService(cfg->port) != 0) {
                 return nullptr;
@@ -90,14 +85,7 @@ namespace peer::consensus {
 
     public:
         // the instance MUST BE the leader of local group
-        bool onLeaderVotingNewBlock(int chainId, int blockId) {
-            auto localVC = _localOrderAssigner->getBlockOrder(chainId, blockId);
-            proto::BlockOrder bo {
-                    .chainId = chainId,
-                    .blockId = blockId,
-                    .voteChainId = localVC.first,
-                    .voteBlockId = localVC.second
-            };
+        bool onLeaderVotingNewBlock(const proto::BlockOrder& bo) {
             // TODO: use local BFT consensus to consensus the bo
             //  BFT(bo) -> true
             ::proto::SignedBlockOrder sb;
@@ -107,10 +95,6 @@ namespace peer::consensus {
             std::string buffer;
             sb.serializeToString(&buffer);
             return apply(buffer);
-        }
-
-        bool onLeaderIncreasingLocalClock(int chainId, int blockId) {
-            return _localOrderAssigner->increaseLocalClock(chainId, blockId);
         }
 
     public:

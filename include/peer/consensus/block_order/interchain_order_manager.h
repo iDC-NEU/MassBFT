@@ -328,9 +328,16 @@ namespace peer::consensus::v2 {
             _chainId = chainId;
         }
 
-        std::pair<int, int> getBlockOrder(int chainId, int blockId) {
+        // return -1, -1 when order is already assigned
+        [[nodiscard]] std::pair<int, int> getBlockOrder(int chainId, int blockId) {
             DCHECK(_chainId >= 0) << "have not inited yet!";
             std::unique_lock guard(mutex);
+            auto& res = _blockVotes.getRef(chainId, blockId);
+            DCHECK(res.blockId == blockId);
+            if (res.finished) {   // already voted
+                return std::make_pair(-1, -1);
+            }
+            res.finished = true;
             auto ret = std::make_pair(_chainId, _myClock);
             if (_chainId == chainId) {
                 ret = std::make_pair(_chainId, blockId - 1);
@@ -338,8 +345,22 @@ namespace peer::consensus::v2 {
             return ret;
         }
 
+        [[nodiscard]] int addVoteForBlock(int chainId, int blockId) {
+            if (_chainId == chainId) {
+                return -1;  // skip local chain
+            }
+            std::unique_lock guard(mutex);
+            auto& res = _blockVotes.getRef(chainId, blockId);
+            if (res.finished) {
+                return true;
+            }
+            res.votes += 1;
+            return res.votes;
+        }
+
         bool increaseLocalClock(int chainId, int blockId) {
             if (_chainId == chainId) {
+                std::unique_lock guard(mutex);
                 if (blockId - 1 < _myClock) {
                     return false;    //  stale call
                 }
@@ -351,10 +372,45 @@ namespace peer::consensus::v2 {
             return false;   // receive other regions block
         }
 
+    protected:
+        class BlockVotes {
+        public:
+            struct Slot {
+                int blockId;
+                int votes;
+                bool finished;
+            };
+
+            BlockVotes() {
+                for (auto& it: _blockVotesCount) {
+                    it.resize(MAX_BLOCK_QUEUE_SIZE);
+                }
+            }
+
+            [[nodiscard]] Slot& getRef(int chainId, int blockId) {
+                auto& res = _blockVotesCount[chainId][blockId % MAX_BLOCK_QUEUE_SIZE];
+                DCHECK(res.blockId <= blockId) << "Stale get";
+                if (res.blockId < blockId) {    // clear it
+                    res.blockId = blockId;
+                    res.votes = 0;
+                    res.finished = false;
+                }
+                return res;
+            }
+
+        private:
+            constexpr static const auto MAX_GROUP_SIZE = 100;
+
+            constexpr static const auto MAX_BLOCK_QUEUE_SIZE = 4096;
+
+            std::vector<Slot> _blockVotesCount[MAX_GROUP_SIZE];
+        };
+
     private:
-        std::mutex mutex;
+        mutable std::mutex mutex;
         int _myClock = -1;
         int _chainId = -1;
+        BlockVotes _blockVotes;
     };
 
 }

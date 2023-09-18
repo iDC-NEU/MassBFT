@@ -42,7 +42,7 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     std::vector<bool> sent(8);
 
     auto callback = [&] (int i, int regionId, int blockId) ->bool {
-        if (retValue[i].size() >= 15000) {
+        if (retValue[i].size() >= 4095) {
             if (!sent[i]) {
                 sent[i] = true;
                 ce.signal();
@@ -81,7 +81,7 @@ TEST_F(GlobalBlockOrderingTest, Region0Send) {
     ASSERT_TRUE(regions[4]->waitUntilRaftReady());
 
     auto voteFunc = [&](int myIdx, int targetGroup) {
-        for (int i=0; i< 10000; i++) {
+        for (int i=0; i< 4095; i++) {   // MAX_BLOCK_QUEUE_SIZE must larger than 4095;
             auto ret = regions[myIdx]->voteNewBlock(targetGroup, i);
             CHECK(ret);
         }

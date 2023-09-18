@@ -259,7 +259,7 @@ namespace peer::consensus::v2 {
                                 [ptr = bo.get(), groupCount = callback->getGroupCount(), localGroupId = localConfig->nodeConfig->groupId]
                                 (int chainId, int blockId) -> bool {
                             auto ret = ptr->_orderAssigner->addVoteForBlock(chainId, blockId);
-                            const auto minThreshHold = groupCount / 2;    // more than half FIXME (FOR TWO REGIONS TEST)
+                            const auto minThreshHold = groupCount / 2 + 1;    // more than half
                             if (ret == minThreshHold) { // ensure only invoke once
                                 LOG(INFO) << "Leader of group " << localGroupId << " force vote new block " << chainId << ", " << blockId << ", " << ret;
                                 ptr->voteNewBlock(chainId, blockId);

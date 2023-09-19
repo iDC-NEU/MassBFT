@@ -26,11 +26,9 @@ namespace peer::consensus::v2 {
             if (_storage == nullptr) {
                 return true;    // skip waiting block
             }
-            for (int i=0; _storage->waitForBlock(bo.chainId, bo.blockId, 40) == nullptr; i++) {
-                if (i == 5) {
-                    LOG(WARNING) << "Cannot get block after 5 tries";
-                    return false;
-                }
+            if (_storage->waitForBlock(bo.chainId, bo.blockId, 300) == nullptr) {
+                LOG(WARNING) << "Cannot get block after 300 ms";
+                return validateSignatureOfBlockOrder(sb);   // re-check if multiple region have received the block
             }
             return true;
         }

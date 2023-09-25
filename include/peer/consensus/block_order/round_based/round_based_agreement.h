@@ -2,6 +2,8 @@
 // Created by user on 23-9-14.
 //
 
+#pragma once
+
 #include "peer/consensus/block_order/agreement_raft_fsm.h"
 
 #include "common/meta_rpc_server.h"

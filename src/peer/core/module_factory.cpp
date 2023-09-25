@@ -7,6 +7,7 @@
 #include "peer/consensus/block_order/global_ordering.h"
 #include "peer/consensus/block_order/round_based/round_based_block_order.h"
 #include "peer/consensus/block_order/geobft/geobft_block_order.h"
+#include "peer/consensus/block_order/steward/steward_block_order.h"
 #include "peer/consensus/pbft/local_consensus_controller.h"
 #include "peer/consensus/pbft/single_pbft_controller.h"
 #include "peer/replicator/replicator.h"

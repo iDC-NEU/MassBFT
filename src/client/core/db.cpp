@@ -14,8 +14,11 @@ namespace client::core {
     DBStatus::~DBStatus() = default;
 
     DBFactory::DBFactory(const util::Properties &p) {
-        invokeServer = p.getNodeProperties().getLocalNodeInfo();
         queryServer = p.getNodeProperties().getLocalNodeInfo();
+        invokeServer = p.getNodeProperties().getLocalNodeInfo();
+        // For Steward (1 of 2)
+        // invokeServer = p.getNodeProperties().getGroupNodesInfo(0)[0];
+        // queryServer->groupId = 0;
         // calculate port
         portConfig = util::ZMQPortUtil::InitLocalPortsConfig(p);
         // init bccsp
@@ -23,6 +26,8 @@ namespace client::core {
         bccsp = std::make_unique<util::BCCSP>(std::make_unique<util::YAMLKeyStorage>(node));
         CHECK(bccsp) << "Can not init bccsp";
         auto port = portConfig->getLocalServicePorts(util::PortType::USER_REQ_COLLECTOR)[invokeServer->nodeId];
+        // For Steward (1 of 2)
+        // dbc = ::client::NeuChainDBConnection::NewNeuChainDBConnection(invokeServer->pubIp, port);
         dbc = ::client::NeuChainDBConnection::NewNeuChainDBConnection(invokeServer->priIp, port);
     }
 

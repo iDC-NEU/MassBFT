@@ -7,6 +7,7 @@
 #include "peer/consensus/block_order/round_based/round_based_agreement.h"
 #include "peer/consensus/block_order/round_based/round_based_order_manager.h"
 #include "peer/consensus/block_order/block_order.h"
+#include "peer/storage/mr_block_storage.h"
 #include "common/thread_pool_light.h"
 #include "common/bccsp.h"
 

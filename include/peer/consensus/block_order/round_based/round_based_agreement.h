@@ -2,8 +2,9 @@
 // Created by user on 23-9-14.
 //
 
+#pragma once
+
 #include "peer/consensus/block_order/agreement_raft_fsm.h"
-#include "peer/consensus/block_order/round_based/round_based_order_manager.h"
 
 #include "common/meta_rpc_server.h"
 #include "common/property.h"

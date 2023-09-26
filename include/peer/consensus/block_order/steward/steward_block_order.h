@@ -11,14 +11,28 @@
 #include "common/thread_pool_light.h"
 #include "common/bccsp.h"
 
-namespace peer::consensus::rb {
-    class RaftLogValidator {
+namespace peer::consensus::steward {
+    class RaftLogValidator : public v2::RaftCallback {
     public:
         explicit RaftLogValidator(std::shared_ptr<::peer::MRBlockStorage> storage)
                 : _storage(std::move(storage)) {
             if (_storage == nullptr) {
                 LOG(WARNING) << "Storage is empty, validator may not wait until receiving the actual block.";
             }
+        }
+
+        void init(int groupCount, std::unique_ptr<v2::LocalDistributor> ld) override {
+            v2::RaftCallback::init(groupCount, std::move(ld));
+            setOnErrorCallback([](int subChainId) {
+                CHECK(false) << "Detect error in chain " << subChainId;
+                return true;
+            });
+            setOnValidateCallback([this](const std::string& decision)->bool {
+                return waitUntilReceiveValidBlock(decision);
+            });
+            setOnBroadcastCallback([this](const std::string& decision)->bool {
+                return applyRawBlockOrder(decision);
+            });
         }
 
         [[nodiscard]] bool waitUntilReceiveValidBlock(const std::string& decision) const {
@@ -36,42 +50,6 @@ namespace peer::consensus::rb {
             return true;
         }
 
-    private:
-        std::shared_ptr<::peer::MRBlockStorage> _storage;
-    };
-
-    class RoundBasedCallback : public v2::RaftCallback {
-    public:
-        explicit RoundBasedCallback(std::unique_ptr<RaftLogValidator> validator)
-                :_validator(std::move(validator)) {
-            setOnErrorCallback([this](int subChainId) {
-                return _orderManager->invalidateChain(subChainId);
-            });
-
-            setOnValidateCallback([this](const std::string& decision)->bool {
-                if (_validator != nullptr) {
-                    return _validator->waitUntilReceiveValidBlock(decision);
-                }
-                return true;
-            });
-
-            setOnBroadcastCallback([this](const std::string& decision)->bool {
-                return applyRawBlockOrder(decision);
-            });
-        }
-
-        void init(int groupCount, std::unique_ptr<v2::LocalDistributor> ld) override {
-            v2::RaftCallback::init(groupCount, std::move(ld));
-            auto om = std::make_unique<RoundBasedOrderManager>();
-            om->setSubChainCount(groupCount);
-            om->setDeliverCallback([this](int chainId, int blockId) {
-                if (!onExecuteBlock(chainId, blockId)) {
-                    LOG(ERROR) << "Execute block failed, bid: " << blockId;
-                }
-            });
-            _orderManager = std::move(om);
-        }
-
     protected:
         bool applyRawBlockOrder(const std::string& decision) {
             int chainId, blockId;
@@ -79,12 +57,12 @@ namespace peer::consensus::rb {
             if(failure(in(chainId, blockId))) {
                 return false;
             }
-            return _orderManager->pushDecision(chainId, blockId);
+            CHECK(chainId == 0);
+            return onExecuteBlock(chainId, blockId);
         }
 
     private:
-        std::unique_ptr<RoundBasedOrderManager> _orderManager;
-        std::unique_ptr<RaftLogValidator> _validator;
+        std::shared_ptr<::peer::MRBlockStorage> _storage;
     };
 
     class BlockOrder : public BlockOrderInterface {
@@ -93,7 +71,7 @@ namespace peer::consensus::rb {
                                                                  const std::shared_ptr<util::BCCSP>&,
                                                                  const std::shared_ptr<util::thread_pool_light>&) {
             auto validator = std::make_unique<RaftLogValidator>(std::move(storage));
-            return std::make_unique<RoundBasedCallback>(std::move(validator));
+            return validator;
         }
 
         // I may not exist in multiRaftParticipant, but must exist in localReceivers
@@ -145,19 +123,21 @@ namespace peer::consensus::rb {
                     }
                 }
                 if (localConfig != nullptr) {   // init aa
-                    auto aa = RoundBasedAgreement::NewRoundBasedAgreement(localConfig, bo->agreementCallback);
+                    auto aa = rb::RoundBasedAgreement::NewRoundBasedAgreement(localConfig, bo->agreementCallback);
                     if (aa == nullptr) {
                         LOG(ERROR) << "create AsyncAgreement failed!";
                         return nullptr;
                     }
                     // start raft group
                     for (const auto& it: multiRaftLeaderPos) {
+                        if (multiRaftParticipant[it]->nodeConfig->groupId != 0) {
+                            continue;   // we only need one raft instance
+                        }
                         if (!aa->startCluster(multiRaftParticipant, it)) {
                             LOG(ERROR) << "start up multi raft failed!";
                             return nullptr;
                         }
                     }
-                    bo->localGroupId = localConfig->nodeConfig->groupId;
                     bo->raftAgreement = std::move(aa);
                 }
             }
@@ -169,9 +149,6 @@ namespace peer::consensus::rb {
             if (!isRaftLeader) {    // local node must be raft leader
                 return false;
             }    // leader only consensus block generate by this group
-            if (localGroupId != chainId) {
-                return true;    // skip block from other groups
-            }
             return raftAgreement->onReplicatingNewBlock(chainId, blockId);
         }
 
@@ -187,8 +164,7 @@ namespace peer::consensus::rb {
 
     private:
         bool isRaftLeader = false;
-        int localGroupId = -1;
-        std::unique_ptr<RoundBasedAgreement> raftAgreement;
+        std::unique_ptr<rb::RoundBasedAgreement> raftAgreement;
         std::shared_ptr<v2::RaftCallback> agreementCallback;
     };
 }

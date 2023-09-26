@@ -2,6 +2,8 @@
 // Created by user on 23-9-14.
 //
 
+#pragma once
+
 #include <mutex>
 #include <vector>
 #include <unordered_set>

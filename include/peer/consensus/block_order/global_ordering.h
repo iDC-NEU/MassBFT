@@ -19,23 +19,16 @@ namespace peer::consensus::v2 {
             }
         }
 
-        [[nodiscard]] bool waitUntilReceiveValidBlock(const proto::SignedBlockOrder& sb, const proto::BlockOrder& bo) const {
-            if (!validateSignatureOfBlockOrder(sb)) {
-                return false;
-            }
+        [[nodiscard]] bool waitUntilReceiveValidBlock(const proto::BlockOrder& bo, int timeoutMs) const {
             if (_storage == nullptr) {
                 return true;    // skip waiting block
             }
-            for (int i=0; _storage->waitForBlock(bo.chainId, bo.blockId, 40) == nullptr; i++) {
-                if (i == 5) {
-                    LOG(WARNING) << "Cannot get block after 5 tries";
-                    return false;
-                }
+            if (_storage->waitForBlock(bo.chainId, bo.blockId, timeoutMs) == nullptr) {
+                return false;
             }
             return true;
         }
 
-    protected:
         [[nodiscard]] bool validateSignatureOfBlockOrder(const proto::SignedBlockOrder& sb) const {
             if (sb.signatures.empty()) {    // optimize
                 // DLOG(WARNING) << "Sigs are empty in validateSignatureOfBlockOrder!";
@@ -77,6 +70,8 @@ namespace peer::consensus::v2 {
     public:
         explicit OrderACB(std::unique_ptr<RaftLogValidator> validator)
                 :_validator(std::move(validator)) {
+            _getBlockVoteCountCallback = [](int, int){ return true; };
+            _increaseBlockVoteCallback = [](int, int, int){ return true; };
             setOnErrorCallback([this](int subChainId) {
                 // the group is down, invalid all the block
                 // _orderManager->invalidateChain(subChainId);
@@ -96,6 +91,7 @@ namespace peer::consensus::v2 {
                 onBroadcast(std::move(buffer));
             });
 
+            // concurrent access
             setOnValidateCallback([this](const std::string& decision)->bool {
                 if (_validator != nullptr) {
                     proto::SignedBlockOrder sb{};
@@ -109,12 +105,25 @@ namespace peer::consensus::v2 {
                     if (bo.voteChainId == -1) {
                         return true;    // this is a view-change message
                     }
-                    if (_forceGetBlockOrderCallback) {
-                        if (_forceGetBlockOrderCallback(bo.chainId, bo.blockId)) {
-                            return true;    // received f+1 votes
+                    if (!_increaseBlockVoteCallback(bo.chainId, bo.blockId, bo.voteChainId)) {
+                        return false;   // add count
+                    }
+                    if (_getBlockVoteCountCallback(bo.chainId, bo.blockId)) {    // received f+1 votes
+                        return true;
+                    }
+                    if (!_validator->validateSignatureOfBlockOrder(sb)) {
+                        return false;   // signature checksum error
+                    }
+                    for (int i=0; i<20; i++) {
+                        if (_validator->waitUntilReceiveValidBlock(bo, 10)) { // received actual block
+                            return true;
+                        }
+                        if (_getBlockVoteCountCallback(bo.chainId, bo.blockId)) {    // received f+1 votes
+                            return true;
                         }
                     }
-                    return _validator->waitUntilReceiveValidBlock(sb, bo);
+                    LOG(ERROR) << "I can not receive block after 20 tries: " << bo.chainId << ", " << bo.blockId;
+                    return false;
                 }
                 return true;
             });
@@ -141,8 +150,12 @@ namespace peer::consensus::v2 {
         // set by NewBlockOrder, the group leader in its Raft group receive f+1 votes, increase its vector clock
         void setIncreaseVCCallback(auto&& cb) { _increaseVCCallback = std::forward<decltype(cb)>(cb); }
 
-        // the group leader receive f+1 vc for a block, but not receive the block actually
-        void setForceGetBlockOrderCallback(auto&& cb) { _forceGetBlockOrderCallback = std::forward<decltype(cb)>(cb); }
+        // the group leader receive remote vc for a block, increase total vc count
+        // return true on success, false when increase error
+        void setIncreaseBlockVoteCallback(auto&& cb) { _increaseBlockVoteCallback = std::forward<decltype(cb)>(cb); }
+
+        // have more than f+1 votes to proceed?
+        void setGetBlockVoteCountCallback(auto&& cb) { _getBlockVoteCountCallback = std::forward<decltype(cb)>(cb); }
 
     protected:
         bool applyRawBlockOrder(const std::string& decision) {
@@ -172,7 +185,8 @@ namespace peer::consensus::v2 {
         std::unique_ptr<v2::InterChainOrderManager> _orderManager;
         std::unique_ptr<RaftLogValidator> _validator;
         std::function<bool(int chainId, int blockId)> _increaseVCCallback;
-        std::function<bool(int chainId, int blockId)> _forceGetBlockOrderCallback;
+        std::function<bool(int chainId, int blockId, int voteChainId)> _increaseBlockVoteCallback;
+        std::function<bool(int chainId, int blockId)> _getBlockVoteCountCallback;
     };
 
     class BlockOrder : public BlockOrderInterface {
@@ -256,25 +270,38 @@ namespace peer::consensus::v2 {
                         callback->setIncreaseVCCallback([ptr = bo.get()](int chainId, int blockId) -> bool {
                             return ptr->_orderAssigner->increaseLocalClock(chainId, blockId);
                         });
-                        // force the current leader voting the block
-                        callback->setForceGetBlockOrderCallback(
+                        // get the current votes of the block
+                        callback->setGetBlockVoteCountCallback(
                                 [ptr = bo.get(), groupCount = callback->getGroupCount(), localGroupId = localConfig->nodeConfig->groupId]
-                                (int chainId, int blockId) -> bool {
-                            auto ret = ptr->_orderAssigner->addVoteForBlock(chainId, blockId);
-                            const auto minThreshHold = groupCount / 2 + 1;    // more than half
-                            if (ret < minThreshHold) {
-                                return false;
-                            }
-                            if (ret > minThreshHold) {
-                                return true;
-                            }
-                            // ensure only invoke once
-                            auto success = ptr->voteNewBlock(chainId, blockId);
-                            if (success) {
-                                LOG(INFO) << "Leader of group " << localGroupId << " force vote new block " << chainId << ", " << blockId << ", " << ret;
-                            }
-                            return true;
-                        });
+                                        (int chainId, int blockId) -> bool {
+                                    const auto minThreshHold = groupCount / 2 + 1;    // more than half
+                                    auto count = ptr->_orderAssigner->getVoteForBlock(chainId, blockId);
+                                    CHECK(groupCount >= count);
+                                    if (count < 0) {    // already finished
+                                        return true;
+                                    }
+                                    return count >= minThreshHold;  // > f+1?
+                                }
+                        );
+
+                        // force the current leader voting the block
+                        callback->setIncreaseBlockVoteCallback(
+                                [ptr = bo.get(), groupCount = callback->getGroupCount(), localGroupId = localConfig->nodeConfig->groupId]
+                                        (int chainId, int blockId, int voteChainId) -> bool {
+                                    auto count = ptr->_orderAssigner->addVoteForBlock(chainId, blockId, voteChainId);
+                                    const auto minThreshHold = groupCount / 2 + 1;    // more than half
+                                    CHECK(groupCount >= count);
+                                    if (count != minThreshHold) {
+                                        return true;
+                                    }
+                                    // ensure only invoke once == f + 1
+                                    auto success = ptr->voteNewBlock(chainId, blockId);
+                                    if (success) {
+                                        LOG(INFO) << "Leader of group " << localGroupId << " force vote new block " << chainId << ", " << blockId << ", " << count;
+                                    }
+                                    return success;
+                                }
+                        );
                     }
                 }
             }

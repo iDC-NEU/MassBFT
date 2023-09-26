@@ -53,7 +53,8 @@ namespace client::core {
         [[nodiscard]] virtual std::unique_ptr<DBStatus> newDBStatus() const;
 
     private:
-        util::NodeConfigPtr server;
+        util::NodeConfigPtr queryServer;
+        util::NodeConfigPtr invokeServer;
         std::unique_ptr<util::ZMQPortUtil> portConfig;
         std::shared_ptr<::client::NeuChainDBConnection> dbc;
         std::unique_ptr<util::BCCSP> bccsp;

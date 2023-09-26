@@ -208,7 +208,8 @@ namespace util::raft {
         const std::string _name;
         // Raft rpc timeout = _election_timeout_ms / 2 > 150 ms
         // heartbeat interval = _election_timeout_ms / FLAGS_raft_election_heartbeat_factor == 20 ms
-        const int32_t _election_timeout_ms = 1000;  // 600
+        // For simulating slow group, set _election_timeout_ms as long as you can
+        const int32_t _election_timeout_ms = 10000;  // 600
         const int32_t _max_clock_drift_ms = 1000;   // 200
         const int _snapshot_interval_s = 3600;
         braft::SnapshotThrottle* _throttle;

@@ -415,7 +415,7 @@ namespace peer::consensus::v2 {
         private:
             constexpr static const auto MAX_GROUP_SIZE = 100;
 
-            constexpr static const auto MAX_BLOCK_QUEUE_SIZE = 4096;
+            constexpr static const auto MAX_BLOCK_QUEUE_SIZE = 256;
 
             std::vector<Slot> _blockVotesCount[MAX_GROUP_SIZE];
         };

@@ -29,6 +29,9 @@ namespace peer {
         namespace steward {
             class BlockOrder;
         }
+        namespace iss {
+            class BlockOrder;
+        }
         class BlockOrderInterface;
     }
     class MRBlockStorage;
@@ -59,6 +62,7 @@ namespace peer::core {
         // using BlockOrderType = peer::consensus::geobft::BlockOrder;
         // NOTE: if you want to use steward, you also need to change the lines in src/client/core/db.cpp
         // using BlockOrderType = peer::consensus::steward::BlockOrder;
+        // using BlockOrderType = peer::consensus::iss::BlockOrder;
 
         static std::unique_ptr<ModuleFactory> NewModuleFactory(const std::shared_ptr<util::Properties>& properties);
 

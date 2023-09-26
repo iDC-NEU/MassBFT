@@ -345,17 +345,31 @@ namespace peer::consensus::v2 {
             return ret;
         }
 
-        [[nodiscard]] int addVoteForBlock(int chainId, int blockId) {
+        // return -1 when is ok.
+        [[nodiscard]] int addVoteForBlock(int chainId, int blockId, int voteChainId) {
             if (_chainId == chainId) {
                 return -1;  // skip local chain
             }
             std::unique_lock guard(mutex);
             auto& res = _blockVotes.getRef(chainId, blockId);
             if (res.finished) {
-                return true;
+                return -1;
             }
-            res.votes += 1;
-            return res.votes;
+            res.votes.insert(voteChainId);
+            return res.votes.size();
+        }
+
+        // return -1 when is ok.
+        [[nodiscard]] int getVoteForBlock(int chainId, int blockId) {
+            if (_chainId == chainId) {
+                return -1;  // skip local chain
+            }
+            std::unique_lock guard(mutex);
+            auto res = _blockVotes.getRef(chainId, blockId);
+            if (res.finished) {
+                return -1;
+            }
+            return res.votes.size();
         }
 
         bool increaseLocalClock(int chainId, int blockId) {
@@ -377,7 +391,7 @@ namespace peer::consensus::v2 {
         public:
             struct Slot {
                 int blockId;
-                int votes;
+                std::set<int> votes;
                 bool finished;
             };
 
@@ -392,7 +406,7 @@ namespace peer::consensus::v2 {
                 DCHECK(res.blockId <= blockId) << "Stale get";
                 if (res.blockId < blockId) {    // clear it
                     res.blockId = blockId;
-                    res.votes = 0;
+                    res.votes.clear();
                     res.finished = false;
                 }
                 return res;

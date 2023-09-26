@@ -42,7 +42,7 @@ namespace peer::consensus::rb {
 
     class RoundBasedCallback : public v2::RaftCallback {
     public:
-        RoundBasedCallback(std::unique_ptr<RaftLogValidator> validator)
+        explicit RoundBasedCallback(std::unique_ptr<RaftLogValidator> validator)
                 :_validator(std::move(validator)) {
             setOnErrorCallback([this](int subChainId) {
                 return _orderManager->invalidateChain(subChainId);
@@ -157,6 +157,7 @@ namespace peer::consensus::rb {
                             return nullptr;
                         }
                     }
+                    bo->localGroupId = localConfig->nodeConfig->groupId;
                     bo->raftAgreement = std::move(aa);
                 }
             }
@@ -168,6 +169,9 @@ namespace peer::consensus::rb {
             if (!isRaftLeader) {    // local node must be raft leader
                 return false;
             }    // leader only consensus block generate by this group
+            if (localGroupId != chainId) {
+                return true;    // skip block from other groups
+            }
             return raftAgreement->onReplicatingNewBlock(chainId, blockId);
         }
 
@@ -183,6 +187,7 @@ namespace peer::consensus::rb {
 
     private:
         bool isRaftLeader = false;
+        int localGroupId = -1;
         std::unique_ptr<RoundBasedAgreement> raftAgreement;
         std::shared_ptr<v2::RaftCallback> agreementCallback;
     };

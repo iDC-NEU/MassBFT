@@ -121,7 +121,7 @@ namespace peer::consensus::iss {
             });
             _orderManager = std::move(om);
             // about 23.27 round per epoch
-            auto em = std::make_unique<EpochManager>(23, groupCount);
+            auto em = std::make_unique<EpochManager>(5, groupCount);
             _epochManager = std::move(em);
         }
 

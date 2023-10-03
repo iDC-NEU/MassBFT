@@ -66,7 +66,7 @@ namespace ca {
         client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::THREAD_COUNT_PROPERTY, 4);
 
         // init custom property
-        client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::WAREHOUSE_COUNT_PROPERTY, 30);
+        client::tpcc::TPCCProperties::SetProperties(client::tpcc::TPCCProperties::WAREHOUSE_COUNT_PROPERTY, 128);
         client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::RECORD_COUNT_PROPERTY, 1000 * 1000);
         // ycsb-a example
         client::ycsb::YCSBProperties::SetProperties(client::ycsb::YCSBProperties::READ_PROPORTION_PROPERTY, 0.50);
@@ -293,7 +293,7 @@ namespace ca {
             return false;
         }
         LOG(INFO) << "Kill peer successfully: " << ip;
-        defaultPool.reset();
+        // defaultPool.reset();
         return true;
     }
 

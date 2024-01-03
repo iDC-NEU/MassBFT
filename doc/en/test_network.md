@@ -52,6 +52,8 @@ batch_timeout_ms: 100
 distributed: false
 ssh_username: user
 ssh_password: 123456
+running_path: /root/nc_bft/
+jvm_path: /root/nc_bft/corretto-16.0.2/bin/java
 replicator_lowest_port: 19990
 small_bank:
   target_throughput: 2000
@@ -68,7 +70,19 @@ ycsb:
   update_proportion: 0.5
 ```
 
+#### Note:
+* change "running_path" to BFT-SMART folder
+* change "jvm_path" to corretto in the nc_bft release
+* change "ssh_username" to your username
+* change "ssh_password" to your password
+* make sure your host can be accessed via ssh at default port
+
 Please name the configuration file as "peer.yaml" and place it in the execution path of the peer binary for it to be loaded.
+
+```sh
+cd mass_bft/build/standalone
+vi peer.yaml
+```
 
 ### Init the database
 
@@ -116,6 +130,13 @@ Before executing YCSB, ensure that the client sends transactions to Node 0 by mo
 ```yaml
 nodes:
   local_node_id: 0
+```
+
+### Clean the environment
+```shell
+cd /root/nc_bft
+rm -r data
+rm -f *.txt
 ```
 
 ### Troubleshooting

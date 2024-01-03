@@ -9,6 +9,18 @@ These files with the source codes are then automatically compiled, deployed, and
 In order to generate accurate configuration files, it is necessary to determine the number of clusters
 within the system and the quantity of nodes present within each cluster.
 
+Please confirm that all machines are accessible via SSH and have the same username and password
+
+We assume that the CA and peer share the same storage location for the source code,
+which is `_runningPath` (default is `/home/user`).
+The compressed package for PBFT-related components is named `nc_bft.zip`,
+and the compressed package for the system source code is named `ncp.zip`.
+The `nc_bft.zip` package includes the Clash component (configuration file `proxy.yaml`),
+which improves GitHub connection quality during compilation.
+Corretto 16.0.2 provides the Java runtime environment and PBFT components (`nc_bft.jar` and configuration files).
+The peer utilizes this directory as its default runtime directory.
+If the directory doesn't exist, the peer will raise a `path_not_found` exception and exit.
+
 ### 1. Compile and launch the CA backend.
 
 You can utilize the following code to compile and run the CA:
@@ -16,7 +28,14 @@ You can utilize the following code to compile and run the CA:
 ```shell
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/gcc-11 -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 -B build
 cmake --build build --target NBPStandalone_ca -j
-./build/standalone/ca
+./build/standalone/ca -r=/root
+```
+
+You can also prepend parameters before running the CA to override default values (modifications through configuration files for overrides are not supported).
+
+For example:
+```shell
+./build/standalone/ca -r=/tmp -b=bft -n=sc
 ```
 
 The CA backend listens on port 8081. Without utilizing the graphical frontend, you only need to send a POST request
@@ -47,11 +66,11 @@ For example: `${ca_server_ip}:8081/config/node`
 For example: `${ca_server_ip}:8081/config/nodes`
 ```json
 [
-  {"group_id": 0, "node_id": 0, "pub": "47.92.126.166", "pri": "172.26.160.1", "is_client": false},
-  {"group_id": 0, "node_id": 1, "pub": "39.100.65.141", "pri": "172.26.160.2", "is_client": false},
-  {"group_id": 0, "node_id": 2, "pub": "47.92.90.230", "pri": "172.26.160.3", "is_client": false},
-  {"group_id": 0, "node_id": 3, "pub": "47.92.117.115", "pri": "172.26.160.4", "is_client": false},
-  {"group_id": 0, "node_id": 0, "pub": "47.92.205.28", "pri": "172.26.160.5", "is_client": true}
+  {"group_id": 0, "node_id": 0, "pub": "47.74.19.210", "pri": "172.21.20.62", "is_client": false},
+  {"group_id": 0, "node_id": 1, "pub": "47.245.0.102", "pri": "172.21.20.63", "is_client": false},
+  {"group_id": 0, "node_id": 2, "pub": "47.91.11.55", "pri": "172.21.20.60", "is_client": false},
+  {"group_id": 0, "node_id": 3, "pub": "47.245.12.167", "pri": "172.21.20.64", "is_client": false},
+  {"group_id": 0, "node_id": 0, "pub": "47.245.0.8", "pri": "172.21.20.61", "is_client": true}
 ]
 ```
 
@@ -59,23 +78,53 @@ It's worth noting that each cluster requires a client to send messages; otherwis
 Furthermore, due to PBFT's default usage of the node with index 0 as the leader,
 the client must be configured to send messages to the 0th node of the cluster, ensuring optimal performance.
 
+
+Set the username and password of remote nodes:
+
+For example: `${ca_server_ip}:8081/peer/config`
+```json
+{
+    "parent": "",
+    "key": "ssh_username",
+    "value": "root"
+}
+```
+
+For example: `${ca_server_ip}:8081/peer/config`
+```json
+{
+    "parent": "",
+    "key": "ssh_password",
+    "value": "1_ssh_Password."
+}
+```
+
 ### 4. Upload the source code to remote nodes.
 
-We assume that the CA and peer share the same storage location for the source code,
-which is `_runningPath` (default is `/home/user`).
-The compressed package for PBFT-related components is named `nc_bft.zip`,
-and the compressed package for the system source code is named `ncp.zip`.
-The `nc_bft.zip` package includes the Clash component (configuration file `proxy.yaml`),
-which improves GitHub connection quality during compilation.
-Corretto 16.0.2 provides the Java runtime environment and PBFT components (`nc_bft.jar` and configuration files).
-The peer utilizes this directory as its default runtime directory.
-If the directory doesn't exist, the peer will raise a `path_not_found` exception and exit.
-
-You can also prepend parameters before running the CA to override default values (modifications through configuration files for overrides are not supported).
-
-For example:
+prepare ncp.zip
 ```shell
-./build/standalone/ca -r=/tmp -b=bft -n=sc
+cd ~  # in the parent path of mass_bft
+rm -rf ncp
+cp -r mass_bft ncp
+rm -rf ncp/build
+zip -r -q ncp.zip ncp
+```
+
+prepare nc_bft.zip (skip if you have already downloaded it)
+```shell
+cd ~
+wget https://github.com/iDC-NEU/mass_bft/releases/download/dep/nc_bft.zip
+```
+
+```
+root@iZ6weg2bv7ohyev6mlnzdsZ:~# tree -L 1
+.
+├── mass_bft
+├── nc_bft
+├── nc_bft.zip
+├── ncp
+├── ncp.zip
+└── snap
 ```
 
 After ensuring that `$(running_path)/nc_bft.zip` and `$(running_path)/ncp.zip` are prepared, you can use the following RPC to instruct the peer to compile the system:
@@ -167,3 +216,5 @@ For small bank:
 ```json
 { "name": "small_bank" }
 ```
+
+### Troubleshooting

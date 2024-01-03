@@ -168,7 +168,7 @@ namespace peer {
     // the block storage for ALL regions(including this one)
     class BlockLRUCache : public inner::BlockStorageBase<BlockLRUCache> {
     public:
-        explicit BlockLRUCache(int regionCount, int maxSize = 64)
+        explicit BlockLRUCache(int regionCount, int maxSize = 256)
                 : inner::BlockStorageBase<BlockLRUCache>(regionCount)
                 , blockStorage(regionCount) {
             for (auto& it: blockStorage) {

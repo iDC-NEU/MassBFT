@@ -356,7 +356,7 @@ namespace peer::consensus::v2 {
                 return -1;
             }
             res.votes.insert(voteChainId);
-            return res.votes.size();
+            return (int)res.votes.size();
         }
 
         // return -1 when is ok.
@@ -369,7 +369,7 @@ namespace peer::consensus::v2 {
             if (res.finished) {
                 return -1;
             }
-            return res.votes.size();
+            return (int)res.votes.size();
         }
 
         bool increaseLocalClock(int chainId, int blockId) {
@@ -390,9 +390,9 @@ namespace peer::consensus::v2 {
         class BlockVotes {
         public:
             struct Slot {
-                int blockId;
-                std::set<int> votes;
-                bool finished;
+                int blockId{};
+                std::unordered_set<int> votes;
+                bool finished{};
             };
 
             BlockVotes() {

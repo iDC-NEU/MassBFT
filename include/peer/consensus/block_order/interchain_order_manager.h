@@ -7,7 +7,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <stack>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -16,81 +16,129 @@
 #include "glog/logging.h"
 
 namespace peer::consensus::v2 {
-    // manage states from a set of correlated sub chains
     class InterChainOrderManager {
     public:
-        void setSubChainCount(int count) {
+        static constexpr int INVALID_WATERMARK = -1;
+        static constexpr int RESERVE_BLOCK_COUNT = 1024*1024;
+
+        void setGroupCount(int count) {
             std::unique_lock guard(mutex);
-            subChainCount = count;
+            chains = std::vector<Chain>(count);
+            for (auto& it: chains) {
+                it.chain.reserve(RESERVE_BLOCK_COUNT);
+            }
+            // init commitPQ
+            commitPQ = CommitBuffer();
             for (int i=0; i<count; i++) {
-                chains[i] = {};
+                auto* cell = createBlockIfNotExist(i, 0);
+                commitPQ.push(cell);
             }
         }
 
-        struct Cell {
-            int subChainId = -1;
-            int blockNumber = -1;
-            std::unordered_map<int, int> decisions;
-            // after we collect ALL decisions, we generate the final vector clock
-            // prevent std::numeric_limits<int>::max() increase overflow
-            std::vector<int64_t> finalDecision;
+        void setDeliverCallback(auto&& cb) { deliverCallback = std::forward<decltype(cb)>(cb); }
 
-            // if final vc is calculated, the block can commit
-            inline bool canAddToCommitBuffer() const {
-                return !finalDecision.empty();
+    protected:
+        class CommitBuffer;
+
+    public:
+        class Cell {
+        public:
+            explicit Cell(int groupCount, int groupId_, int blockId_)
+                    : groupId(groupId_),
+                      blockId(blockId_),
+                      watermarks(groupCount, INVALID_WATERMARK),
+                      isSet(groupCount, false) {
+                setIthWaterMark(groupId_, blockId_); // this is known by default
             }
 
-            bool mergeDecisions() {
-                finalDecision = std::vector<int64_t>(decisions.size(), -1);
-                for (int i=0; i<(int)finalDecision.size(); i++) {
-                    auto ret = decisions.find(i);
-                    CHECK(ret != decisions.end()) << "Missing decisions!";
-                    finalDecision[i] = ret->second;
+            const int groupId;
+
+            const int blockId;
+
+            friend class CommitBuffer;
+
+        private:
+            std::vector<int> watermarks;
+
+            std::vector<bool> isSet;
+
+            bool operator<(const Cell* rhs) const { // used by pq
+                CHECK(this->watermarks.size() == rhs->watermarks.size());
+                return maybeLessThan(rhs);
+            }
+
+            bool maybeLessThan(const Cell* rhs) const {
+                for (int i=0; i<(int)this->watermarks.size(); i++) {
+                    if (this->watermarks[i] != rhs->watermarks[i]) {
+                        // ensure cell with INVALID_WATERMARK sort before other blocks
+                        return this->watermarks[i] < rhs->watermarks[i];
+                    }
+                    if (this->isSet[i] != rhs->isSet[i]) {
+                        return this->isSet[i];  // if this->isSet[i] == false, rhs is ordered before this
+                    }
                 }
-                // additional check, may be unnecessary
-                CHECK(decisions[subChainId] == blockNumber - 1 || decisions[subChainId] == std::numeric_limits<int>::max()) << "Input error!";
-                return true;
+                // when two cells have the same watermark
+                if (this->blockId != rhs->blockId) {
+                    return this->blockId < rhs->blockId;
+                }
+                // when two cells have the same blockId
+                CHECK(this->groupId != rhs->groupId) << "two group id are equal";
+                return this->groupId < rhs->groupId;
+            }
+
+        public:
+            bool mustLessThan(const Cell* rhs) const {
+                for (int i=0; i<(int)this->watermarks.size(); i++) {
+                    if (!this->isSet[i]) {
+                        return false;
+                    }
+                    if (this->watermarks[i] != rhs->watermarks[i]) {
+                        return this->watermarks[i] < rhs->watermarks[i];
+                    }
+                }
+                if (this->blockId != rhs->blockId) {
+                    return this->blockId < rhs->blockId;
+                }
+                return this->groupId < rhs->groupId;
+            }
+
+            void setIthWaterMark(int i, int value) {
+                CHECK(watermarks[i] <= value);  // ensure compare fairness
+                isSet[i] = true;
+                watermarks[i] = value;
             }
 
             void printDebugString() const {
                 std::string weightStr = "{";
-                for (const auto& it: this->finalDecision) {
+                for (const auto& it: this->watermarks) {
                     weightStr.append(std::to_string(it)).append(", ");
                 }
                 weightStr.append("}");
-                LOG(INFO) << this->subChainId << " " << this->blockNumber << ", weight:" << weightStr;
+                LOG(INFO) << this->groupId << " " << this->blockId << ", watermarks:" << weightStr;
             }
-
-            bool operator<(const Cell* rhs) const {
-                CHECK(this->canAddToCommitBuffer() && rhs->canAddToCommitBuffer());
-                // compare vector clock (happen before)
-                for (int i=0; i<(int)finalDecision.size(); i++) {
-                    auto& l = finalDecision[i];
-                    auto& r = rhs->finalDecision[i];
-                    if (l == r) {
-                        continue;
-                    }
-                    return l < r;
-                }
-                // when two cells have the same vector clock
-                if (subChainId < rhs->subChainId) {
-                    return true;
-                }
-                if (subChainId > rhs->subChainId) {
-                    return false;
-                }
-                // when two cells have the same subChainId
-                CHECK(blockNumber != rhs->blockNumber) << "two block number are equal";
-                return blockNumber < rhs->blockNumber;
-            }
-
         };
 
     protected:
+        struct Chain {
+            std::vector<std::unique_ptr<Cell>> chain;
+        };
+
         class CommitBuffer {
-        public:
-            void push(Cell* c) {
-                buffer.push_back(c);
+        protected:
+            bool contains(Cell* c, int* pos = nullptr) {
+                for (int i = 0; i < (int)buffer.size(); i++) {
+                    if (buffer[i] != c) {
+                        continue;
+                    }
+                    if (pos != nullptr) {
+                        *pos = i;
+                    }
+                    return true;
+                }
+                return false;
+            }
+
+            void sortLastElement() {
                 int rhsPos = (int)buffer.size()-1;
                 for (int i = (int)buffer.size()-2; i >= 0; i--) {
                     if (!(*buffer[rhsPos] < buffer[i])) {
@@ -102,23 +150,54 @@ namespace peer::consensus::v2 {
             }
 
             Cell* pop() {
-                if (empty()) {
-                    return nullptr;
-                }
+                CHECK(!buffer.empty());
                 auto* elem = buffer.front();
                 buffer.erase(buffer.begin());
                 return elem;
             }
 
+        public:
+            void push(Cell* c) {    // call only when init
+                CHECK(!contains(c));
+                buffer.push_back(c);
+                sortLastElement();
+            }
+
             [[nodiscard]] Cell* top() const {
-                if (empty()) {
-                    return nullptr;
-                }
+                CHECK(!buffer.empty());
                 return buffer.front();
             }
 
-            [[nodiscard]] bool empty() const {
-                return buffer.empty();
+            Cell* exchange(Cell* c) {
+                CHECK(!contains(c));
+                auto* top = pop();
+                CHECK(top->blockId == c->blockId - 1);
+                CHECK(top->groupId == c->groupId);
+                CHECK(top->watermarks.size() == c->watermarks.size());
+                for (int i=0; i<(int)top->watermarks.size(); i++) {
+                    if (c->isSet[i]) {
+                        CHECK(top->watermarks[i] <= c->watermarks[i]);
+                        continue;
+                    }
+                    // update estimate watermark
+                    c->watermarks[i] = top->watermarks[i];
+                }
+                buffer.push_back(c);
+                sortLastElement();
+                return top;
+            }
+
+            [[nodiscard]] bool canPop() const {
+                CHECK(!buffer.empty());
+                if (buffer.size() == 1) {
+                    return true;
+                }
+                auto* top = buffer[0];
+                auto* second = buffer[1];
+                if (top->mustLessThan(second)) {
+                    return true;
+                }
+                return false;
             }
 
             void print() const {
@@ -132,193 +211,75 @@ namespace peer::consensus::v2 {
                 }
             }
 
+            void updateEstimateWatermark(int groupId, int watermark) {
+                std::vector<Cell*> tmp = std::move(buffer);
+                for (auto& it: tmp) {
+                    if (groupId == it->groupId) {
+                        continue; // skip updating local group (its watermark has been pre-set)
+                    }
+                    CHECK(it->watermarks[groupId] <= watermark);
+                    if (it->isSet[groupId]) {
+                        continue;
+                    }
+                    it->watermarks[groupId] = watermark;
+                }
+                for (auto& it: tmp) {
+                    push(it);
+                }
+            }
+
         private:
             std::vector<Cell*> buffer;
         };
 
-    protected:
-        struct Chain {
-            int lastFinished = -1;  // The vector clocks before last finished have been added to commit buffer
-            std::unordered_map<int, std::unique_ptr<Cell>> blocks;
-        };
-
-        Cell* findCell(int subChainId, int blockNumber, bool createIfNotExist) {
-            auto chain = chains.find(subChainId);
-            if (chain == chains.end()) {
-                return nullptr;
+        Cell* createBlockIfNotExist(int groupId, int blockId) {
+            CHECK((int)chains.size() > groupId);
+            auto& blocks = chains[groupId];
+            // expand blocks if too small
+            while ((int)blocks.chain.size() <= blockId) {
+                blocks.chain.push_back(std::make_unique<Cell>(static_cast<int>(chains.size()), groupId, blockId));    // insert new cell
             }
-            auto& blocks = chain->second.blocks;
-            auto block = blocks.find(blockNumber);
-            if (block == blocks.end()) {
-                if (createIfNotExist) {
-                    // create if not exist
-                    auto ret = blocks.emplace(blockNumber, std::make_unique<Cell>());
-                    if (!ret.second) {
-                        return nullptr;
-                    }
-                    auto* cell = ret.first->second.get();
-                    cell->subChainId = subChainId;
-                    cell->blockNumber = blockNumber;
-                    cell->decisions.reserve(subChainCount);
-                    // fill in crash group decisions
-                    for (const auto& it: invalidGroupList) {
-                        // maybe unnecessary
-                        cell->decisions.insert(std::make_pair(it, std::numeric_limits<int>::max()));
-                    }
-                    return cell;
-                }
-                return nullptr;
-            }
-            return block->second.get();
+            return blocks.chain[blockId].get();
         }
 
     public:
-        bool invalidateChain(int subChainId) {
+        void pushDecision(int groupId, int blockId, int voteGroupId, int voteGroupWatermark) {
+            if (voteGroupId == groupId) {
+                LOG_IF(WARNING, voteGroupWatermark != blockId) << "voteGroupWatermark is not equal to blockId!";
+                voteGroupWatermark = blockId;
+                if (chains.size() > 1) {
+                    return;    // we will learn voteGroupWatermark from other groups later
+                }
+            }
             std::unique_lock guard(mutex);
-            if (!invalidGroupList.insert(subChainId).second) {
-                return true;    // already invalidated
+            // LOG(INFO) << groupId << ", " << blockId << ", " << voteGroupId << ", " <<voteGroupWatermark;
+            auto* cell = createBlockIfNotExist(groupId, blockId);
+            cell->setIthWaterMark(voteGroupId, voteGroupWatermark);
+
+            // voteGroupId cannot vote watermark smaller than voteGroupWatermark after this!
+            commitPQ.updateEstimateWatermark(voteGroupId, voteGroupWatermark);
+            // resort the queue in updateEstimateWatermark
+
+            while (commitPQ.canPop()) {
+                // exchange element
+                auto *first = commitPQ.top();
+                auto *last = createBlockIfNotExist(first->groupId, first->blockId + 1);
+
+                cell = commitPQ.exchange(last);
+                CHECK(cell == first);
+
+                deliverCallback(first);
             }
-            LOG(WARNING) << "Invalidate chain of group: " << subChainId;
-            // all unfilled decisions is marked invalid
-            for (int i=0; i<subChainCount; i++) {
-                auto chain = chains.find(i);
-                if (chain == chains.end()) {
-                    return false;
-                }
-                for (int j=chain->second.lastFinished; ; j++) {
-                    auto* cell = findCell(i, j, false); // do not create if not exist
-                    if (cell == nullptr) {
-                        break;  // the sub chain is purged
-                    }
-                    if (cell->decisions.contains(subChainId)) {
-                        continue;   // has already decide
-                    }
-                    if (!pushDecisionWithoutLock(i, j, std::make_pair(subChainId, std::numeric_limits<int>::max()))) {
-                        return false;   // decide it
-                    }
-                }
-            }
-            return true;
         }
 
     private:
-        std::unordered_set<int> invalidGroupList;
+        std::mutex mutex;   // for chains
 
-    public:
-        inline bool pushDecision(int subChainId, int blockNumber, std::pair<int, int> decision) {
-            std::unique_lock guard(mutex);
-            return pushDecisionWithoutLock(subChainId, blockNumber, decision);
-        }
+        std::vector<Chain> chains;  // store all the blocks in order
 
-    protected:
-        bool pushDecisionWithoutLock(int subChainId, int blockNumber, std::pair<int, int> decision) {
-            auto* cell = findCell(subChainId, blockNumber, true);
-            CHECK(cell != nullptr) << "Impl error!";
-            // prevent unordered concurrent access
-            if (cell->canAddToCommitBuffer()) {
-                // return true if not an internal error (should not be displayed)
-                return true;
-            }
-            // LOG(INFO) << "Add decision for cell: " << subChainId << ", blk: " << blockNumber << ", dec: " << decision.first << ", " << decision.second;
-            cell->decisions.insert(std::move(decision));
-            // prevent out-of-order insert
-            while (cell != nullptr && cell->blockNumber-1 == chains[cell->subChainId].lastFinished) {
-                // enter decision loop
-                if ((int)cell->decisions.size() != subChainCount) {
-                    DCHECK((int)cell->decisions.size() < subChainCount);
-                    return true;
-                }
-                if (!cell->mergeDecisions()) {
-                    return false;
-                }
-                if (!decideV2(cell)) {
-                    return false;
-                }
-                cell = findCell(cell->subChainId, cell->blockNumber+1, false);
-            }
-            return true;
-        }
+        std::function<void(const peer::consensus::v2::InterChainOrderManager::Cell* cell)> deliverCallback;  // execute block in order
 
-    protected:
-        // after we get all decisions, we create a final decision
-        bool decideV2(Cell* cell) {
-            // The vc of all blocks that the block depends on has been calculated,
-            // it is added to the commit collection to determine its position later
-            CHECK(chains[cell->subChainId].lastFinished == cell->blockNumber - 1);
-            chains[cell->subChainId].lastFinished = cell->blockNumber;
-            // DLOG(INFO) << "Push block:"; cell->printDebugString();
-            commitBuffer.push(cell);
-
-            while(!commitBuffer.empty()) {
-                cell = commitBuffer.top();
-                // check if all cell it depends on is committed already
-                for (int i=0; i<(int)cell->finalDecision.size(); i++) {
-                    // iter through chain, i: chainId
-                    if (i == cell->subChainId) {
-                        continue;   // skip itself
-                    }
-                    if (cell->finalDecision[i] == std::numeric_limits<int>::max()) {
-                        continue;   // skip crash decisions
-                    }
-                    const auto& lastFinished = chains[i].lastFinished;
-                    if (lastFinished == -1) {
-                        // Optimization
-                        auto rhs = createBarCell(i);
-                        if (!cell->operator<(rhs.get())) {
-                            return true; // retry later
-                        }
-                        continue;   // can safely commit
-                    }
-                    // Normal cases
-                    if (lastFinished < cell->finalDecision[i]) {
-                        return true; // retry later
-                    }
-                    // ----compare vector clocks start
-                    auto* rhs = findCell(i, lastFinished, false);
-                    CHECK(rhs != nullptr) << "Impl error!";
-                    // ----DEFAULT VERSION START
-                    // auto cmpResult = cell->operator<(rhs);
-                    // ----DEFAULT VERSION END
-                    // Note: explain finalDecision[rhs->subChainId]++, compare with chain[id][lastFinish+1]
-                    // ----Optimization 3 lines, TODO: double check
-                     rhs->finalDecision[rhs->subChainId]++;
-                     auto cmpResult = cell->operator<(rhs);
-                     rhs->finalDecision[rhs->subChainId]--;
-                    // ----Optimization END
-                    if (!cmpResult) {
-                        // the block after res still may < than cell, still have to wait
-                        return true;
-                    }
-                    // the block after res still must larger than cell, can add to buffer safely
-                    // ----compare vector clocks end
-                }
-                commitBuffer.pop();
-                callback(cell);
-            }
-            return true;
-        }
-
-    public:
-        void setDeliverCallback(auto&& cb) { callback = std::forward<decltype(cb)>(cb); }
-
-        void printBuffer() const { commitBuffer.print(); }
-
-    protected:
-        [[nodiscard]] std::unique_ptr<Cell> createBarCell(int subChainId) const {
-            auto barCell = std::make_unique<Cell>();
-            // the vc of next block must be greater(or equal) than barCell
-            barCell->finalDecision = std::vector<int64_t>(subChainCount, -1);
-            barCell->subChainId = subChainId;
-            barCell->blockNumber = -1;
-            return barCell;
-        }
-
-    private:
-        std::mutex mutex;
-        std::unordered_map<int, Chain> chains;
-        int subChainCount = 0;
-        CommitBuffer commitBuffer;
-        std::function<void(const Cell*)> callback;
+        CommitBuffer commitPQ;
     };
 
     class OrderAssigner {
@@ -340,7 +301,7 @@ namespace peer::consensus::v2 {
             res.finished = true;
             auto ret = std::make_pair(_chainId, _myClock);
             if (_chainId == chainId) {
-                ret = std::make_pair(_chainId, blockId - 1);
+                ret = std::make_pair(_chainId, blockId);
             }
             return ret;
         }
@@ -356,7 +317,7 @@ namespace peer::consensus::v2 {
                 return -1;
             }
             res.votes.insert(voteChainId);
-            return res.votes.size();
+            return (int)res.votes.size();
         }
 
         // return -1 when is ok.
@@ -369,7 +330,7 @@ namespace peer::consensus::v2 {
             if (res.finished) {
                 return -1;
             }
-            return res.votes.size();
+            return (int)res.votes.size();
         }
 
         bool increaseLocalClock(int chainId, int blockId) {
@@ -390,9 +351,9 @@ namespace peer::consensus::v2 {
         class BlockVotes {
         public:
             struct Slot {
-                int blockId;
+                int blockId{};
                 std::set<int> votes;
-                bool finished;
+                bool finished{};
             };
 
             BlockVotes() {

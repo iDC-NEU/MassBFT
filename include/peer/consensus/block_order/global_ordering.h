@@ -137,11 +137,11 @@ namespace peer::consensus::v2 {
         void init(int groupCount, std::unique_ptr<LocalDistributor> ld) override {
             RaftCallback::init(groupCount, std::move(ld));
             auto om = std::make_unique<v2::InterChainOrderManager>();
-            om->setSubChainCount(groupCount);
+            om->setGroupCount(groupCount);
             om->setDeliverCallback([this](const v2::InterChainOrderManager::Cell* c) {
                 // return the final decision to caller
-                if (!onExecuteBlock(c->subChainId, c->blockNumber)) {
-                    LOG(ERROR) << "Execute block failed, bid: " << c->blockNumber;
+                if (!onExecuteBlock(c->groupId, c->blockId)) {
+                    LOG(ERROR) << "Execute block failed, bid: " << c->blockId;
                 }
             });
             _orderManager = std::move(om);
@@ -170,15 +170,14 @@ namespace peer::consensus::v2 {
             if (bo.voteChainId == -1) {   // this is an error message
                 CHECK(bo.blockId == -1 && bo.voteBlockId == -1);
                 // the group is down, invalid all the block
-                return _orderManager->invalidateChain(bo.chainId);
+                // return _orderManager->invalidateChain(bo.chainId);
             }
             // if is leader, increase local vc
             if (_increaseVCCallback) {
                 _increaseVCCallback(bo.chainId, bo.blockId);
             }
-            return _orderManager->pushDecision(bo.chainId, bo.blockId, { bo.voteChainId, bo.voteBlockId });
-            // Optimize-1: order next block as soon as receiving the previous block
-            // return _orderManager->pushDecision(bo.chainId, bo.blockId + 1, { bo.voteChainId, bo.voteBlockId + 1 });
+            _orderManager->pushDecision(bo.chainId, bo.blockId,  bo.voteChainId, bo.voteBlockId);
+            return true;
         }
 
     private:

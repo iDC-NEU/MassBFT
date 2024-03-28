@@ -102,16 +102,21 @@ namespace peer::consensus::v2 {
                 return this->groupId < rhs->groupId;
             }
 
-            void setIthWaterMark(int i, int value) {
+            bool setIthWaterMark(int i, int value) {
+                if (isSet[i]) {
+                    CHECK(watermarks[i] == value);
+                    return false;
+                }
                 CHECK(watermarks[i] <= value);  // ensure compare fairness
                 isSet[i] = true;
                 watermarks[i] = value;
+                return true;
             }
 
             void printDebugString() const {
                 std::string weightStr = "{";
-                for (const auto& it: this->watermarks) {
-                    weightStr.append(std::to_string(it)).append(", ");
+                for (int i=0; i<(int)watermarks.size(); i++) {
+                    weightStr.append(std::to_string(watermarks[i]) + " " + std::to_string(isSet[i])).append(", ");
                 }
                 weightStr.append("}");
                 LOG(INFO) << this->groupId << " " << this->blockId << ", watermarks:" << weightStr;
@@ -201,13 +206,8 @@ namespace peer::consensus::v2 {
             }
 
             void print() const {
-                Cell* prev = nullptr;
                 for (const auto& it: buffer) {
                     it->printDebugString();
-                    if (prev) {
-                        CHECK(*prev < it);
-                    }
-                    prev = it;
                 }
             }
 
@@ -217,10 +217,10 @@ namespace peer::consensus::v2 {
                     if (groupId == it->groupId) {
                         continue; // skip updating local group (its watermark has been pre-set)
                     }
-                    CHECK(it->watermarks[groupId] <= watermark);
                     if (it->isSet[groupId]) {
                         continue;
                     }
+                     CHECK(it->watermarks[groupId] <= watermark) << "watermarks:" << it->watermarks[groupId];
                     it->watermarks[groupId] = watermark;
                 }
                 for (auto& it: tmp) {
@@ -252,9 +252,18 @@ namespace peer::consensus::v2 {
                 }
             }
             std::unique_lock guard(mutex);
-            // LOG(INFO) << groupId << ", " << blockId << ", " << voteGroupId << ", " <<voteGroupWatermark;
             auto* cell = createBlockIfNotExist(groupId, blockId);
-            cell->setIthWaterMark(voteGroupId, voteGroupWatermark);
+            if (!cell->setIthWaterMark(voteGroupId, voteGroupWatermark)) {
+                return; // Need to remove duplicates
+            }
+
+            // use to test if all nodes runs in the same order
+            // static auto gid = std::this_thread::get_id();
+            // LOG(INFO) << "Node " << gid << " execute " << groupId << ", " << blockId << ", " << voteGroupId << ", " <<voteGroupWatermark;
+            static int counter = 0;
+            if (counter++ % 100 == 0) {
+                commitPQ.print();
+            }
 
             // voteGroupId cannot vote watermark smaller than voteGroupWatermark after this!
             commitPQ.updateEstimateWatermark(voteGroupId, voteGroupWatermark);

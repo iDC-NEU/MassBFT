@@ -139,6 +139,11 @@ namespace peer::consensus::v2 {
             auto om = std::make_unique<v2::InterChainOrderManager>();
             om->setGroupCount(groupCount);
             om->setDeliverCallback([this](const v2::InterChainOrderManager::Cell* c) {
+                // use to test if all nodes runs in the same order
+                // static int idx = 0;
+                // static auto gid = std::this_thread::get_id();
+                // LOG(INFO) << "Node " << gid << " execute " << idx ++ << " " << c->groupId << " " << c->blockId;
+
                 // return the final decision to caller
                 if (!onExecuteBlock(c->groupId, c->blockId)) {
                     LOG(ERROR) << "Execute block failed, bid: " << c->blockId;
@@ -176,6 +181,7 @@ namespace peer::consensus::v2 {
             if (_increaseVCCallback) {
                 _increaseVCCallback(bo.chainId, bo.blockId);
             }
+            // LOG(INFO)  << "DEBUG  " << bo.chainId << ", " << bo.blockId << ", " << bo.voteChainId << ", " <<bo.voteBlockId;
             _orderManager->pushDecision(bo.chainId, bo.blockId,  bo.voteChainId, bo.voteBlockId);
             return true;
         }

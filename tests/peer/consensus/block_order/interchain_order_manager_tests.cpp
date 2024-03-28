@@ -14,9 +14,9 @@ protected:
     void SetUp() override {
         iom = std::make_unique<peer::consensus::v2::InterChainOrderManager>();
         queue = {};
-        iom->setSubChainCount(3);   // 3 regions tests
+        iom->setGroupCount(3);   // 3 regions tests
         iom->setDeliverCallback([&](const peer::consensus::v2::InterChainOrderManager::Cell* cell) {
-            LOG(INFO) << "ChainNumber: " << cell->subChainId << ", BlockNumber: " << cell->blockNumber;
+            LOG(INFO) << "ChainNumber: " << cell->groupId << ", BlockNumber: " << cell->blockId;
             queue.push(cell);
         });
     };
@@ -24,10 +24,40 @@ protected:
     void TearDown() override {
     };
 
-    void pushHelper(int subChainId, int blockNumber, const std::vector<int>& decision) {
+    void pushHelper(int groupId, int blockId, const std::vector<int>& decision) {
         for (int i=0; i<(int)decision.size(); i++) {
-            ASSERT_TRUE(iom->pushDecision(subChainId, blockNumber, {i, decision[i]}));
+            iom->pushDecision(groupId, blockId, i, decision[i]);
         }
+    }
+
+    struct Vote {
+        int groupId;
+        int blockId;
+        int voteGroupId;
+        int voteWatermark;
+    };
+
+    void pushHelper(const std::vector<Vote>& decision) {
+        for (const auto & it : decision) {
+            LOG(INFO) << it.voteGroupId << " vote " << it.voteWatermark << " to block (" << it.groupId << "," << it.blockId << ")";
+            iom->pushDecision(it.groupId, it.blockId, it.voteGroupId, it.voteWatermark);
+        }
+    }
+
+    bool inOrder(const std::vector<std::pair<int, int>>& blocks) {
+        if (blocks.size() != queue.size()) {
+            return false;
+        }
+        int idx = 0;
+        while (!queue.empty()) {
+            auto* top = queue.front();
+            queue.pop();
+            if (top->groupId != blocks[idx].first || top->blockId != blocks[idx].second) {
+                return false;
+            }
+            idx++;
+        }
+        return true;
     }
 
     std::unique_ptr<peer::consensus::v2::InterChainOrderManager> iom;
@@ -36,173 +66,159 @@ protected:
 
 TEST_F(OrderManagerTest, BasicTest1) {  // block 0,0 must pop
     std::vector<std::tuple<int, int, std::vector<int>>> input {
-            {0, 0, {-1, -1, -1}}
+            {0, 0, {0, -1, -1}},
     };
     for (const auto& it: input) {
         pushHelper(std::get<0>(it), std::get<1>(it), std::get<2>(it));
     }
+    // we learned that group 0 increase its local clock to 0
+    pushHelper({Vote{1, 0, 0, 0}});
     ASSERT_TRUE(queue.size() == 1);
     auto* cell = queue.front();
-    ASSERT_TRUE(cell->subChainId == 0);
-    ASSERT_TRUE(cell->blockNumber == 0);
+    ASSERT_TRUE(cell->groupId == 0);
+    ASSERT_TRUE(cell->blockId == 0);
 }
 
-TEST_F(OrderManagerTest, BasicTest2) {  // block 1,0 must wait
+TEST_F(OrderManagerTest, BasicTest2) {
+    // block 1,0 {-1, 0, -1} must pop
+    // reason: block 0,0: 1st bit must be 0, 2nd bit must >=0 (using group 1's consensus instance)
     std::vector<std::tuple<int, int, std::vector<int>>> input {
-            {1, 0, {-1, -1, -1}}
+            {1, 0, {-1, 0, -1}}
     };
     for (const auto& it: input) {
         pushHelper(std::get<0>(it), std::get<1>(it), std::get<2>(it));
     }
+    // we learned that group 1 increase its local clock to 0
+    pushHelper({Vote{0, 0, 1, 0}});
+    ASSERT_TRUE(queue.size() == 1);
+    auto* cell = queue.front();
+    ASSERT_TRUE(cell->groupId == 1);
+    ASSERT_TRUE(cell->blockId == 0);
+}
+
+TEST_F(OrderManagerTest, BasicTest3) {
+    pushHelper({Vote{0, 0, 0, 0}}); // group 0 vote 0,0 to 0 (preset)
+    pushHelper({Vote{0, 0, 1, -1}}); // group 1 vote 0,0 to -1
+    pushHelper({Vote{1, 0, 1, 0}}); // group 1 vote 1,0 to 0 (preset)
+    pushHelper({Vote{1, 0, 0, -1}}); // group 0 vote 1,0 to -1
+    pushHelper({Vote{1, 1, 1, 1}}); // group 1 vote 1,1 to 1 (preset)
+    pushHelper({Vote{1, 2, 1, 2}}); // group 1 vote 1,2 to 2 (preset)
     ASSERT_TRUE(queue.empty());
+    // we learned that group 0 increase its local clock to 0
+    pushHelper({Vote{1, 1, 0, 0}}); // group 0 vote 1,1 to 0
+    ASSERT_TRUE(queue.size() == 2);
+    pushHelper({Vote{1, 2, 0, 0}}); // group 0 vote 1,2 to 0
+    // we learned that group 1 increase its local clock to 2
+    pushHelper({Vote{0, 1, 1, 2}}); // group 1 vote 0,1 to 2
+    ASSERT_TRUE(inOrder({{1, 0}, {0, 0}, {1, 1}}));
 }
 
-TEST_F(OrderManagerTest, BasicTest3) {  // block 0,1 -> must also pop
-    std::vector<std::tuple<int, int, std::vector<int>>> input {
-            {0, 0, {-1, -1, -1}},
-            {1, 0, {0, -1, -1}},
-            {0, 1, {0, -1, -1}},
-            {2, 0, {1, -1, -1}},
-    };
-    for (const auto& it: input) {
-        pushHelper(std::get<0>(it), std::get<1>(it), std::get<2>(it));
-    }
-    iom->printBuffer();
-    ASSERT_TRUE(!queue.empty());
-    queue.pop();
-    auto* cell = queue.back();
-    ASSERT_TRUE(cell->subChainId == 1);
-    ASSERT_TRUE(cell->blockNumber == 0);
+TEST_F(OrderManagerTest, BasicTest4) {
+    pushHelper({Vote{0, 0, 0, 0}}); // group 0 vote 0,0 to 0 (preset)
+    pushHelper({Vote{1, 0, 0, -1}}); // group 0 vote 1,0 to -1
+    // we learned that group 0 increase its local clock to 0
+    pushHelper({Vote{1, 1, 0, 0}}); // group 0 vote 1,1 to 0
+    pushHelper({Vote{1, 2, 0, 0}}); // group 0 vote 1,2 to 0
+    pushHelper({Vote{0, 0, 1, -1}}); // group 1 vote 0,0 to -1
+    pushHelper({Vote{1, 0, 1, 0}}); // group 1 vote 1,0 to 0 (preset)
+    pushHelper({Vote{1, 1, 1, 1}}); // group 1 vote 1,1 to 1 (preset)
+    pushHelper({Vote{1, 2, 1, 2}}); // group 1 vote 1,2 to 2 (preset)
+    // we learned that group 1 increase its local clock to 2
+    pushHelper({Vote{0, 1, 1, 2}}); // group 1 vote 0,1 to 2
+    ASSERT_TRUE(inOrder({{1, 0}, {0, 0}, {1, 1}}));
 }
 
-TEST_F(OrderManagerTest, BasicTest4) {  // block 1,1 -> must wait
-    std::vector<std::tuple<int, int, std::vector<int>>> input {
-            {0, 0, {-1, -1, -1}},
-            {1, 0, {-1, -1, -1}},
-            {2, 0, {-1, -1, -1}},
-            {1, 1, {-1, 0, -1}},
-    };
-    for (const auto& it: input) {
-        pushHelper(std::get<0>(it), std::get<1>(it), std::get<2>(it));
+TEST_F(OrderManagerTest, TestUnBalanced1) { // #0 is slow (1:2)
+    int round = 10000;
+    for (int i=0; i<round; i++) {
+        pushHelper({Vote{1, i*2,    1, i*2  }}); // group 1 vote 1,0 to 0 (preset)
+        pushHelper({Vote{1, i*2+1,  1, i*2+1}}); // group 1 vote 1,1 to 1 (preset)
+        // we learned that group 1 increase its local clock to 1
+        pushHelper({Vote{0, i, 1, i*2+1}}); // group 1 vote 0,0 to 1
+
+        // group 1 vote 1,2 to 2 (preset)
+        // group 1 vote 1,3 to 3 (preset)
+        // we learned that group 1 increase its local clock to 3
+        // group 1 vote 0,1 to 3
     }
-    iom->printBuffer();
-    ASSERT_TRUE(!queue.empty());
-    queue.pop();
-    auto* cell = queue.back();
-    ASSERT_TRUE(cell->subChainId == 2);
-    ASSERT_TRUE(cell->blockNumber == 0);
+
+    for (int i=0; i<round; i++) {
+        // we learned that group 0 increase its local clock to -1
+        pushHelper({Vote{1, i*2, 0, i-1}}); // group 0 vote 1,0 to -1
+        pushHelper({Vote{0, i, 0, i}}); // group 0 vote 0,0 to 0 (preset)
+        pushHelper({Vote{1, i*2+1, 0, i-1}}); // group 0 vote 1,1 to -1
+
+        // group 0 vote 1,2 to 0
+        // group 0 vote 0,0 to 1 (preset)
+        // group 0 vote 1,3 to 0
+    }
+
+    std::vector<std::pair<int, int>> blocks;
+    for (int i=0; i<round; i++) {
+        blocks.emplace_back(1, 2*i);
+        blocks.emplace_back(1, 2*i+1);
+        blocks.emplace_back(0, i);
+    }
+    blocks.pop_back();
+    blocks.pop_back();
+    ASSERT_TRUE(inOrder(blocks));
 }
 
-TEST_F(OrderManagerTest, OutOfOrder) {  // BasicTest3
-    std::vector<std::tuple<int, int, std::vector<int>>> input {
-            {1, 0, {0, -1, -1}},
-            {2, 0, {1, -1, -1}},
-            {0, 0, {-1, -1, -1}},
-            {0, 1, {0, -1, -1}},
-            // blocks within a sub chain must in order
+TEST_F(OrderManagerTest, TestUnBalanced2) { // multi thread
+    int round = 10000;
+
+    auto func1 = [&]() {
+        for (int i=0; i<round; i++) {
+            std::this_thread::yield();
+            pushHelper({Vote{1, i*2,    1, i*2  }}); // group 1 vote 1,0 to 0 (preset)
+            pushHelper({Vote{1, i*2+1,  1, i*2+1}}); // group 1 vote 1,1 to 1 (preset)
+            // we learned that group 1 increase its local clock to 1
+            pushHelper({Vote{0, i, 1, i*2+1}}); // group 1 vote 0,0 to 1
+
+            // group 1 vote 1,2 to 2 (preset)
+            // group 1 vote 1,3 to 3 (preset)
+            // we learned that group 1 increase its local clock to 3
+            // group 1 vote 0,1 to 3
+        }
     };
-    for (const auto& it: input) {
-        pushHelper(std::get<0>(it), std::get<1>(it), std::get<2>(it));
-    }
-    iom->printBuffer();
-    ASSERT_TRUE(!queue.empty());
-    queue.pop();
-    auto* cell = queue.back();
-    ASSERT_TRUE(cell->subChainId == 1);
-    ASSERT_TRUE(cell->blockNumber == 0);
-}
+    auto func2 = [&]() {
+        for (int i=0; i<round; i++) {
+            std::this_thread::yield();
+            // we learned that group 0 increase its local clock to -1
+            pushHelper({Vote{1, i*2, 0, i-1}}); // group 0 vote 1,0 to -1
+            pushHelper({Vote{0, i, 0, i}}); // group 0 vote 0,0 to 0 (preset)
+            pushHelper({Vote{1, i*2+1, 0, i-1}}); // group 0 vote 1,1 to -1
 
-TEST_F(OrderManagerTest, TestUnBalanced1) { // #2 is slowest (5, 3, 1)
-    std::vector<std::tuple<int, int, std::vector<int>>> input {
-            {0, 0, {-1, -1, -1}},
-            {1, 0, {-1, -1, -1}},
-            {2, 0, {4, 2, -1}},     // (2, 0) must know that (0, 4) and (1, 2) is finished
-
-            {0, 1, {0, -1, -1}},
-            {1, 1, {-1, 0, -1}},
-
-            {0, 2, {1, -1, -1}},
-            {1, 2, {4, 1, -1}},    // (1, 2) must know that (0, 4) is finished
-
-            {0, 3, {2, -1, -1}},
-
-            {0, 4, {3, -1, -1}},
+            // group 0 vote 1,2 to 0
+            // group 0 vote 0,0 to 1 (preset)
+            // group 0 vote 1,3 to 0
+        }
     };
-    for (const auto& it: input) {
-        pushHelper(std::get<0>(it), std::get<1>(it), std::get<2>(it));
+
+    std::thread sender_2(func2);
+    std::thread sender_1(func1);
+
+    sender_2.join();
+    sender_1.join();
+
+    std::vector<std::pair<int, int>> blocks;
+    for (int i=0; i<round; i++) {
+        blocks.emplace_back(1, 2*i);
+        blocks.emplace_back(1, 2*i+1);
+        blocks.emplace_back(0, i);
     }
-    iom->printBuffer();
-    ASSERT_TRUE(!queue.empty());
-    queue.pop();
-    auto* cell = queue.back();
-    ASSERT_TRUE(cell->subChainId == 0);
-    ASSERT_TRUE(cell->blockNumber == 4);
-    // ChainNumber: 0, BlockNumber: 0
-    // ChainNumber: 1, BlockNumber: 0
-    // ChainNumber: 1, BlockNumber: 1
-    // ChainNumber: 0, BlockNumber: 1
-    // ChainNumber: 0, BlockNumber: 2
-    // ChainNumber: 0, BlockNumber: 3
-    // ChainNumber: 0, BlockNumber: 4
-    // ---- buffer----
-    // 1 2, weight:{4, 1, -1, }
-    // 2 0, weight:{4, 2, -1, }
+    blocks.pop_back();
+    blocks.pop_back();
+    ASSERT_TRUE(inOrder(blocks));
 }
 
 using Cell = peer::consensus::v2::InterChainOrderManager::Cell;
 
-TEST_F(OrderManagerTest, TestDeterminsticOrder2) {
-    std::vector<std::unique_ptr<peer::consensus::v2::OrderAssigner>> oiList;
-    oiList.reserve(3);
-    for (int i=0; i<3; i++) {
-        auto ret = std::make_unique<peer::consensus::v2::OrderAssigner>();
-        ret->setLocalChainId(i);
-        oiList.push_back(std::move(ret));
-    }
-    util::thread_pool_light tp;
-    const Cell* lastCell = nullptr;
-    iom->setDeliverCallback([&](const Cell* cell) {
-        // LOG(INFO) << "RESULT"; cell->printDebugString();
-        if (lastCell != nullptr) {
-            if(!lastCell->operator<(cell)) {
-                CHECK(false);
-            }
-        }
-        lastCell = cell;
-    });
-
-    auto func2 = [&](int id) {
-        for (int i=0; i< 10000; i++) {
-            for (int j=0; j<3; j++) {
-                auto vc = oiList[j]->getBlockOrder(id, i);
-                oiList[j]->increaseLocalClock(id, i);
-                iom->pushDecision(id, i, std::move(vc));
-                // util::Timer::sleep_ms(15 - rand()%5 - id*2);
-                std::this_thread::yield();
-            }
-        }
-    };
-    std::thread sender_1(func2, 0);
-    std::thread sender_2(func2, 1);
-    std::thread sender_3(func2, 2);
-
-    sender_1.join();
-    sender_2.join();
-    sender_3.join();
-}
-
 TEST_F(OrderManagerTest, TestDeterminsticOrder3) {
-    std::vector<std::unique_ptr<peer::consensus::v2::OrderAssigner>> oiList;
-    oiList.reserve(3);
-    for (int i=0; i<3; i++) {
-        auto ret = std::make_unique<peer::consensus::v2::OrderAssigner>();
-        ret->setLocalChainId(i);
-        oiList.push_back(std::move(ret));
-    }
     auto iom_1 = std::make_unique<peer::consensus::v2::InterChainOrderManager>();
     auto iom_2 = std::make_unique<peer::consensus::v2::InterChainOrderManager>();
-    iom_1->setSubChainCount(3);
-    iom_2->setSubChainCount(3);
+    iom_1->setGroupCount(3);
+    iom_2->setGroupCount(3);
     std::vector<const Cell*> resultList_1;
     std::vector<const Cell*> resultList_2;
 
@@ -210,7 +226,7 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder3) {
     const Cell* lastCell_1 = nullptr;
     iom_1->setDeliverCallback([&](const Cell* cell) {
         if (lastCell_1 != nullptr) {
-            if(!lastCell_1->operator<(cell)) {
+            if(!lastCell_1->mustLessThan(cell)) {
                 CHECK(false);
             }
         }
@@ -220,7 +236,7 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder3) {
     const Cell* lastCell_2 = nullptr;
     iom_2->setDeliverCallback([&](const Cell* cell) {
         if (lastCell_2 != nullptr) {
-            if(!lastCell_2->operator<(cell)) {
+            if(!lastCell_2->mustLessThan(cell)) {
                 CHECK(false);
             }
         }
@@ -228,16 +244,25 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder3) {
         resultList_2.push_back(cell);
     });
 
+    std::vector<std::unique_ptr<peer::consensus::v2::OrderAssigner>> oiList;
+    oiList.reserve(3);
+    for (int i=0; i<3; i++) {
+        auto ret = std::make_unique<peer::consensus::v2::OrderAssigner>();
+        ret->setLocalChainId(i);
+        oiList.push_back(std::move(ret));
+    }
+
+    int round = 10000;
     auto func2 = [&](int id) {
-        for (int i=0; i< 10000; i++) {
+        for (int i=0; i<round; i++) {
+            if (i - 10 >= 0) {   // simulate delay
+                oiList[id]->increaseLocalClock(id, i - 10);
+            }
             for (int j=0; j<3; j++) {
-                auto vc = oiList[j]->getBlockOrder(id, i);
-                if (i - 10 >= 0) {   // simulate delay
-                    oiList[j]->increaseLocalClock(id, i - 10);
-                }
-                iom_1->pushDecision(id, i, vc);
+                auto vc = oiList[id]->getBlockOrder(j, i);
+                iom_1->pushDecision(j, i, vc.first, vc.second);
                 std::this_thread::yield();
-                iom_2->pushDecision(id, i, vc);
+                iom_2->pushDecision(j, i, vc.first, vc.second);
                 std::this_thread::yield();
             }
         }
@@ -254,7 +279,7 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder3) {
     bool printFlag = false;
     int count=0;
     for (int i=0; i<(int)resultList_1.size(); i++) {
-        if(resultList_1[i]->subChainId != resultList_2[i]->subChainId || resultList_1[i]->blockNumber != resultList_2[i]->blockNumber) {
+        if(resultList_1[i]->groupId != resultList_2[i]->groupId || resultList_1[i]->blockId != resultList_2[i]->blockId) {
             if (!printFlag) {
                 resultList_1[i-1]->printDebugString();
                 resultList_2[i-1]->printDebugString();
@@ -263,9 +288,9 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder3) {
         }
         if (printFlag) {
             resultList_1[i]->printDebugString();
-            CHECK(resultList_1[i-1]->operator<(resultList_1[i]));
+            CHECK(resultList_1[i-1]->mustLessThan(resultList_1[i]));
             resultList_2[i]->printDebugString();
-            CHECK(resultList_2[i-1]->operator<(resultList_2[i]));
+            CHECK(resultList_2[i-1]->mustLessThan(resultList_2[i]));
             count++;
         }
         if (count == 100) {

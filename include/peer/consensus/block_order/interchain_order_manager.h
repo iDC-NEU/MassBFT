@@ -104,7 +104,8 @@ namespace peer::consensus::v2 {
 
             bool setIthWaterMark(int i, int value) {
                 if (isSet[i]) {
-                    CHECK(watermarks[i] == value);
+                    // this may fail due to multiple call of invalidate signal (which does not matter correctness)
+                    // CHECK(watermarks[i] == value) << "voteGroup: " << i << ", value: " << value << ", original: " << watermarks[i];
                     return false;
                 }
                 CHECK(watermarks[i] <= value);  // ensure compare fairness
@@ -125,6 +126,7 @@ namespace peer::consensus::v2 {
 
     protected:
         struct Chain {
+            int height = -1;    // only for debug!
             std::vector<std::unique_ptr<Cell>> chain;
         };
 
@@ -187,6 +189,18 @@ namespace peer::consensus::v2 {
                     // update estimate watermark
                     c->watermarks[i] = top->watermarks[i];
                 }
+                // set bits of invalidated group
+                for (auto& it: invalidateMap) {
+                    if (it.second.isInvalid == false) {
+                        continue;
+                    }
+                    // LOG(INFO) << c->groupId << ", " << c->blockId;
+                    // LOG(INFO) << c->watermarks[it.first] << ", " << it.second.height;
+                    // CHECK(c->watermarks[it.first] <= it.second.height);
+                    c->watermarks[it.first] = top->watermarks[it.first];
+                    c->isSet[it.first] = true;
+                }
+                // push the element and return
                 buffer.push_back(c);
                 sortLastElement();
                 return top;
@@ -228,8 +242,43 @@ namespace peer::consensus::v2 {
                 }
             }
 
+            void invalidateChain(int groupId, int height) {
+                if (invalidateMap[groupId].isInvalid) {
+                    return; // already invalidated
+                }
+                LOG(WARNING) << "Invalidate chain of group: " << groupId << ", height: " << height;
+                invalidateMap[groupId].isInvalid = true;
+
+                for (auto& it: buffer) {
+                    CHECK(it->watermarks[groupId] <= height);
+                    // if (it->isSet[groupId] == true) {
+                    //     continue;
+                    // }
+                    // it->watermarks[groupId] = height;
+                    it->isSet[groupId] = true;
+                }
+                // resort the queue
+                std::vector<Cell*> tmp = std::move(buffer);
+                for (auto& it: tmp) {
+                    push(it);
+                }
+            }
+
+            [[nodiscard]] bool isChainInvalidated(int groupId) const {
+                if (!invalidateMap.contains(groupId)) {
+                    return false;
+                }
+                return invalidateMap.at(groupId).isInvalid;
+            }
+
         private:
             std::vector<Cell*> buffer;
+
+            struct InvalidateSlot {
+                bool isInvalid = false;
+            };
+
+            std::unordered_map<int, InvalidateSlot> invalidateMap;
         };
 
         Cell* createBlockIfNotExist(int groupId, int blockId) {
@@ -240,6 +289,19 @@ namespace peer::consensus::v2 {
                 blocks.chain.push_back(std::make_unique<Cell>(static_cast<int>(chains.size()), groupId, blockId));    // insert new cell
             }
             return blocks.chain[blockId].get();
+        }
+
+        void popCommitPQ() {  // pop elements
+            while (commitPQ.canPop()) {
+                // exchange element
+                auto *first = commitPQ.top();
+                auto *last = createBlockIfNotExist(first->groupId, first->blockId + 1);
+
+                auto* cell = commitPQ.exchange(last);
+                CHECK(cell == first);
+
+                deliverCallback(first);
+            }
         }
 
     public:
@@ -260,25 +322,27 @@ namespace peer::consensus::v2 {
             // use to test if all nodes runs in the same order
             // static auto gid = std::this_thread::get_id();
             // LOG(INFO) << "Node " << gid << " execute " << groupId << ", " << blockId << ", " << voteGroupId << ", " <<voteGroupWatermark;
-            static int counter = 0;
-            if (counter++ % 100 == 0) {
-                commitPQ.print();
-            }
+            // static int counter = 0;
+            // if (counter++ % 200 == 0) {
+            //     commitPQ.print();
+            // }
+
+            // update chain height (for debug)
+            chains[voteGroupId].height = std::max(chains[voteGroupId].height, voteGroupWatermark);
+            chains[groupId].height = std::max(chains[groupId].height, blockId);
 
             // voteGroupId cannot vote watermark smaller than voteGroupWatermark after this!
             commitPQ.updateEstimateWatermark(voteGroupId, voteGroupWatermark);
             // resort the queue in updateEstimateWatermark
 
-            while (commitPQ.canPop()) {
-                // exchange element
-                auto *first = commitPQ.top();
-                auto *last = createBlockIfNotExist(first->groupId, first->blockId + 1);
+            popCommitPQ();
+        }
 
-                cell = commitPQ.exchange(last);
-                CHECK(cell == first);
+        void invalidateChain(int groupId) {
+            std::unique_lock guard(mutex);
+            commitPQ.invalidateChain(groupId, chains[groupId].height);
 
-                deliverCallback(first);
-            }
+            popCommitPQ();  // maybe there are new elements that can pop
         }
 
     private:

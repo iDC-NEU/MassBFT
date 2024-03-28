@@ -175,7 +175,8 @@ namespace peer::consensus::v2 {
             if (bo.voteChainId == -1) {   // this is an error message
                 CHECK(bo.blockId == -1 && bo.voteBlockId == -1);
                 // the group is down, invalid all the block
-                // return _orderManager->invalidateChain(bo.chainId);
+                _orderManager->invalidateChain(bo.chainId);
+                return true;
             }
             // if is leader, increase local vc
             if (_increaseVCCallback) {

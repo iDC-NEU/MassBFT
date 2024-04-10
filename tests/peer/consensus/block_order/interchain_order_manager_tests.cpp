@@ -106,7 +106,7 @@ TEST_F(OrderManagerTest, BasicTest3) {
     ASSERT_TRUE(queue.empty());
     // we learned that group 0 increase its local clock to 0
     pushHelper({Vote{1, 1, 0, 0}}); // group 0 vote 1,1 to 0
-    ASSERT_TRUE(queue.size() == 2);
+    ASSERT_TRUE(queue.size() == 1); // 0, -1, -1(est) vs. 0(est), -1(est), 0
     pushHelper({Vote{1, 2, 0, 0}}); // group 0 vote 1,2 to 0
     // we learned that group 1 increase its local clock to 2
     pushHelper({Vote{0, 1, 1, 2}}); // group 1 vote 0,1 to 2

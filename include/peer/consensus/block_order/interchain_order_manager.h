@@ -47,7 +47,7 @@ namespace peer::consensus::v2 {
                     : groupId(groupId_),
                       blockId(blockId_),
                       watermarks(groupCount, INVALID_WATERMARK),
-                      isSet(groupCount, false) {
+                      real(groupCount, false) {
                 setIthWaterMark(groupId_, blockId_); // this is known by default
             }
 
@@ -57,7 +57,7 @@ namespace peer::consensus::v2 {
                     return true;    // we do not compare the same entry
                 }
                 for (int i=0; i<(int)this->watermarks.size(); i++) {
-                    if (!this->isSet[i]) {
+                    if (!this->real[i]) {
                         return false;
                     }
                     if (this->watermarks[i] != rhs->watermarks[i]) {
@@ -71,13 +71,13 @@ namespace peer::consensus::v2 {
             }
 
             bool setIthWaterMark(int i, int value) {
-                if (isSet[i]) {
+                if (real[i]) {
                     // this may fail due to multiple call of invalidate signal (which does not matter correctness)
                     // CHECK(watermarks[i] == value) << "voteGroup: " << i << ", value: " << value << ", original: " << watermarks[i];
                     return false;
                 }
                 CHECK(watermarks[i] <= value);  // ensure compare fairness
-                isSet[i] = true;
+                real[i] = true;
                 watermarks[i] = value;
                 return true;
             }
@@ -85,7 +85,7 @@ namespace peer::consensus::v2 {
             void printDebugString() const {
                 std::string weightStr = "{";
                 for (int i=0; i<(int)watermarks.size(); i++) {
-                    weightStr.append(std::to_string(watermarks[i]) + " " + std::to_string(isSet[i])).append(", ");
+                    weightStr.append(std::to_string(watermarks[i]) + " " + std::to_string(real[i])).append(", ");
                 }
                 weightStr.append("}");
                 LOG(INFO) << this->groupId << " " << this->blockId << ", watermarks:" << weightStr;
@@ -100,7 +100,7 @@ namespace peer::consensus::v2 {
 
             std::vector<int> watermarks;
 
-            std::vector<bool> isSet;
+            std::vector<bool> real;
         };
 
     private:
@@ -141,7 +141,7 @@ namespace peer::consensus::v2 {
                 buffer[next->groupId] = next;
                 // update estimate watermark of next
                 for (int i=0; i<(int)prev->watermarks.size(); i++) {
-                    if (next->isSet[i]) {
+                    if (next->real[i]) {
                         CHECK(prev->watermarks[i] <= next->watermarks[i]);
                         continue;
                     }
@@ -156,7 +156,7 @@ namespace peer::consensus::v2 {
                     // LOG(INFO) << c->watermarks[it.first] << ", " << it.second.height;
                     // CHECK(c->watermarks[it.first] <= it.second.height);
                     next->watermarks[it.first] = prev->watermarks[it.first];
-                    next->isSet[it.first] = true;
+                    next->real[it.first] = true;
                 }
             }
 
@@ -168,7 +168,7 @@ namespace peer::consensus::v2 {
 
             void updateEstimate(int groupId, int watermark) {
                 for (auto& it: buffer) {
-                    if (it->isSet[groupId]) {
+                    if (it->real[groupId]) {
                         continue;
                     }
                     CHECK(it->groupId != groupId) << "local group watermark must be pre-set";
@@ -186,11 +186,11 @@ namespace peer::consensus::v2 {
 
                 for (auto& it: buffer) {
                     CHECK(it->watermarks[groupId] <= height);
-                    // if (it->isSet[groupId] == true) {
+                    // if (it->real[groupId] == true) {
                     //     continue;
                     // }
                     // it->watermarks[groupId] = height;
-                    it->isSet[groupId] = true;
+                    it->real[groupId] = true;
                 }
             }
 
@@ -218,11 +218,11 @@ namespace peer::consensus::v2 {
 
         void popBlocks() {
             while (auto *prev = heads.globalMinimum()) {
-                auto *next = createBlockIfNotExist(prev->groupId, prev->blockId + 1);
-                // exchange element
-                heads.exchange(prev, next);
                 deliverCallback(prev);
-            }   // return if prev == nullptr
+                // exchange element
+                auto *next = createBlockIfNotExist(prev->groupId, prev->blockId + 1);
+                heads.exchange(prev, next);
+            }
         }
 
     public:

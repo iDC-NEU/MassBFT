@@ -168,13 +168,11 @@ namespace peer::consensus::v2 {
 
             void updateEstimate(int groupId, int watermark) {
                 for (auto& it: buffer) {
-                    if (groupId == it->groupId) {
-                        continue; // skip updating local group (its watermark has been pre-set)
-                    }
                     if (it->isSet[groupId]) {
                         continue;
                     }
-                     CHECK(it->watermarks[groupId] <= watermark) << "watermarks:" << it->watermarks[groupId];
+                    CHECK(it->groupId != groupId) << "local group watermark must be pre-set";
+                    CHECK(it->watermarks[groupId] <= watermark) << "watermarks:" << it->watermarks[groupId];
                     it->watermarks[groupId] = watermark;
                 }
             }

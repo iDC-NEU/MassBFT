@@ -230,12 +230,14 @@ namespace peer::consensus::v2 {
 
     public:
         void pushDecision(int groupId, int blockId, int voteGroupId, int voteGroupWatermark) {
+            if (chains.size() == 1) {
+                auto* cell = createBlockIfNotExist(groupId, blockId);
+                return deliverCallback(cell); // there is only a single group
+            }
             if (voteGroupId == groupId) {
                 LOG_IF(WARNING, voteGroupWatermark != blockId) << "voteGroupWatermark is not equal to blockId!";
                 voteGroupWatermark = blockId;
-                if (chains.size() > 1) {
-                    return;    // we will learn voteGroupWatermark from other groups later
-                }
+                return;    // we will learn voteGroupWatermark from other groups later
             }
             std::unique_lock guard(mutex);
             auto* cell = createBlockIfNotExist(groupId, blockId);

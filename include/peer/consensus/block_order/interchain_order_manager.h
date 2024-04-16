@@ -57,12 +57,15 @@ namespace peer::consensus::v2 {
                     return true;    // we do not compare the same entry
                 }
                 for (int i=0; i<(int)this->watermarks.size(); i++) {
-                    if (!this->real[i]) {
-                        return false;
+                    if (this->real[i]) {
+                        if (this->watermarks[i] < rhs->watermarks[i]) {
+                            return true;
+                        }
+                        if (rhs->real[i] && this->watermarks[i] == rhs->watermarks[i]) {
+                            continue;
+                        }
                     }
-                    if (this->watermarks[i] != rhs->watermarks[i]) {
-                        return this->watermarks[i] < rhs->watermarks[i];
-                    }
+                    return false;
                 }
                 if (this->blockId != rhs->blockId) {
                     return this->blockId < rhs->blockId;

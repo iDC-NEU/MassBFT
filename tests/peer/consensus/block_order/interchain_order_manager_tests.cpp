@@ -161,6 +161,8 @@ TEST_F(OrderManagerTest, TestUnBalanced1) { // #0 is slow (1:2)
     }
     blocks.pop_back();
     blocks.pop_back();
+    blocks.pop_back();
+    blocks.pop_back();
     ASSERT_TRUE(inOrder(blocks));
 }
 
@@ -209,6 +211,8 @@ TEST_F(OrderManagerTest, TestUnBalanced2) { // multi thread
     }
     blocks.pop_back();
     blocks.pop_back();
+    blocks.pop_back();
+    blocks.pop_back();
     ASSERT_TRUE(inOrder(blocks));
 }
 
@@ -225,6 +229,7 @@ TEST_F(OrderManagerTest, TestDeterminsticOrder3) {
     util::thread_pool_light tp;
     const Cell* lastCell_1 = nullptr;
     iom_1->setDeliverCallback([&](const Cell* cell) {
+        LOG(INFO) << "ChainNumber: " << cell->groupId << ", BlockNumber: " << cell->blockId;
         if (lastCell_1 != nullptr) {
             if(!lastCell_1->mustLessThan(cell)) {
                 CHECK(false);

@@ -19,7 +19,7 @@ namespace proto {
         bool serializeToString(std::string* rawEncodeMessage, int offset, bool withBody) {
             zpp::bits::out out(*rawEncodeMessage);
             out.reset(offset);
-            if(failure(out(blockSignatures, blockNumber, root, size, start, end))) {
+            if(failure(out(blockSignatures, blockNumber, root, size, start, end, timeStamp, aggregatedAttributes))) {
                 return false;
             }
             if (!withBody) {
@@ -33,7 +33,7 @@ namespace proto {
         bool deserializeFromString(std::string_view raw, int offset=0) {
             zpp::bits::in in(raw);
             in.reset(offset);
-            if(failure(in(blockSignatures, blockNumber, root, size, start, end))) {
+            if(failure(in(blockSignatures, blockNumber, root, size, start, end, timeStamp, aggregatedAttributes))) {
                 return false;
             }
             // encodeMessage may be larger than expected
@@ -54,6 +54,10 @@ namespace proto {
         // The local node does not need to sign the message,
         // because the point-to-point connection is secured by ssl
         std::string_view encodeMessage;
+        // 分片生成时间戳
+        std::string timeStamp;
+        // 聚合属性（聚合值类型， 聚合值）
+        std::unordered_map<std::string, AggregatedValue> aggregatedAttributes;
     };
 }
 

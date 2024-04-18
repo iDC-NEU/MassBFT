@@ -52,8 +52,8 @@ batch_timeout_ms: 100
 distributed: false
 ssh_username: user
 ssh_password: 123456
-running_path: /root/nc_bft/
-jvm_path: /root/nc_bft/corretto-16.0.2/bin/java
+running_path: /home/user/CLionProjects/nc_bft
+jvm_path: /home/user/CLionProjects/nc_bft/corretto-16.0.2
 replicator_lowest_port: 19990
 small_bank:
   target_throughput: 2000

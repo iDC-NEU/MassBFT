@@ -13,6 +13,8 @@ namespace proto {
 
     using BlockNumber = uint64_t;
 
+    using AggregatedValue = uint64_t;
+
     template<class T>
     inline int CompareDigest(const proto::DigestString& lhs, const T &rhs) {
         return std::memcmp(lhs.data(), rhs.data(), lhs.size());
@@ -29,12 +31,16 @@ namespace proto {
             // current block body (user request) hash
             // exclude the execution result
             HashString dataHash{};
+            // 区块生成时间戳
+            std::string timeStamp;
+            // 聚合属性（聚合值类型， 聚合值）
+            std::unordered_map<std::string, AggregatedValue> aggregatedAttributes;
 
         public:
             friend zpp::bits::access;
 
             constexpr static auto serialize(auto &archive, Header &h) {
-                return archive(h.number, h.previousHash, h.dataHash);
+                return archive(h.number, h.previousHash, h.dataHash, h.timeStamp, h.aggregatedAttributes);
             }
 
             bool serializeToString(std::string* buf, int pos = 0) const {

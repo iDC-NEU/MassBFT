@@ -65,14 +65,12 @@ protected:
 };
 
 TEST_F(OrderManagerTest, BasicTest1) {  // block 0,0 must pop
-    std::vector<std::tuple<int, int, std::vector<int>>> input {
-            {0, 0, {0, -1, -1}},
-    };
-    for (const auto& it: input) {
-        pushHelper(std::get<0>(it), std::get<1>(it), std::get<2>(it));
-    }
+    pushHelper({Vote{0, 0, 1, -1}});
+    // pushHelper({Vote{0, 0, 2, -1}}); // not necessary
     // we learned that group 0 increase its local clock to 0
     pushHelper({Vote{1, 0, 0, 0}});
+    pushHelper({Vote{2, 0, 0, 0}});
+    pushHelper({Vote{2, 0, 1, 0}});
     ASSERT_TRUE(queue.size() == 1);
     auto* cell = queue.front();
     ASSERT_TRUE(cell->groupId == 0);
@@ -82,14 +80,12 @@ TEST_F(OrderManagerTest, BasicTest1) {  // block 0,0 must pop
 TEST_F(OrderManagerTest, BasicTest2) {
     // block 1,0 {-1, 0, -1} must pop
     // reason: block 0,0: 1st bit must be 0, 2nd bit must >=0 (using group 1's consensus instance)
-    std::vector<std::tuple<int, int, std::vector<int>>> input {
-            {1, 0, {-1, 0, -1}}
-    };
-    for (const auto& it: input) {
-        pushHelper(std::get<0>(it), std::get<1>(it), std::get<2>(it));
-    }
+    pushHelper({Vote{1, 0, 0, -1}});
     // we learned that group 1 increase its local clock to 0
     pushHelper({Vote{0, 0, 1, 0}});
+    pushHelper({Vote{2, 0, 1, 0}});
+    ASSERT_TRUE(queue.empty());
+    pushHelper({Vote{2, 0, 0, 0}});
     ASSERT_TRUE(queue.size() == 1);
     auto* cell = queue.front();
     ASSERT_TRUE(cell->groupId == 1);
@@ -97,35 +93,37 @@ TEST_F(OrderManagerTest, BasicTest2) {
 }
 
 TEST_F(OrderManagerTest, BasicTest3) {
-    pushHelper({Vote{0, 0, 0, 0}}); // group 0 vote 0,0 to 0 (preset)
+    // pushHelper({Vote{0, 0, 0, 0}}); // group 0 vote 0,0 to 0 (preset)
     pushHelper({Vote{0, 0, 1, -1}}); // group 1 vote 0,0 to -1
-    pushHelper({Vote{1, 0, 1, 0}}); // group 1 vote 1,0 to 0 (preset)
+    // pushHelper({Vote{1, 0, 1, 0}}); // group 1 vote 1,0 to 0 (preset)
     pushHelper({Vote{1, 0, 0, -1}}); // group 0 vote 1,0 to -1
-    pushHelper({Vote{1, 1, 1, 1}}); // group 1 vote 1,1 to 1 (preset)
-    pushHelper({Vote{1, 2, 1, 2}}); // group 1 vote 1,2 to 2 (preset)
+    // pushHelper({Vote{1, 1, 1, 1}}); // group 1 vote 1,1 to 1 (preset)
+    // pushHelper({Vote{1, 2, 1, 2}}); // group 1 vote 1,2 to 2 (preset)
     ASSERT_TRUE(queue.empty());
     // we learned that group 0 increase its local clock to 0
     pushHelper({Vote{1, 1, 0, 0}}); // group 0 vote 1,1 to 0
     ASSERT_TRUE(queue.size() == 1); // 0, -1, -1(est) vs. 0(est), -1(est), 0
     pushHelper({Vote{1, 2, 0, 0}}); // group 0 vote 1,2 to 0
-    // we learned that group 1 increase its local clock to 2
-    pushHelper({Vote{0, 1, 1, 2}}); // group 1 vote 0,1 to 2
-    ASSERT_TRUE(inOrder({{1, 0}, {0, 0}, {1, 1}}));
+    // we learned that group 0 increase its local clock to 1
+    pushHelper({Vote{1, 3, 0, 1}});
+    ASSERT_TRUE(inOrder({{1, 0}, {0, 0}, {1, 1}, {1, 2}}));
 }
 
 TEST_F(OrderManagerTest, BasicTest4) {
-    pushHelper({Vote{0, 0, 0, 0}}); // group 0 vote 0,0 to 0 (preset)
+    // pushHelper({Vote{0, 0, 0, 0}}); // group 0 vote 0,0 to 0 (preset)
     pushHelper({Vote{1, 0, 0, -1}}); // group 0 vote 1,0 to -1
     // we learned that group 0 increase its local clock to 0
     pushHelper({Vote{1, 1, 0, 0}}); // group 0 vote 1,1 to 0
     pushHelper({Vote{1, 2, 0, 0}}); // group 0 vote 1,2 to 0
     pushHelper({Vote{0, 0, 1, -1}}); // group 1 vote 0,0 to -1
-    pushHelper({Vote{1, 0, 1, 0}}); // group 1 vote 1,0 to 0 (preset)
-    pushHelper({Vote{1, 1, 1, 1}}); // group 1 vote 1,1 to 1 (preset)
-    pushHelper({Vote{1, 2, 1, 2}}); // group 1 vote 1,2 to 2 (preset)
+    // pushHelper({Vote{1, 0, 1, 0}}); // group 1 vote 1,0 to 0 (preset)
+    // pushHelper({Vote{1, 1, 1, 1}}); // group 1 vote 1,1 to 1 (preset)
+    // pushHelper({Vote{1, 2, 1, 2}}); // group 1 vote 1,2 to 2 (preset)
     // we learned that group 1 increase its local clock to 2
     pushHelper({Vote{0, 1, 1, 2}}); // group 1 vote 0,1 to 2
-    ASSERT_TRUE(inOrder({{1, 0}, {0, 0}, {1, 1}}));
+    // we learned that group 0 increase its local clock to 1
+    pushHelper({Vote{1, 3, 0, 1}});
+    ASSERT_TRUE(inOrder({{1, 0}, {0, 0}, {1, 1}, {1, 2}}));
 }
 
 TEST_F(OrderManagerTest, TestUnBalanced1) { // #0 is slow (1:2)

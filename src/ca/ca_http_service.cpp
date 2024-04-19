@@ -23,6 +23,7 @@ namespace ca {
         cfg.groupId = groupId;
         cfg.nodeId = nodeId;
         cfg.isClient = false;
+        CHECK(!pub.empty()) << "public ip is empty!";
         _nodesList[pub] = cfg;
     }
 
@@ -31,6 +32,7 @@ namespace ca {
         cfg.groupId = groupId;
         cfg.nodeId = nodeId;
         cfg.isClient = true;
+        CHECK(!pub.empty()) << "public ip is empty!";
         _nodesList[pub] = cfg;
     }
 

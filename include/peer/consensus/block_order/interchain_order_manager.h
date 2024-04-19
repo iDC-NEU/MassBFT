@@ -27,17 +27,17 @@ namespace peer::consensus::v2 {
             for (auto& it: chains) {
                 it.chain.reserve(RESERVE_BLOCK_COUNT);
             }
-            // init commitPQ
-            commitPQ = CommitBuffer();
+            // init heads
+            heads = CommitBuffer();
             for (int i=0; i<count; i++) {
                 auto* cell = createBlockIfNotExist(i, 0);
-                commitPQ.push(cell);
+                heads.push(cell); // the group ID of cell is the index of heads
             }
         }
 
         void setDeliverCallback(auto&& cb) { deliverCallback = std::forward<decltype(cb)>(cb); }
 
-    protected:
+    private:
         class CommitBuffer;
 
     public:
@@ -47,54 +47,25 @@ namespace peer::consensus::v2 {
                     : groupId(groupId_),
                       blockId(blockId_),
                       watermarks(groupCount, INVALID_WATERMARK),
-                      isSet(groupCount, false) {
+                      real(groupCount, false) {
                 setIthWaterMark(groupId_, blockId_); // this is known by default
             }
 
-            const int groupId;
-
-            const int blockId;
-
-            friend class CommitBuffer;
-
-        private:
-            std::vector<int> watermarks;
-
-            std::vector<bool> isSet;
-
-            bool operator<(const Cell* rhs) const { // used by pq
-                CHECK(this->watermarks.size() == rhs->watermarks.size());
-                return maybeLessThan(rhs);
-            }
-
-            bool maybeLessThan(const Cell* rhs) const {
-                for (int i=0; i<(int)this->watermarks.size(); i++) {
-                    if (this->watermarks[i] != rhs->watermarks[i]) {
-                        // ensure cell with INVALID_WATERMARK sort before other blocks
-                        return this->watermarks[i] < rhs->watermarks[i];
-                    }
-                    if (this->isSet[i] != rhs->isSet[i]) {
-                        return this->isSet[i];  // if this->isSet[i] == false, rhs is ordered before this
-                    }
-                }
-                // when two cells have the same watermark
-                if (this->blockId != rhs->blockId) {
-                    return this->blockId < rhs->blockId;
-                }
-                // when two cells have the same blockId
-                CHECK(this->groupId != rhs->groupId) << "two group id are equal";
-                return this->groupId < rhs->groupId;
-            }
-
-        public:
             bool mustLessThan(const Cell* rhs) const {
+                if (this->groupId == rhs->groupId && this->blockId == rhs->blockId) {
+                    CHECK(this == rhs);
+                    return true;    // we do not compare the same entry
+                }
                 for (int i=0; i<(int)this->watermarks.size(); i++) {
-                    if (!this->isSet[i]) {
-                        return false;
+                    if (this->real[i]) {
+                        if (this->watermarks[i] < rhs->watermarks[i]) {
+                            return true;
+                        }
+                        if (rhs->real[i] && this->watermarks[i] == rhs->watermarks[i]) {
+                            continue;
+                        }
                     }
-                    if (this->watermarks[i] != rhs->watermarks[i]) {
-                        return this->watermarks[i] < rhs->watermarks[i];
-                    }
+                    return false;
                 }
                 if (this->blockId != rhs->blockId) {
                     return this->blockId < rhs->blockId;
@@ -103,13 +74,13 @@ namespace peer::consensus::v2 {
             }
 
             bool setIthWaterMark(int i, int value) {
-                if (isSet[i]) {
+                if (real[i]) {
                     // this may fail due to multiple call of invalidate signal (which does not matter correctness)
                     // CHECK(watermarks[i] == value) << "voteGroup: " << i << ", value: " << value << ", original: " << watermarks[i];
                     return false;
                 }
                 CHECK(watermarks[i] <= value);  // ensure compare fairness
-                isSet[i] = true;
+                real[i] = true;
                 watermarks[i] = value;
                 return true;
             }
@@ -117,77 +88,67 @@ namespace peer::consensus::v2 {
             void printDebugString() const {
                 std::string weightStr = "{";
                 for (int i=0; i<(int)watermarks.size(); i++) {
-                    weightStr.append(std::to_string(watermarks[i]) + " " + std::to_string(isSet[i])).append(", ");
+                    weightStr.append(std::to_string(watermarks[i]) + " " + std::to_string(real[i])).append(", ");
                 }
                 weightStr.append("}");
                 LOG(INFO) << this->groupId << " " << this->blockId << ", watermarks:" << weightStr;
             }
+
+            const int groupId;
+
+            const int blockId;
+
+        private:
+            friend class CommitBuffer;
+
+            std::vector<int> watermarks;
+
+            std::vector<bool> real;
         };
 
-    protected:
+    private:
         struct Chain {
             int height = -1;    // only for debug!
             std::vector<std::unique_ptr<Cell>> chain;
         };
 
         class CommitBuffer {
-        protected:
-            bool contains(Cell* c, int* pos = nullptr) {
-                for (int i = 0; i < (int)buffer.size(); i++) {
-                    if (buffer[i] != c) {
-                        continue;
-                    }
-                    if (pos != nullptr) {
-                        *pos = i;
-                    }
-                    return true;
-                }
-                return false;
-            }
-
-            void sortLastElement() {
-                int rhsPos = (int)buffer.size()-1;
-                for (int i = (int)buffer.size()-2; i >= 0; i--) {
-                    if (!(*buffer[rhsPos] < buffer[i])) {
-                        break;
-                    }
-                    std::swap(buffer[rhsPos], buffer[i]);
-                    rhsPos = i;
-                }
-            }
-
-            Cell* pop() {
-                CHECK(!buffer.empty());
-                auto* elem = buffer.front();
-                buffer.erase(buffer.begin());
-                return elem;
-            }
-
         public:
             void push(Cell* c) {    // call only when init
-                CHECK(!contains(c));
+                CHECK(c->groupId == (int)buffer.size());
                 buffer.push_back(c);
-                sortLastElement();
             }
 
-            [[nodiscard]] Cell* top() const {
+            Cell* globalMinimum() {
                 CHECK(!buffer.empty());
-                return buffer.front();
+                for (auto left : buffer) {
+                    bool canPop = true;
+                    for (auto & right : buffer) {
+                        if (!left->mustLessThan(right)) {
+                            canPop = false;
+                            break;
+                        }
+                    }
+                    if (canPop) {   // left is global minimum
+                        return left;
+                    }
+                }
+                return nullptr;
             }
 
-            Cell* exchange(Cell* c) {
-                CHECK(!contains(c));
-                auto* top = pop();
-                CHECK(top->blockId == c->blockId - 1);
-                CHECK(top->groupId == c->groupId);
-                CHECK(top->watermarks.size() == c->watermarks.size());
-                for (int i=0; i<(int)top->watermarks.size(); i++) {
-                    if (c->isSet[i]) {
-                        CHECK(top->watermarks[i] <= c->watermarks[i]);
+            void exchange(Cell* prev, Cell* next) {
+                CHECK(buffer[prev->groupId] == prev);
+                CHECK(prev->blockId == next->blockId - 1);
+                CHECK(prev->groupId == next->groupId);
+                CHECK(prev->watermarks.size() == next->watermarks.size());
+                buffer[next->groupId] = next;
+                // update estimate watermark of next
+                for (int i=0; i<(int)prev->watermarks.size(); i++) {
+                    if (next->real[i]) {
+                        CHECK(prev->watermarks[i] <= next->watermarks[i]);
                         continue;
                     }
-                    // update estimate watermark
-                    c->watermarks[i] = top->watermarks[i];
+                    next->watermarks[i] = prev->watermarks[i];
                 }
                 // set bits of invalidated group
                 for (auto& it: invalidateMap) {
@@ -197,26 +158,9 @@ namespace peer::consensus::v2 {
                     // LOG(INFO) << c->groupId << ", " << c->blockId;
                     // LOG(INFO) << c->watermarks[it.first] << ", " << it.second.height;
                     // CHECK(c->watermarks[it.first] <= it.second.height);
-                    c->watermarks[it.first] = top->watermarks[it.first];
-                    c->isSet[it.first] = true;
+                    next->watermarks[it.first] = prev->watermarks[it.first];
+                    next->real[it.first] = true;
                 }
-                // push the element and return
-                buffer.push_back(c);
-                sortLastElement();
-                return top;
-            }
-
-            [[nodiscard]] bool canPop() const {
-                CHECK(!buffer.empty());
-                if (buffer.size() == 1) {
-                    return true;
-                }
-                auto* top = buffer[0];
-                auto* second = buffer[1];
-                if (top->mustLessThan(second)) {
-                    return true;
-                }
-                return false;
             }
 
             void print() const {
@@ -225,20 +169,14 @@ namespace peer::consensus::v2 {
                 }
             }
 
-            void updateEstimateWatermark(int groupId, int watermark) {
-                std::vector<Cell*> tmp = std::move(buffer);
-                for (auto& it: tmp) {
-                    if (groupId == it->groupId) {
-                        continue; // skip updating local group (its watermark has been pre-set)
-                    }
-                    if (it->isSet[groupId]) {
+            void updateEstimate(int groupId, int watermark) {
+                for (auto& it: buffer) {
+                    if (it->real[groupId]) {
                         continue;
                     }
-                     CHECK(it->watermarks[groupId] <= watermark) << "watermarks:" << it->watermarks[groupId];
+                    CHECK(it->groupId != groupId) << "local group watermark must be pre-set";
+                    CHECK(it->watermarks[groupId] <= watermark) << "watermarks:" << it->watermarks[groupId];
                     it->watermarks[groupId] = watermark;
-                }
-                for (auto& it: tmp) {
-                    push(it);
                 }
             }
 
@@ -251,27 +189,16 @@ namespace peer::consensus::v2 {
 
                 for (auto& it: buffer) {
                     CHECK(it->watermarks[groupId] <= height);
-                    // if (it->isSet[groupId] == true) {
+                    // if (it->real[groupId] == true) {
                     //     continue;
                     // }
                     // it->watermarks[groupId] = height;
-                    it->isSet[groupId] = true;
+                    it->real[groupId] = true;
                 }
-                // resort the queue
-                std::vector<Cell*> tmp = std::move(buffer);
-                for (auto& it: tmp) {
-                    push(it);
-                }
-            }
-
-            [[nodiscard]] bool isChainInvalidated(int groupId) const {
-                if (!invalidateMap.contains(groupId)) {
-                    return false;
-                }
-                return invalidateMap.at(groupId).isInvalid;
             }
 
         private:
+            // buffer[i] is the next unordered block proposed by the ith group.
             std::vector<Cell*> buffer;
 
             struct InvalidateSlot {
@@ -281,6 +208,7 @@ namespace peer::consensus::v2 {
             std::unordered_map<int, InvalidateSlot> invalidateMap;
         };
 
+    protected:
         Cell* createBlockIfNotExist(int groupId, int blockId) {
             CHECK((int)chains.size() > groupId);
             auto& blocks = chains[groupId];
@@ -291,27 +219,25 @@ namespace peer::consensus::v2 {
             return blocks.chain[blockId].get();
         }
 
-        void popCommitPQ() {  // pop elements
-            while (commitPQ.canPop()) {
+        void popBlocks() {
+            while (auto *prev = heads.globalMinimum()) {
+                deliverCallback(prev);
                 // exchange element
-                auto *first = commitPQ.top();
-                auto *last = createBlockIfNotExist(first->groupId, first->blockId + 1);
-
-                auto* cell = commitPQ.exchange(last);
-                CHECK(cell == first);
-
-                deliverCallback(first);
+                auto *next = createBlockIfNotExist(prev->groupId, prev->blockId + 1);
+                heads.exchange(prev, next);
             }
         }
 
     public:
         void pushDecision(int groupId, int blockId, int voteGroupId, int voteGroupWatermark) {
+            if (chains.size() == 1) {
+                auto* cell = createBlockIfNotExist(groupId, blockId);
+                return deliverCallback(cell); // there is only a single group
+            }
             if (voteGroupId == groupId) {
                 LOG_IF(WARNING, voteGroupWatermark != blockId) << "voteGroupWatermark is not equal to blockId!";
                 voteGroupWatermark = blockId;
-                if (chains.size() > 1) {
-                    return;    // we will learn voteGroupWatermark from other groups later
-                }
+                return;    // we will learn voteGroupWatermark from other groups later
             }
             std::unique_lock guard(mutex);
             auto* cell = createBlockIfNotExist(groupId, blockId);
@@ -324,7 +250,7 @@ namespace peer::consensus::v2 {
             // LOG(INFO) << "Node " << gid << " execute " << groupId << ", " << blockId << ", " << voteGroupId << ", " <<voteGroupWatermark;
             // static int counter = 0;
             // if (counter++ % 200 == 0) {
-            //     commitPQ.print();
+            //     heads.print();
             // }
 
             // update chain height (for debug)
@@ -332,17 +258,15 @@ namespace peer::consensus::v2 {
             chains[groupId].height = std::max(chains[groupId].height, blockId);
 
             // voteGroupId cannot vote watermark smaller than voteGroupWatermark after this!
-            commitPQ.updateEstimateWatermark(voteGroupId, voteGroupWatermark);
+            heads.updateEstimate(voteGroupId, voteGroupWatermark);
             // resort the queue in updateEstimateWatermark
-
-            popCommitPQ();
+            popBlocks();
         }
 
         void invalidateChain(int groupId) {
             std::unique_lock guard(mutex);
-            commitPQ.invalidateChain(groupId, chains[groupId].height);
-
-            popCommitPQ();  // maybe there are new elements that can pop
+            heads.invalidateChain(groupId, chains[groupId].height);
+            popBlocks();  // maybe there are new elements that can pop
         }
 
     private:
@@ -352,7 +276,7 @@ namespace peer::consensus::v2 {
 
         std::function<void(const peer::consensus::v2::InterChainOrderManager::Cell* cell)> deliverCallback;  // execute block in order
 
-        CommitBuffer commitPQ;
+        CommitBuffer heads;
     };
 
     class OrderAssigner {

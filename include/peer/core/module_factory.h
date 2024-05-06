@@ -40,6 +40,9 @@ namespace peer {
     namespace direct {
         class Replicator;
     }
+    namespace multiway {
+        class Replicator;
+    }
 }
 
 namespace peer::core {
@@ -56,6 +59,7 @@ namespace peer::core {
     public:
         using ReplicatorType = peer::Replicator;
         // using ReplicatorType = peer::direct::Replicator;
+        // using ReplicatorType = peer::multiway::Replicator;
 
         using BlockOrderType = peer::consensus::v2::BlockOrder;
         // using BlockOrderType = peer::consensus::rb::BlockOrder;

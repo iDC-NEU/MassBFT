@@ -13,6 +13,7 @@
 #include "peer/consensus/pbft/single_pbft_controller.h"
 #include "peer/replicator/replicator.h"
 #include "peer/replicator/direct/direct_replicator.h"
+#include "peer/replicator/multyway_only/multiway_replicator.h"
 #include "common/yaml_key_storage.h"
 #include "common/property.h"
 

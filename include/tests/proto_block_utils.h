@@ -7,23 +7,15 @@
 #include "proto/block.h"
 #include "common/property.h"
 
-#include <chrono>
-
 namespace tests {
     class ProtoBlockUtils {
     public:
         static std::unique_ptr<proto::Block> CreateDemoBlock() {
             std::unique_ptr<proto::Block> realBlock(new proto::Block);
             proto::Block& b = *realBlock;
-            auto now = std::chrono::system_clock::now();
-            auto duration = now.time_since_epoch();
-            long unix_timestamp_value = std::chrono::duration_cast<std::chrono::seconds>(duration).count();
-            std::string unix_timestamp = std::to_string(unix_timestamp_value);
-
             b.header.dataHash = {"dataHash"};
             b.header.previousHash = {"previousHash"};
             b.header.number = 10;
-            b.header.timeStamp = unix_timestamp;
             std::vector<std::unique_ptr<proto::TxReadWriteSet>> rwSets;
             for(int i=0; i<2000; i++) {
                 std::unique_ptr<proto::TxReadWriteSet> rwSet(new proto::TxReadWriteSet({"test rw set"}));

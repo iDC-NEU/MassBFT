@@ -10,10 +10,12 @@
 #include "peer/chaincode/hash_chaincode.h"
 #include "peer/chaincode/tpcc_chaincode.h"
 #include "peer/chaincode/small_bank_chaincode.h"
+#include "peer/chaincode/timeSeries_chaincode.h"
 #include "client/ycsb/ycsb_helper.h"
 
 namespace peer::chaincode {
     std::unique_ptr<Chaincode> NewChaincodeByName(std::string_view ccName, std::unique_ptr<ORM> orm) {
+        LOG(INFO) << "ccName:" << ccName;
         if (ccName == client::ycsb::InvokeRequestType::YCSB) {
             // return std::make_unique<peer::chaincode::YCSBChaincode>(std::move(orm));
             return std::make_unique<peer::chaincode::YCSBRowLevel>(std::move(orm));
@@ -23,6 +25,9 @@ namespace peer::chaincode {
         }
         if (ccName == client::small_bank::InvokeRequestType::SMALL_BANK) {
             return std::make_unique<peer::chaincode::SmallBankChaincode>(std::move(orm));
+        }
+        if (ccName == "timeSeries") {
+            return std::make_unique<peer::chaincode::TimeSeriesChaincode>(std::move(orm));
         }
         if (ccName == "transfer") {
             return std::make_unique<peer::chaincode::SimpleTransfer>(std::move(orm));

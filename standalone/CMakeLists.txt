@@ -38,6 +38,16 @@ set_target_properties(${PROJECT_NAME}_ycsb PROPERTIES CXX_STANDARD 20 OUTPUT_NAM
 
 target_link_libraries(${PROJECT_NAME}_ycsb NBP cxxopts ${COMMON_DEPENDENCIES})
 
+# ---- Create timeSeries standalone executable ----
+
+file(GLOB timeSeries_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/client/timeSeries/*.cpp)
+
+add_executable(${PROJECT_NAME}_timeSeries ${timeSeries_sources})
+
+set_target_properties(${PROJECT_NAME}_timeSeries PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "timeSeries")
+
+target_link_libraries(${PROJECT_NAME}_timeSeries NBP cxxopts ${COMMON_DEPENDENCIES})
+
 # ---- Create tpcc standalone executable ----
 
 file(GLOB tpcc_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/client/tpcc/*.cpp)

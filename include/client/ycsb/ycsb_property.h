@@ -124,7 +124,7 @@ namespace client::ycsb {
         }
 
         inline auto getFieldCount() const {
-            return n[FIELD_COUNT_PROPERTY].as<uint64_t>(10);
+            return n[FIELD_COUNT_PROPERTY].as<uint64_t>(2);
         }
 
         inline auto getFieldNames() const {
@@ -148,7 +148,7 @@ namespace client::ycsb {
         }
 
         inline auto getRecordCount() const {
-            return n[RECORD_COUNT_PROPERTY].as<int>(10000); // 10k for testing
+            return n[RECORD_COUNT_PROPERTY].as<int>(100000); // 10k for testing
         }
 
         inline auto getRequestDistrib() const {

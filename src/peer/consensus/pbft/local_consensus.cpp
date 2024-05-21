@@ -24,13 +24,22 @@ namespace peer::consensus::v2 {
         auto updateBlockDataHash = [&]() -> bool {
             util::ValidateHandleType validateHandle = nullptr;
             if (!isLeader) {    // follower validate the signatures
+                const long totalSig = _totalSig.load(std::memory_order_acquire);
+
                 validateHandle = [this](const auto& signature, const auto& hash)->bool {
-                    const auto key = _bccsp->GetKey(signature.ski);
-                    if (key == nullptr) {
+                    totalSig.store(totalSig+1);
+                    if(totalSig % _sigInterval == 0) {
+                      const auto key = _bccsp->GetKey(signature.ski);
+                      if (key == nullptr) {
                         LOG(WARNING) << "Can not load key, ski: " << signature.ski;
                         return false;
+                      }
+                      bool result = key->VerifyRaw(signature.digest, hash.data(), hash.size());
+                      return result;
+                    } else {
+                      return true;
                     }
-                    return key->VerifyRaw(signature.digest, hash.data(), hash.size());
+
                 };
             }
             // generate merkle root

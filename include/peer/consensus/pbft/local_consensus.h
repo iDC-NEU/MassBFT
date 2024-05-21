@@ -128,7 +128,7 @@ namespace peer::consensus::v2 {
         // For saving delivered blocks
         std::function<bool(std::shared_ptr<::proto::Block> block, ::util::NodeConfigPtr localNode)> _deliverCallback;
 
-        std::atomic<long> _totalSig = 0;
+        long _totalSig = 0;
         int _sigInterval = 5;
     };
 }

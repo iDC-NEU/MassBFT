@@ -24,17 +24,18 @@ namespace peer::consensus::v2 {
         auto updateBlockDataHash = [&]() -> bool {
             util::ValidateHandleType validateHandle = nullptr;
             if (!isLeader) {    // follower validate the signatures
-                const long totalSig = _totalSig.load(std::memory_order_acquire);
+                // const long totalSig = _totalSig.load(std::memory_order_acquire);
 
                 validateHandle = [this](const auto& signature, const auto& hash)->bool {
-                    totalSig.store(totalSig+1);
-                    if(totalSig % _sigInterval == 0) {
+                    _totalSig = _totalSig+1;
+                    if(_totalSig % _sigInterval == 0) {
                       const auto key = _bccsp->GetKey(signature.ski);
                       if (key == nullptr) {
                         LOG(WARNING) << "Can not load key, ski: " << signature.ski;
                         return false;
                       }
                       bool result = key->VerifyRaw(signature.digest, hash.data(), hash.size());
+                      // 发送验证结果到上层服务器
                       return result;
                     } else {
                       return true;

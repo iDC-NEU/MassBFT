@@ -127,5 +127,7 @@ namespace peer::consensus::v2 {
         std::shared_ptr<util::thread_pool_light> _threadPoolForBCCSP;
         // For saving delivered blocks
         std::function<bool(std::shared_ptr<::proto::Block> block, ::util::NodeConfigPtr localNode)> _deliverCallback;
+        long sigInterval = 4;
+        long sumSig = 0;
     };
 }

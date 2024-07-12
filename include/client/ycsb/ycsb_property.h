@@ -140,7 +140,7 @@ namespace client::ycsb {
         }
 
         inline auto getFieldLength() const {
-            return n[FIELD_LENGTH_PROPERTY].as<int>(100);
+            return n[FIELD_LENGTH_PROPERTY].as<int>(30);
         }
 
         inline auto getMinFieldLength() const {

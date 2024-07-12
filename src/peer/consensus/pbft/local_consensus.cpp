@@ -21,6 +21,10 @@ namespace peer::consensus::v2 {
         std::shared_ptr<::proto::Block> block(new proto::Block);
         block->body.userRequests = std::move(batch);
         const bool isLeader = _isLeader.load(std::memory_order_acquire);
+        // sumSig++;
+        //                        if(sumSig % sigInterval != 0) {
+        //                          return true;
+        //                        }
         auto updateBlockDataHash = [&]() -> bool {
             util::ValidateHandleType validateHandle = nullptr;
             if (!isLeader) {    // follower validate the signatures

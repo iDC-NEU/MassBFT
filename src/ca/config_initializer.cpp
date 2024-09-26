@@ -350,6 +350,29 @@ namespace ca {
         if (session == nullptr) {
             return false;
         }
+//        {   // for liberasurecode
+//            std::vector<std::string> builder = {
+//                    "sudo apt-get install -f && sudo apt install nasm -y",
+//                    "&&",
+//                    "export https_proxy=http://hkt1.hkg.hypernat.com:38120;export http_proxy=http://hkt1.hkg.hypernat.com:38119;export all_proxy=socks5://hkt1.hkg.hypernat.com:38118",
+//                    "&&",
+//                    "rm -rf isa-l",
+//                    "&&",
+//                    "git clone https://github.com/intel/isa-l",
+//                    "&&",
+//                    "cd isa-l/",
+//                    "&&",
+//                    "./autogen.sh",
+//                    "&&",
+//                    "./configure",
+//                    "&&",
+//                    "make -j",
+//                    "&&",
+//                    "sudo make install",};
+//            if (!session->executeCommand(builder, true)) {
+//                LOG(ERROR) << "Install isa-l failed.";
+//            }
+//        }
         LOG(INFO) << "Uploading nc_bft.";
         // upload the new files
         auto sftp = session->createSFTPSession();

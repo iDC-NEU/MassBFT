@@ -9,6 +9,7 @@
 #include "peer/storage/mr_block_storage.h"
 #include "peer/concurrency_control/deterministic/coordinator_impl.h"
 #include "peer/concurrency_control/crdt/crdt_coordinator.h"
+#include "peer/concurrency_control/serial/serial_coordinator.h"
 
 namespace peer::core {
 

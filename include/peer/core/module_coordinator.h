@@ -26,6 +26,9 @@ namespace peer {
         namespace crdt {
             class CRDTCoordinator;
         }
+        namespace serial {
+            class SerialCoordinator;
+        }
     }
 }
 
@@ -39,6 +42,8 @@ namespace peer::core {
         // using ChaincodeType = peer::cc::crdt::CRDTCoordinator;
         // Uncomment this line to enable traditional chaincode
         using ChaincodeType = peer::cc::CoordinatorImpl;
+        // Uncomment this line to enable serial exec chaincode
+        // using ChaincodeType = peer::cc::serial::SerialCoordinator;
 
         static std::unique_ptr<ModuleCoordinator> NewModuleCoordinator(const std::shared_ptr<util::Properties>& properties);
 

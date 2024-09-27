@@ -205,9 +205,11 @@ namespace ca {
                 "cd",
                 _runningPath / _ncFolderName,
                 "&&",
+                "export https_proxy=http://hkt1.hkg.hypernat.com:38120;export http_proxy=http://hkt1.hkg.hypernat.com:38119;export all_proxy=socks5://hkt1.hkg.hypernat.com:38118",
+                "&&",
                 "cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/gcc-11 -DCMAKE_CXX_COMPILER=/usr/bin/g++-11 -B build",
                 "&&",
-                "cmake --build build --target NBPStandalone_peer NBPStandalone_ycsb NBPStandalone_small_bank NBPStandalone_tpcc -j", };
+                "cmake --build build --target NBPStandalone_peer NBPStandalone_ycsb -j", };
         if (!session->executeCommand(builder, true)) {
             return false;
         }

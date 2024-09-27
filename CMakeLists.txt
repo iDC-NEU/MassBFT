@@ -204,6 +204,10 @@ find_package(erasurecode_install
         PATHS ${PROJECT_SOURCE_DIR}/vendor
 )
 
+### HotStuff support
+file(COPY ${PROJECT_SOURCE_DIR}/vendor/hotstuff/include DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY ${PROJECT_SOURCE_DIR}/vendor/hotstuff/lib DESTINATION ${CMAKE_BINARY_DIR})
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/vendor/tools.cmake)
 ### compile protobuf
 file(GLOB PROTO_FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/proto/*.proto")
@@ -213,7 +217,7 @@ ADD_LIBRARY(${PROJECT_NAME}_proto ${PROTO_HDRS} ${PROTO_SRCS})
 
 find_library(gflags gflags PATHS ${PROJECT_BINARY_DIR}/lib)
 # NOTE: DO NOT LINK BRPC.SO AND BRAFT.SO TOGETHER
-SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ${PROJECT_NAME}_proto leveldb rocksdb ssh curve25519x64)
+SET(COMMON_DEPENDENCIES glog yaml-cpp fmt pthread zmq braft gtl MPMCQueue concurrentqueue RiftenDeque crypto protobuf erasurecode dl grc tcmalloc ${PROJECT_NAME}_proto leveldb rocksdb ssh curve25519x64 hotstuff)
 
 include_directories(SYSTEM ${CMAKE_BINARY_DIR}/include)
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib)

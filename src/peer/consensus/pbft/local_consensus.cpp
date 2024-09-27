@@ -10,7 +10,7 @@
 namespace peer::consensus::v2 {
     LocalConsensus::LocalConsensus(Config config)
             : _config(std::move(config)), _running(false) {
-        _blockCache = std::make_unique<PBFTBlockCache>();
+//        _blockCache = std::make_unique<PBFTBlockCache>();
         _requestReplicator = std::make_unique<RequestReplicator>(RequestReplicator::Config{_config.timeoutMs, _config.maxBatchSize});
         _requestReplicator->setBatchCallback([this](auto&& item) {
             return this->pushUnorderedBlock(std::forward<decltype(item)>(item));
@@ -55,7 +55,7 @@ namespace peer::consensus::v2 {
                 CHECK(false) << "Queue max size achieve!";
             }
         }
-        _blockCache->storeCachedBlock(std::move(block));
+//        _blockCache->storeCachedBlock(std::move(block));
         return true;
     }
 
@@ -65,65 +65,74 @@ namespace peer::consensus::v2 {
         return sig;
     }
 
-    bool LocalConsensus::OnVerifyProposal(const util::NodeConfigPtr &localNode, const std::string &serializedHeader) {
-        proto::Block::Header header;
-        if (!header.deserializeFromString(serializedHeader)) {
-            return false;
-        }
-        DLOG(INFO) << "Verify Block, groupId: " << localNode->groupId << " blk number:" << header.number;
-        if (!_blockCache->isDeliveredBlockHeaderValid(header)) {
-            return false;
-        }
-        // create signed message
-        const auto key = _bccsp->GetKey(localNode->ski);
-        if (key == nullptr || !key->Private()) {
-            LOG(WARNING) << "Can not load key.";
-            return false;
-        }
-        // sign the message with the private key
-        auto signature = key->Sign(serializedHeader.data(), serializedHeader.size());
-        if (signature == std::nullopt) {
-            LOG(WARNING) << "Sign message failed.";
-            return false;
-        }
-
-        auto pair = std::make_unique<::proto::Block::SignaturePair>();
-        pair->second.ski = localNode->ski;
-        pair->second.digest = *signature;
-        _signatureCache.push(std::move(pair));
+    bool LocalConsensus::OnVerifyProposal(const util::NodeConfigPtr &, const std::string &) {
+//        proto::Block;
+//        if (!block.deserializeFromString(std::string(serializedHeader)).valid) {
+//            return false;
+//        }
+//        DLOG(INFO) << "Verify Block, groupId: " << localNode->groupId << " blk number:" << block.header.number;
+//        if (!_blockCache->isDeliveredBlockHeaderValid(header)) {
+//            return false;
+//        }
+//        // create signed message
+//        const auto key = _bccsp->GetKey(localNode->ski);
+//        if (key == nullptr || !key->Private()) {
+//            LOG(WARNING) << "Can not load key.";
+//            return false;
+//        }
+//        // sign the message with the private key
+//        auto signature = key->Sign(serializedHeader.data(), serializedHeader.size());
+//        if (signature == std::nullopt) {
+//            LOG(WARNING) << "Sign message failed.";
+//            return false;
+//        }
+//
+//        auto pair = std::make_unique<::proto::Block::SignaturePair>();
+//        pair->second.ski = localNode->ski;
+//        pair->second.digest = *signature;
+//        _signatureCache.push(std::move(pair));
 
         // Find the target block in block pool (wait timed),
         // the other thread will validate the block,
         // so if we find the block, we can return safely.
-        auto block = _blockCache->loadCachedBlock(header.dataHash, _config.timeoutMs*10);
-        if (block == nullptr) {
-            return false;
-        }
-        DCHECK(block->header.dataHash == header.dataHash);
-        block->header = header;
+//        auto block = _blockCache->loadCachedBlock(header.dataHash, _config.timeoutMs*10);
+//        if (block == nullptr) {
+//            return false;
+//        }
+//        DCHECK(block->header.dataHash == header.dataHash);
+//        block->header = header;
         return true;
     }
 
     bool LocalConsensus::OnDeliver(::util::NodeConfigPtr localNode,
                                    const std::string &context,
-                                   std::vector<::proto::Block::SignaturePair> &&signatures) {
-        proto::Block::Header header;
-        if (!header.deserializeFromString(context)) {
+                                   std::vector<::proto::Block::SignaturePair> &&) {
+        std::shared_ptr<proto::Block> block(new proto::Block);
+        if (!block->deserializeFromString(std::string(context)).valid) {
             return false;
         }
-        auto block = _blockCache->eraseCachedBlock(header.dataHash);
-        CHECK(block != nullptr) << "Block mut be not null!" << util::OpenSSLSHA256::toString(header.dataHash);
-        // serialize block here (do not serialize signature)
-        {
-            auto serializedBlock = std::make_unique<std::string>();
-            serializedBlock->reserve(100 * 1024);
-            auto posList = block->serializeToString(serializedBlock.get());
-            if (!posList.valid) {
-                LOG(WARNING) << "Serialize block failed!";
-            }
-            block->setSerializedMessage(std::move(serializedBlock));
+        lastBlockNumber += 1;
+        if ((int)block->header.number != lastBlockNumber) {
+            return false;
         }
-        block->metadata.consensusSignatures = std::move(signatures);
+//        DLOG(INFO) << "Deliver Block, groupId: " << localNode->groupId << " blk number:" << block->header.number;
+//        proto::Block::Header header;
+//        if (!header.deserializeFromString(context)) {
+//            return false;
+//        }
+//        auto block = _blockCache->eraseCachedBlock(header.dataHash);
+//        CHECK(block != nullptr) << "Block mut be not null!" << util::OpenSSLSHA256::toString(header.dataHash);
+        // serialize block here (do not serialize signature)
+//        {
+//            auto serializedBlock = std::make_unique<std::string>();
+//            serializedBlock->reserve(100 * 1024);
+//            auto posList = block->serializeToString(serializedBlock.get());
+//            if (!posList.valid) {
+//                LOG(WARNING) << "Serialize block failed!";
+//            }
+//            block->setSerializedMessage(std::move(serializedBlock));
+//        }
+//        block->metadata.consensusSignatures = std::move(signatures);
 
         // validate the block signature
         // for (const auto& it: block->metadata.consensusSignatures) {
@@ -136,12 +145,12 @@ namespace peer::consensus::v2 {
         if (_deliverCallback != nullptr) {
             _deliverCallback(block, std::move(localNode));
         }
-        _blockCache->setBlockDelivered(std::move(block));
+//        _blockCache->setBlockDelivered(std::move(block));
         return true;
     }
 
     void LocalConsensus::OnLeaderStart(::util::NodeConfigPtr localNode, int) {
-        _blockCache->setBlockProposed(_blockCache->getBlockDelivered());
+//        _blockCache->setBlockProposed(_blockCache->getBlockDelivered());
         _signatureCache.reset();
         _isLeader = true;
         auto portInfo = _config.getNodeInfo(localNode->nodeId);
@@ -151,7 +160,7 @@ namespace peer::consensus::v2 {
 
     void LocalConsensus::OnLeaderChange(::util::NodeConfigPtr, ::util::NodeConfigPtr newLeaderNode, int) {
         _isLeader = false;
-        _blockCache->setBlockProposed(nullptr); // clear the state
+//        _blockCache->setBlockProposed(nullptr); // clear the state
         _signatureCache.reset();
         auto portInfo = _config.getNodeInfo(newLeaderNode->nodeId);
         _requestReplicator->startFollower(portInfo->nodeConfig->priIp, portInfo->port);
@@ -171,13 +180,16 @@ namespace peer::consensus::v2 {
         if (block == nullptr) {
             return std::nullopt;
         }
-        _blockCache->updateBlockHeaderWithProposedBlock(block->header);
+//        _blockCache->updateBlockHeaderWithProposedBlock(block->header);
+        static int number = 0;
+        block->header.number = number;
+        number += 1;
         DLOG(INFO) << "Leader of local group " << localNode->groupId << " created a block, number: " << block->header.number;
-        _blockCache->setBlockProposed(block);
+//        _blockCache->setBlockProposed(block);
         // LOG(INFO) << "request proposal, block number: " << block->header.number;
         // Sign the serialized block header is enough, return the header only
         std::string serializedHeader;
-        if (!block->header.serializeToString(&serializedHeader)) {
+        if (!block->serializeToString(&serializedHeader).valid) {
             return std::nullopt;
         }
 

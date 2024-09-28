@@ -83,9 +83,9 @@ namespace peer::cc {
             return static_cast<Derived*>(this)->processSync(afterStart, afterCommit);
         }
 
-        bool processValidatedRequests(std::vector<std::unique_ptr<proto::Envelop>>& requests,
-                                      std::vector<std::unique_ptr<proto::TxReadWriteSet>>& retRWSets,
-                                      std::vector<std::byte>& retResults) {
+        virtual bool processValidatedRequests(std::vector<std::unique_ptr<proto::Envelop>>& requests,
+                                              std::vector<std::unique_ptr<proto::TxReadWriteSet>>& retRWSets,
+                                              std::vector<std::byte>& retResults) {
             retResults.resize(requests.size());
             retRWSets.resize(requests.size());
             const auto totalWorkerCount = (int)workerList.size();

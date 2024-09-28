@@ -4,7 +4,7 @@ CPMAddPackage(
         NAME leveldb
         GITHUB_REPOSITORY google/leveldb
         VERSION 1.2.4
-        GIT_TAG 068d5ee1a3ac40dabd00d211d5013af44be55bea
+        GIT_TAG 23e35d792b9154f922b8b575b12596a4d8664c65
         DOWNLOAD_ONLY True
         GIT_SHALLOW TRUE
 )

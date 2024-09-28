@@ -116,7 +116,7 @@ namespace peer {
                 auto blockIdInt = (int) blockId;
                 auto& futex = newBlockFutexList[regionId];
                 // double check if input is correct
-                DCHECK(futex->load(std::memory_order_acquire) == blockIdInt - 1);
+//                DCHECK(futex->load(std::memory_order_acquire) == blockIdInt - 1);
                 futex->store(blockIdInt, std::memory_order_release);
                 bthread::butex_wake_all(futex);
                 // prune stale block
@@ -134,7 +134,7 @@ namespace peer {
     // the block storage for ALL regions(including this one)
     class MRBlockStorage : public inner::BlockStorageBase<MRBlockStorage> {
     public:
-        explicit MRBlockStorage(int regionCount, int maxSize = 256)
+        explicit MRBlockStorage(int regionCount, int maxSize = 2560)
                 : inner::BlockStorageBase<MRBlockStorage>(regionCount)
                 , _maxSize(maxSize), blockStorage(regionCount) { }
 

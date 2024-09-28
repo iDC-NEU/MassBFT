@@ -7,6 +7,7 @@
 #include "peer/consensus/pbft/local_consensus.h"
 #include "peer/storage/mr_block_storage.h"
 #include "common/pbft/pbft_rpc_service.h"
+#include "common/hotstuff/hotstuff_rpc_service.h"
 #include "common/zmq_port_util.h"
 
 namespace peer::consensus::v2 {
@@ -67,17 +68,19 @@ namespace peer::consensus::v2 {
                 LOG(ERROR) << "Replicator service start failed!";
                 return nullptr;
             }
-            auto service = new util::pbft::PBFTRPCService();
+            util::pbft::HotStuffRPCService::SetGlobalId(localId);
+            auto service = new util::pbft::HotStuffRPCService();
+//            auto service = new util::pbft::PBFTRPCService();
             if(!service->checkAndStart(localRegionNodes, bccsp, controller->_replicator)) {
                 LOG(ERROR) << "Fail to start PBFTRPCService!";
                 return nullptr;
             }
             auto rpcPort = localPortConfig->getLocalServicePorts(util::PortType::BFT_RPC).at(localId);
             controller->rpcServerPort = rpcPort;
-            if (util::DefaultRpcServer::AddService(service, rpcPort) != 0) {
-                LOG(ERROR) << "Fail to add globalControlService!";
-                return nullptr;
-            }
+//            if (util::DefaultRpcServer::AddService(service, rpcPort) != 0) {
+//                LOG(ERROR) << "Fail to add globalControlService!";
+//                return nullptr;
+//            }
             return controller;
         }
 

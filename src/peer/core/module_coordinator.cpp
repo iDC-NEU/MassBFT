@@ -106,9 +106,9 @@ namespace peer::core {
             return false;
         }
         // NOTE: do not invoke realBlock->setSerializedMessage, not thread safe!
-        if (_localNode->nodeId == 0) {
+//        if (_localNode->nodeId == 0) {
             DLOG(INFO) << "Leader of local group " << _localNode->groupId << " commit a block, chainId: " << regionId  << ", blockId: " << blockId;
-        }
+//        }
         // notify user by rpc
         _userRPCNotifier->insertBlockAndNotify(regionId, std::move(realBlock));
         return true;
